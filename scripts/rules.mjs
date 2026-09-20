@@ -23,6 +23,8 @@ export function loadRules(root) {
     const decode = rule => ({ ...rule, source: text(rule.regex), sample: text(rule.sample) });
     return {
         salt: rules.salt,
+        minTokenLength: rules.minTokenLength,
+        maxTokenLength: rules.maxTokenLength,
         tokenHashes: new Set(rules.tokenHashes),
         allowedHosts: new Set(rules.allowedHosts),
         repositoryPatterns: rules.repositoryPatterns.map(decode),
@@ -74,10 +76,34 @@ export function tokenCandidates(line) {
     return candidates;
 }
 
+/**
+ * How short a run may be and still be worth decoding.
+ *
+ * Derived from the rules, never chosen by feel. The first version demanded 24
+ * base64 characters and 32 hex characters - 18 and 16 bytes of plaintext -
+ * while every name on the list is 4 to 15 characters, so the decoders could not
+ * have caught a single one. The run announced that it was "scanning as base64,
+ * hex, …" the whole time. A threshold with no relationship to what is being
+ * looked for is how a check comes to report success about what it never read.
+ */
+export function thresholds(rules) {
+    const min = rules.minTokenLength;
+    if (typeof min !== 'number' || min < 1) {
+        throw new Error('rules.json must declare minTokenLength: the decoders size themselves from it');
+    }
+    return {
+        minTokenLength: min,
+        maxTokenLength: rules.maxTokenLength,
+        // The unpadded length of `min` bytes in base64, and in hex.
+        base64MinRun: Math.ceil((4 * min) / 3),
+        hexMinRun: 2 * min
+    };
+}
+
 const PRINTABLE = /^[\t\n\r\x20-\x7e]*$/u;
 
-function readable(buffer) {
-    if (buffer.length < 4) {
+function readable(buffer, minLength) {
+    if (buffer.length < minLength) {
         return undefined;
     }
     const text = buffer.toString('utf8');
@@ -90,7 +116,7 @@ function readable(buffer) {
  * Returns `[{ encoding, text }]` for every decoding that produced readable
  * text. The original line is not included; the caller already has it.
  */
-export function decodings(line) {
+export function decodings(line, limits) {
     const found = [];
     const add = (encoding, text) => {
         if (text !== undefined && text.trim() !== '' && text !== line) {
@@ -98,16 +124,25 @@ export function decodings(line) {
         }
     };
 
-    for (const run of line.match(/[A-Za-z0-9+/=_-]{24,}/gu) ?? []) {
+    const base64Runs = new RegExp(`[A-Za-z0-9+/=_-]{${limits.base64MinRun},}`, 'gu');
+    for (const run of line.match(base64Runs) ?? []) {
         const standard = run.replace(/-/gu, '+').replace(/_/gu, '/');
-        try {
-            add('base64', readable(Buffer.from(standard, 'base64')));
-        } catch {
-            // Not base64 after all.
+        // Four offsets, because base64 encodes three bytes at a time: a name
+        // that starts one or two bytes into the encoded run is unreadable from
+        // offset 0 and perfectly readable from offset 1 or 2.
+        for (let offset = 0; offset < 4 && offset < standard.length; offset += 1) {
+            try {
+                add('base64', readable(Buffer.from(standard.slice(offset), 'base64'), limits.minTokenLength));
+            } catch {
+                // Not base64 after all.
+            }
         }
     }
-    for (const run of line.match(/(?:[0-9a-fA-F]{2}){16,}/gu) ?? []) {
-        add('hex', readable(Buffer.from(run, 'hex')));
+    const hexRuns = new RegExp(`(?:[0-9a-fA-F]{2}){${Math.ceil(limits.hexMinRun / 2)},}`, 'gu');
+    for (const run of line.match(hexRuns) ?? []) {
+        add('hex', readable(Buffer.from(run, 'hex'), limits.minTokenLength));
+        // Hex is two characters per byte, so an odd start shifts everything.
+        add('hex', readable(Buffer.from(run.slice(1), 'hex'), limits.minTokenLength));
     }
     if (line.includes('%')) {
         try {
@@ -130,9 +165,20 @@ export function decodings(line) {
     return found;
 }
 
-/** What the scanner still cannot see. Printed on every run, never implied. */
-export function blindSpots() {
+/**
+ * What the scanner still cannot see. Printed on every run, never implied.
+ *
+ * Every sentence about an encoding is computed from the same thresholds the
+ * decoders use, so this list cannot drift into claiming a coverage the code
+ * does not have - which is exactly what happened when the numbers lived in two
+ * places and only one of them was true.
+ */
+export function blindSpots(rules) {
+    const limits = thresholds(rules);
     return [
+        `a name shorter than ${limits.minTokenLength} characters (the shortest rule is ${limits.minTokenLength}, the longest ${limits.maxTokenLength}; the decoders are sized to the shortest)`,
+        `base64 in a run shorter than ${limits.base64MinRun} characters, or hex in a run shorter than ${limits.hexMinRun} - shorter than that and there is no room for the shortest name`,
+        'anything split across two lines, since each line is read on its own',
         'compressed (gzip/deflate) or encrypted payloads',
         'text assembled at runtime from arithmetic or character codes',
         'anything fetched at install or run time rather than shipped'
@@ -147,6 +193,7 @@ export function blindSpots() {
  * the name.
  */
 export function scanFile({ label, text, patterns, rules, extraTokenHashes = new Set(), onFinding }) {
+    const limits = thresholds(rules);
     const lines = text.split('\n');
     for (const [index, line] of lines.entries()) {
         const where = `${label}:${index + 1}`;
@@ -158,7 +205,7 @@ export function scanFile({ label, text, patterns, rules, extraTokenHashes = new 
             }
         }
 
-        const views = [{ encoding: 'plaintext', text: line }, ...decodings(line)];
+        const views = [{ encoding: 'plaintext', text: line }, ...decodings(line, limits)];
         for (const view of views) {
             for (const candidate of tokenCandidates(view.text)) {
                 const digest = hashToken(rules.salt, candidate);

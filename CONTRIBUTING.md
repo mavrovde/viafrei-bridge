@@ -50,7 +50,7 @@ Four more checks exist, and CI runs all of them:
 
 ```bash
 npm run check:tarball   # what npm pack would publish, unpacked and read
-npm run test:gate       # poisons that tarball 25 ways and checks the gate catches each
+npm run test:gate       # poisons that tarball 28 ways and checks the gate catches each
 npm run check:leaks     # the repository itself, working tree and history
 npm run rules:show      # print the rules both checks read, decoded
 ```
@@ -74,7 +74,21 @@ knowing why it looks the way it does:
 Adding a rule: a new pattern needs a `sample` (base64) that it must match — the
 gate's self-test poisons a real tarball with it, so a rule added is a case added.
 A new private name is added as a hash: `node -e "…"` with the salt from the file,
-or ask a maintainer. Never paste the name.
+or ask a maintainer. Never paste the name. If the new name is shorter than
+`minTokenLength` or longer than `maxTokenLength`, update those too: the decoders
+size themselves from that range, and `blindSpots()` reports what the range
+leaves uncovered.
+
+**What hashing does not do.** The hashes are a confirmation oracle: with a
+wordlist anyone could assemble from this README, a reviewer recovered 10 of the
+12 in seconds. That is accepted rather than overlooked. The list is internal
+naming — tables, roles, two ports, one environment-variable name — with no
+access value and nothing to rotate, and the real gain was never the strings; it
+was losing the captions that explained what each one *was*, and losing the
+exemption that stopped the sweep reading its own rules. Moving `rules.json` out
+of this repository was considered and rejected: a rules file behind a secret
+means the sweep and the gate cannot run for an outside contributor or in a fork,
+so the check would report success in exactly the case it exists for.
 
 There is deliberately **no `prepack`, `prepare` or any other lifecycle script**
 in `package.json`. npm runs those by itself on every machine that installs the

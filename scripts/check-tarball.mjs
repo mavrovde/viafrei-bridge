@@ -107,6 +107,28 @@ const AUTO_RUN_SCRIPTS = new Set([
  */
 const REGISTRY_RANGE = /^(?:\*|latest|(?:npm:@?[^@/]+(?:\/[^@]+)?@)?[\sv^~><=|.\d*x[\]()-]*[\d*x][\s\w.+^~><=|*-]*)$/u;
 
+/**
+ * What a dependency spec actually asks npm to install.
+ *
+ * `"mcp-helper": "npm:@viafrei/mcp@^1.0.0"` is a registry range by every test
+ * that looks at the spec's shape, and the key has no `@viafrei/` in it, so a
+ * check on the NAME sees an innocent dependency called `mcp-helper` and a check
+ * on the SPEC sees a semver range. The alias is the point: it is the supported
+ * way to install one package under another name. So the alias is resolved and
+ * the scope rule is applied to what it resolves TO - which is what this
+ * check's own description claimed it did.
+ */
+function resolveSpec(name, spec) {
+    const alias = /^npm:(@[^/@]+\/[^@]+|[^@][^@]*)(?:@(.*))?$/u.exec(spec);
+    if (alias === null) {
+        return { name, range: spec, aliased: false };
+    }
+    return { name: alias[1] ?? '', range: alias[2] ?? '*', aliased: true };
+}
+
+/** The scope that carries the closed platform. Never a dependency, under any name. */
+const PRIVATE_SCOPE = '@viafrei/';
+
 const findings = [];
 const note = message => {
     process.stdout.write(`${message}\n`);
@@ -157,11 +179,13 @@ function checkManifest(manifest) {
     for (const field of fields) {
         for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
             const shown = `${field} ${name}@${String(spec)}`;
-            if (name.startsWith('@viafrei/')) {
-                fail('dependencies', `${shown} - that scope carries the platform`);
+            const resolved = resolveSpec(name, String(spec));
+            if (name.startsWith(PRIVATE_SCOPE) || resolved.name.startsWith(PRIVATE_SCOPE)) {
+                const how = resolved.aliased ? ` - the alias resolves to ${resolved.name}, and` : ' -';
+                fail('dependencies', `${shown}${how} that scope carries the platform`);
                 continue;
             }
-            if (!REGISTRY_RANGE.test(String(spec))) {
+            if (!REGISTRY_RANGE.test(resolved.range)) {
                 fail(
                     'dependencies',
                     `${shown} is not a registry semver range - it resolves to wherever that points, which a name check cannot see`
@@ -248,7 +272,7 @@ function main() {
         note(
             `gate: scanning ${files.length} files as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals`
         );
-        note(`gate: cannot see ${blindSpots().join('; ')}`);
+        note(`gate: cannot see ${blindSpots(RULES).join('; ')}`);
         for (const file of files) {
             const isProse = file.endsWith('.md');
             const patterns = isProse ? RULES.tarballPatterns : [...RULES.embeddedSourcePatterns, ...RULES.tarballPatterns];
