@@ -1,0 +1,27 @@
+# Build output
+dist/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Never commit any of these. The bridge holds no credentials of its own, and
+# this list is here so that stays true by default rather than by memory.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs and coverage
+*.log
+npm-debug.log*
+coverage/
