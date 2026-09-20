@@ -1,0 +1,25 @@
+ViaFrei bridge
+Copyright 2026 ViaFrei
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+THE LICENCE ABOVE COVERS THIS CODE ONLY.
+
+Data obtained *through* the ViaFrei MCP server is not ours to relicense and
+keeps its provider's own terms. Those terms travel with the answer, not with
+this package, and several of them are share-alike or purpose-limited. In
+particular:
+
+  - DELFI public-transport data is CC BY-SA 4.0. Share-alike: anything derived
+    from it inherits the obligation, and it must not be blended into a result
+    carrying a different licence.
+  - MTS-K fuel prices (Tankerkönig) are consumer information only. No
+    redistribution in any form, aggregates and derived tables included.
+  - Autobahn GmbH, BKG, DWD and the AFIR charging feeds each carry their own
+    licence and attribution string.
+
+Every tool result from the server carries its own attribution line, and the
+server exposes the full register at the resource `viafrei://attribution`. Show
+the attribution line to the person reading the answer. If you are building on
+top of this bridge, read that resource before you decide what you may do with
+what comes back.
