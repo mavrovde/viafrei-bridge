@@ -76,7 +76,7 @@ log(`sweep: ${RULES.repositoryPatterns.length} generic patterns, ${RULES.tokenHa
 log('sweep: no file is skipped - the rules file holds hashes, not names, so it is scanned like any other');
 log(`sweep: host allow-list not applied to ${[...HOST_EXEMPT].join(', ')} (generated; every other check still is)`);
 log('sweep: reading each line as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals');
-log(`sweep: cannot see ${blindSpots().join('; ')}`);
+log(`sweep: cannot see ${blindSpots(RULES).join('; ')}`);
 
 const tracked = git(['ls-files', '-z']).split('\0').filter(name => name !== '');
 let scanned = 0;

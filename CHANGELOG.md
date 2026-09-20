@@ -46,8 +46,10 @@ first real release is this one.
   **every dependency judged by what it resolves to**, not by its name, because a
   git URL under an innocent name is still a git URL. The scan decodes base64,
   hex, percent-encoding, JavaScript escapes and concatenated string literals,
-  and prints what it still cannot see on every run. Its self-test poisons a real
-  tarball 25 ways and checks the gate rejects each one.
+  and prints what it still cannot see on every run - and that statement is
+  computed from the thresholds the decoders actually use, so it cannot claim a
+  coverage the code does not have. Its self-test poisons a real tarball 28 ways
+  and checks the gate rejects each one.
 - **A repository leak sweep** over the working tree and the history, with **no
   file skipped**. The names it looks for are salted hashes rather than text, so
   the rules file carries no secret and needs no exemption - the previous

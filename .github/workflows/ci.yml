@@ -34,7 +34,10 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      - run: npm ci
+      # --ignore-scripts: no dependency's install hook runs in a job that can
+      # build or publish this package. The gate refuses a lifecycle script in
+      # OUR manifest; this is the same rule applied to everyone else's.
+      - run: npm ci --ignore-scripts
 
       - name: Build
         run: npm run build

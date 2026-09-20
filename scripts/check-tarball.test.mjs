@@ -46,19 +46,32 @@ const log = message => {
     process.stdout.write(`${message}\n`);
 };
 
-/** A name nobody has ever used, invented now, so nothing private is written down. */
-function inventToken() {
+/**
+ * A name nobody has ever used, invented now, so nothing private is written down.
+ *
+ * The length matters and used to be wrong here. This test invented a 20-letter
+ * token, which is longer than every name on the real list (4 to 15 characters)
+ * - so the encoded cases passed while the same encodings could not have caught
+ * a real name. Tokens are now as short as the shortest rule and as ordinary as
+ * a middling one.
+ */
+function inventToken(length) {
     const letters = 'abcdefghijklmnopqrstuvwxyz';
     let token = '';
-    while (token.length < 20) {
+    while (token.length < length) {
         token += letters[Math.floor(Math.random() * letters.length)];
     }
     return token;
 }
 
-const SECRET = inventToken();
+const SECRET = inventToken(11);
 const SECRET_HASH = hashToken(RULES.salt, SECRET);
 const withSecret = { ...process.env, VF_EXTRA_TOKEN_HASHES: SECRET_HASH };
+
+/** The shortest name the rules claim to cover - the hardest case to encode. */
+const SHORTEST = inventToken(RULES.minTokenLength);
+const SHORTEST_HASH = hashToken(RULES.salt, SHORTEST);
+const withShortest = { ...process.env, VF_EXTRA_TOKEN_HASHES: SHORTEST_HASH };
 
 function runGate(tarball, env = process.env) {
     try {
@@ -118,7 +131,8 @@ function editManifest(directory, edit) {
 
 try {
     log('gate self-test');
-    log(`  (private-name cases use an invented token hashed to ${SECRET_HASH.slice(0, 12)}…, new every run)`);
+    log(`  (private-name cases use invented tokens of ${SECRET.length} and ${SHORTEST.length} characters, new every run)`);
+    log(`  (the real rules are ${RULES.minTokenLength}-${RULES.maxTokenLength} characters, so a longer stand-in would prove nothing)`);
     log('');
 
     const clean = pack();
@@ -157,6 +171,30 @@ try {
         },
         withSecret
     );
+
+    expectFail(
+        'the-shortest-name-there-is-in-base64',
+        'private name.*as base64',
+        directory => {
+            appendFileSync(join(directory, 'dist/index.js'), `\nconst blob = "${Buffer.from(SHORTEST).toString('base64')}";\n`);
+        },
+        withShortest
+    );
+
+    expectFail(
+        'the-shortest-name-there-is-in-hex',
+        'private name.*as hex',
+        directory => {
+            appendFileSync(join(directory, 'dist/index.js'), `\nconst blob = "${Buffer.from(SHORTEST).toString('hex')}";\n`);
+        },
+        withShortest
+    );
+
+    expectFail('an-npm-alias-onto-the-private-scope', 'dependencies.*@viafrei/', directory => {
+        editManifest(directory, manifest => {
+            manifest.dependencies = { ...manifest.dependencies, 'mcp-helper': 'npm:@viafrei/mcp@^1.0.0' };
+        });
+    });
 
     // --- the rest of the lifecycle and dependency surface ---------------------
 
