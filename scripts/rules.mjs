@@ -11,7 +11,13 @@
  *    decodes base64, hex, percent-encoding and JavaScript string escapes, and
  *    collapses concatenated string literals, before it looks. What it still
  *    cannot see is listed by `blindSpots()` and printed on every run, because a
- *    check that quietly cannot see something is worse than one that says so.
+ *    check that quietly cannot see something is worse than one that says so -
+ *    and a list printed on every run is READ as exhaustive, so anything known
+ *    to be missing belongs in it rather than in a commit message.
+ * 3. **A separator is not a disguise.** A two-word name written with a hyphen,
+ *    a dot, a slash, a space or a capital letter is the same name as the
+ *    underscore spelling, and those are the spellings that reach a README
+ *    sentence or a URL path. `tokenCandidates()` cuts at all of them.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -36,14 +42,62 @@ export function loadRules(root) {
             allowed: new Set((rules.numbers?.allowed ?? []).map(entry => String(entry)))
         },
         allowedHosts: new Set(rules.allowedHosts),
+        historyNumberResidue: (rules.historyNumberResidue ?? []).map(entry => ({
+            blob: String(entry.blob ?? ''),
+            findings: entry.findings
+        })),
         repositoryPatterns: rules.repositoryPatterns.map(decode),
         tarballPatterns: rules.tarballPatterns.map(decode),
         embeddedSourcePatterns: rules.embeddedSourcePatterns.map(decode)
     };
 }
 
+/**
+ * Hashing is memoised because the same identifier recurs on thousands of lines
+ * and the candidate generator is deliberately generous. The cache is keyed by
+ * salt and token, so two rulesets in one process cannot see each other's
+ * answers.
+ */
+const digests = new Map();
+
 export function hashToken(salt, token) {
-    return createHash('sha256').update(`${salt}:${token.toLowerCase()}`).digest('hex');
+    const key = `${salt.length}:${salt}:${token}`;
+    let digest = digests.get(key);
+    if (digest === undefined) {
+        digest = createHash('sha256').update(`${salt}:${token.toLowerCase()}`).digest('hex');
+        if (digests.size < 500_000) {
+            digests.set(key, digest);
+        }
+    }
+    return digest;
+}
+
+/**
+ * A string that came out of scanned content, made safe to print.
+ *
+ * `opaque` is for a string that IS the thing a rule rejected - a host that is
+ * not on the allow-list, a dependency spec that is not a registry range. There
+ * is nothing safe to show, so the reader gets the category (from the caller),
+ * the length and a hash prefix, and opens the file to see the rest.
+ *
+ * `safeString` is for a string that is a LOCATION rather than a value - a file
+ * path. A path is worth printing, and a path can also carry a private name in
+ * it (`dist/<name>.js`), which nothing else in this code would ever have
+ * caught, because the scanners read file contents and not file names. So the
+ * path is printed unless it contains a private name, and withheld if it does.
+ */
+export function opaque(value, rules) {
+    return `${value.length} characters, hash ${hashToken(rules.salt, value).slice(0, 12)}…`;
+}
+
+export function safeString(value, rules) {
+    const limits = thresholds(rules);
+    for (const candidate of tokenCandidates(value, limits)) {
+        if (rules.tokenHashes.has(hashToken(rules.salt, candidate))) {
+            return `[withheld: ${opaque(value, rules)}, it contains a private name]`;
+        }
+    }
+    return value;
 }
 
 export function compile(rule) {
@@ -54,35 +108,73 @@ export function compile(rule) {
  * Every name a line could be hiding.
  *
  * A plain word list would miss a private name buried inside a longer
- * identifier (`my_<name>_backup`) or welded to a word (`port<number>`), so each
- * identifier is also broken at its underscores and at its letter/digit
- * boundaries, and every contiguous run of those pieces is offered as a
- * candidate. A name is found inside a longer one; a longer number is not
- * mistaken for a port it merely contains.
+ * identifier (`my_<name>_backup`), welded to a word (`port<number>`), or
+ * simply spelled with a separator other than the one somebody thought of. The
+ * previous version split at `_` and at letter/digit boundaries only, so the
+ * underscore spelling of a two-word name was caught and the hyphen, dot,
+ * slash, space and camelCase spellings of the same name were all invisible -
+ * which is exactly how such a name reaches a README sentence, a URL path or a
+ * schema-qualified string.
+ *
+ * So the line is cut into pieces at EVERY non-alphanumeric character and at
+ * every letter/digit and camel-case boundary, and every contiguous window of
+ * pieces is offered, joined with an underscore and joined with nothing. The
+ * windows cross the old separators, so one construction covers all of them.
+ *
+ * Windows are bounded by the rules rather than by a count of pieces: a
+ * candidate shorter than the shortest name on the list, or longer than the
+ * longest, cannot be one of them, so it is never hashed. That bound is what
+ * keeps a line of prose - now one run of pieces from end to end - cheap, and
+ * it replaces the old piece-count cliff that skipped a long identifier whole
+ * rather than looking inside it.
+ *
+ * The bound is sound only while every hash on the list is of a token inside
+ * `minTokenLength`…`maxTokenLength`; `_tokenLength` in rules.json is that
+ * promise, `blindSpots()` states it on every run, and a hash passed in through
+ * `VF_EXTRA_TOKEN_HASHES` has to keep it too.
  */
-/** Beyond this many pieces the combinations stop being worth their cost. */
-export const MAX_IDENTIFIER_PIECES = 12;
+/** Pieces: a camel-case hump, an all-caps run, a lower-case word, a digit run. */
+const PIECE = /[A-Z]+(?![a-z])|[A-Z][a-z]*|[a-z]+|[0-9]+/gu;
 
-export function tokenCandidates(line) {
+export function linePieces(line) {
+    const pieces = [];
+    for (const chunk of line.match(/[A-Za-z0-9]+/gu) ?? []) {
+        for (const piece of chunk.match(PIECE) ?? []) {
+            pieces.push(piece.toLowerCase());
+        }
+    }
+    return pieces;
+}
+
+export function tokenCandidates(line, limits) {
+    const min = limits.minTokenLength;
+    const max = limits.maxTokenLength;
     const candidates = new Set();
+    const offer = value => {
+        if (value.length >= min && value.length <= max) {
+            candidates.add(value);
+        }
+    };
+    // The identifier exactly as written, underscores included: a name spelled
+    // with a doubled or a trailing underscore survives here and nowhere else,
+    // because the piece windows normalise every separator to one underscore.
     for (const run of line.match(/[A-Za-z0-9_]+/gu) ?? []) {
-        const lowered = run.toLowerCase();
-        candidates.add(lowered);
-        const pieces = [];
-        for (const part of lowered.split('_')) {
-            if (part === '') {
-                continue;
+        offer(run.toLowerCase());
+    }
+    const pieces = linePieces(line);
+    for (let start = 0; start < pieces.length; start += 1) {
+        let glued = '';
+        let joined = '';
+        for (let end = start; end < pieces.length; end += 1) {
+            glued += pieces[end];
+            joined += end === start ? pieces[end] : `_${pieces[end]}`;
+            // `glued` is the shorter of the two spellings and only grows, so
+            // once it is too long every longer window is too.
+            if (glued.length > max) {
+                break;
             }
-            pieces.push(...(part.match(/[a-z]+|[0-9]+/gu) ?? [part]));
-        }
-        if (pieces.length > MAX_IDENTIFIER_PIECES) {
-            continue;
-        }
-        for (let start = 0; start < pieces.length; start += 1) {
-            for (let end = start + 1; end <= pieces.length; end += 1) {
-                candidates.add(pieces.slice(start, end).join('_'));
-                candidates.add(pieces.slice(start, end).join(''));
-            }
+            offer(glued);
+            offer(joined);
         }
     }
     return candidates;
@@ -97,22 +189,55 @@ export function tokenCandidates(line) {
  * have caught a single one. The run announced that it was "scanning as base64,
  * hex, …" the whole time. A threshold with no relationship to what is being
  * looked for is how a check comes to report success about what it never read.
+ *
+ * The same argument applies to the numbers window, and until round 5 it was
+ * not applied there. `numbers.minDigits`/`maxDigits` were only type-checked,
+ * so a window of 20-25 digits made the number rule match nothing at all and
+ * BOTH legs still exited 0 and printed PASS - a gate with no input reporting
+ * success, in the one rule that now carries every numeric check. Every other
+ * rule list here refuses when it empties; this one does too now, and the
+ * refusal is derived rather than felt: the allow-list is the statement of what
+ * numbers this repository contains, so a window that does not contain the
+ * allow-list is a window that has stopped describing the same class.
  */
 export function thresholds(rules) {
     const min = rules.minTokenLength;
     const max = rules.maxTokenLength;
-    if (typeof min !== 'number' || min < 1) {
-        throw new Error('rules.json must declare minTokenLength: the decoders size themselves from it');
+    if (!Number.isInteger(min) || min < 1) {
+        throw new Error('rules.json must declare minTokenLength as a whole number of at least 1: the decoders size themselves from it');
     }
-    if (typeof max !== 'number' || max < min) {
+    if (!Number.isInteger(max) || max < min) {
         throw new Error('rules.json must declare maxTokenLength, and it may not be smaller than minTokenLength');
     }
-    if (typeof rules.numbers.minDigits !== 'number' || typeof rules.numbers.maxDigits !== 'number') {
-        throw new Error('rules.json must declare numbers.minDigits and numbers.maxDigits');
+    const { minDigits, maxDigits, allowed } = rules.numbers ?? {};
+    if (!Number.isInteger(minDigits) || minDigits < 1) {
+        throw new Error('rules.json must declare numbers.minDigits as a whole number of at least 1');
+    }
+    if (!Number.isInteger(maxDigits) || maxDigits < minDigits) {
+        throw new Error('rules.json must declare numbers.maxDigits, and it may not be smaller than numbers.minDigits');
+    }
+    if (!(allowed instanceof Set) || allowed.size === 0) {
+        throw new Error(
+            'numbers.allowed is empty: it is the whole of the numeric coverage, and an empty rule list is a refusal here like every other one'
+        );
+    }
+    // Reported by count, never by value - this message reaches a public CI log.
+    const shaped = [...allowed].filter(entry => /^[0-9]+$/u.test(entry));
+    if (shaped.length !== allowed.size) {
+        throw new Error(`${allowed.size - shaped.length} of the ${allowed.size} numbers.allowed entries are not bare digits, so they can never match`);
+    }
+    const inside = shaped.filter(entry => entry.length >= minDigits && entry.length <= maxDigits);
+    if (inside.length !== shaped.length) {
+        throw new Error(
+            `${shaped.length - inside.length} of the ${shaped.length} numbers.allowed entries fall outside the ${minDigits}-${maxDigits} digit window, ` +
+                'so the window and the allow-list no longer describe the same class of number and the rule checks less than it claims'
+        );
     }
     return {
         minTokenLength: min,
-        maxTokenLength: rules.maxTokenLength,
+        maxTokenLength: max,
+        minDigits,
+        maxDigits,
         // The unpadded length of `min` bytes in base64, and in hex.
         base64MinRun: Math.ceil((4 * min) / 3),
         hexMinRun: 2 * min
@@ -211,8 +336,9 @@ export function decodings(line, limits) {
 const YEAR_CONTEXT =
     /(?:copyright|\(c\)|©|january|february|march|april|may|june|july|august|september|october|november|december)[\s,]*$/u;
 
-export function scanNumbers(line, rules, onFinding) {
-    const { minDigits, maxDigits, allowed } = rules.numbers;
+export function scanNumbers(line, rules, onFinding, limits = thresholds(rules)) {
+    const { minDigits, maxDigits } = limits;
+    const allowed = rules.numbers.allowed;
     const candidates = new RegExp(`(?<![0-9])[0-9]{${minDigits},${maxDigits}}(?![0-9])`, 'gu');
     let match;
     while ((match = candidates.exec(line)) !== null) {
@@ -256,11 +382,13 @@ export function scanNumbers(line, rules, onFinding) {
 export function blindSpots(rules) {
     const limits = thresholds(rules);
     return [
-        `a name shorter than ${limits.minTokenLength} characters (the shortest rule is ${limits.minTokenLength}, the longest ${limits.maxTokenLength}; the decoders are sized to the shortest)`,
+        `a name shorter than ${limits.minTokenLength} characters or longer than ${limits.maxTokenLength} - the rules cover that range, the decoders are sized to the shortest, and no candidate outside it is hashed`,
         `base64 in a run shorter than ${limits.base64MinRun} characters, or hex in a run shorter than ${limits.hexMinRun} - shorter than that there is no room for the shortest name`,
-        `a number of fewer than ${rules.numbers.minDigits} or more than ${rules.numbers.maxDigits} digits, and any number that is not written as a bare number`,
+        `a number of fewer than ${limits.minDigits} or more than ${limits.maxDigits} digits, and any number that is not written as a bare number`,
         'a decoded run that contains even one byte outside printable ASCII - the run is discarded whole, so a name next to binary in the same run is not seen',
-        `an identifier that breaks into more than ${MAX_IDENTIFIER_PIECES} pieces, which is skipped rather than combined`,
+        'an encoding inside an encoding: each line is decoded exactly ONE level, so base64 of base64, or base64 of hex, is not seen',
+        'a name written backwards, which is worth naming because this repository uses reversal as an encoding itself in scripts/rules.json',
+        'UTF-16 or any other wide encoding - every decoder reads its bytes as UTF-8',
         'anything split across two lines, since every check reads one line at a time',
         'compressed (gzip/deflate) or encrypted payloads',
         'text assembled at runtime from arithmetic or character codes',
@@ -284,19 +412,25 @@ export function blindSpots(rules) {
  * itself, while the same shape inside a real statement is longer than any rule
  * definition and matches nothing here. It is a self-reference test, not an
  * exemption for a file.
+ *
+ * Both sides are trimmed. The comparison used to trim the decoded view and not
+ * the rule sources, and one rule source carries leading whitespace, so that
+ * rule could never reach its own exclusion - harmless in practice, but the
+ * exactness is claimed here and a claim that is not true of every rule is not
+ * exactness.
  */
 function isOwnRuleText(text, rules) {
     if (ownRuleTexts === undefined) {
         ownRuleTexts = new Set();
+        const remember = value => {
+            ownRuleTexts.add(value.trim());
+            ownRuleTexts.add([...value].reverse().join('').trim());
+        };
         for (const list of [rules.repositoryPatterns, rules.tarballPatterns, rules.embeddedSourcePatterns]) {
             for (const rule of list ?? []) {
-                ownRuleTexts.add(rule.source);
+                remember(rule.source);
                 if (rule.sample !== undefined) {
-                    ownRuleTexts.add(rule.sample);
-                }
-                ownRuleTexts.add([...rule.source].reverse().join(''));
-                if (rule.sample !== undefined) {
-                    ownRuleTexts.add([...rule.sample].reverse().join(''));
+                    remember(rule.sample);
                 }
             }
         }
@@ -308,6 +442,21 @@ let ownRuleTexts;
 
 export function scanFile({ label, text, patterns, rules, extraTokenHashes = new Set(), onFinding }) {
     const limits = thresholds(rules);
+
+    // The NAME of the file, not only its contents. Nothing scanned the labels
+    // before, so a private name in a path - `dist/<name>.js` - was invisible to
+    // every rule here and was then printed verbatim by the caller's listing.
+    for (const candidate of tokenCandidates(label, limits)) {
+        const digest = hashToken(rules.salt, candidate);
+        if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
+            onFinding({
+                kind: 'private name',
+                where: label,
+                detail: `a private name (hash ${digest.slice(0, 12)}…) is in this path, not only in what it contains`
+            });
+        }
+    }
+
     const lines = text.split('\n');
     for (const [index, line] of lines.entries()) {
         const where = `${label}:${index + 1}`;
@@ -331,13 +480,18 @@ export function scanFile({ label, text, patterns, rules, extraTokenHashes = new 
                     onFinding({ kind: 'pattern', where, detail: `${rule.label}, as ${view.encoding}` });
                 }
             }
-            scanNumbers(view.text, rules, finding => {
-                onFinding({ kind: finding.kind, where, detail: `${finding.detail} (as ${view.encoding})` });
-            });
+            scanNumbers(
+                view.text,
+                rules,
+                finding => {
+                    onFinding({ kind: finding.kind, where, detail: `${finding.detail} (as ${view.encoding})` });
+                },
+                limits
+            );
         }
 
         for (const view of views) {
-            for (const candidate of tokenCandidates(view.text)) {
+            for (const candidate of tokenCandidates(view.text, limits)) {
                 const digest = hashToken(rules.salt, candidate);
                 if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
                     onFinding({

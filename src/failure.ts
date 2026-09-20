@@ -90,6 +90,16 @@ export class RequestTimeoutError extends Error {
 export type RedirectRefusal = 'cross-origin' | 'no-location' | 'too-many';
 
 /**
+ * How many same-origin hops are a redirect, and how many are a loop.
+ *
+ * Defined here, next to the sentence that quotes it, and imported by the fetch
+ * wrapper that enforces it. It used to be defined in `src/fetch.ts` and typed
+ * out again as a literal in `redirectLine()`, which is a number in two places
+ * and therefore a number that can disagree with itself.
+ */
+export const MAX_REDIRECTS = 5;
+
+/**
  * Raised by the fetch wrapper when a redirect was not followed.
  *
  * Every request carries the caller's `--header` values. A redirect is the
@@ -200,7 +210,7 @@ function redirectLine(error: RedirectRefusedError): string {
         return `viafrei: ${error.from} answered HTTP ${error.httpStatus} redirecting to ${error.to} - a different origin, and this request carries the headers you gave me, so I did not follow it. Point --url at the final endpoint if that redirect is expected.`;
     }
     if (error.reason === 'too-many') {
-        return `viafrei: ${error.from} kept redirecting (more than 5 hops, last ${error.to}) - that is a loop, not an endpoint.`;
+        return `viafrei: ${error.from} kept redirecting (more than ${MAX_REDIRECTS} hops, last ${error.to}) - that is a loop, not an endpoint.`;
     }
     return `viafrei: ${error.from} answered HTTP ${error.httpStatus} - a redirect with no Location to follow.`;
 }

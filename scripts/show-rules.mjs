@@ -30,6 +30,8 @@ console.log('\nA finding reports a hash prefix and a location, never the name it
 console.log('a CI log on a public repository is as public as the file would have been.');
 
 console.log(`\nallowed hosts: ${[...rules.allowedHosts].join(', ')}`);
+console.log(`allowed numbers: ${rules.numbers.allowed.size} entries of ${limits.minDigits}-${limits.maxDigits} digits, every one of which occurs in the working tree`);
+console.log(`historical numeric residue: ${rules.historyNumberResidue.length} blob(s), named by content address, suppressed in the history leg only`);
 console.log(`\nthe decoders are sized to the shortest rule: base64 runs from ${limits.base64MinRun} characters, hex from ${limits.hexMinRun}`);
 console.log(`\nthe scanner cannot see:`);
 for (const spot of blindSpots(rules)) {

@@ -9,17 +9,31 @@
  *
  * **Every case is derived from the gate's own rules**, not typed out here: one
  * per lifecycle script npm can start by itself, one per forbidden file name,
- * one per required file, one per content pattern, and one per encoding at each
- * alignment. A rule added to the gate is a case added here; a rule list that
- * goes empty is a REFUSAL to run rather than a smaller, quieter pass. That was
- * a real hole: this file used to exit on `failures === 0` whatever the number
- * of cases, so emptying a list in `rules.json` deleted six cases and still
- * printed PASS.
+ * one per required file, one per content pattern, one for the numbers rule in
+ * plaintext and in base64, and one per encoding at each alignment. A rule added
+ * to the gate is a case added here; a rule list that goes empty is a REFUSAL to
+ * run rather than a smaller, quieter pass. That was a real hole: this file used
+ * to exit on `failures === 0` whatever the number of cases, so emptying a list
+ * in `rules.json` deleted six cases and still printed PASS.
+ *
+ * It also mutates the RULESET itself, once per refusal the rules can produce,
+ * and runs each mutation against every leg it applies to - the gate, the sweep,
+ * and the sweep reading history - with a clean control for each. That section
+ * exists because the numbers rule, which
+ * carries all the numeric coverage, could be made inert by a 20-25 digit
+ * window while both legs exited 0 and printed PASS, and none of the 67 cases
+ * here would have noticed: not one of them was a number.
+ *
+ * What it does NOT do, said here rather than implied: it holds no baseline
+ * from an earlier run. It asserts that every case it planned actually ran, and
+ * that the lists it derives cases from are not empty. A rule list that merely
+ * got shorter still produces a shorter plan, and that plan still passes.
  *
  * Nothing private is written down here, in any form. The private-name cases
  * invent a token at run time, hand its salted hash to the gate through
- * `VF_EXTRA_TOKEN_HASHES`, and hide it in the tarball; the poison strings for
- * the content patterns are decoded from the rules' own `sample` fields.
+ * `VF_EXTRA_TOKEN_HASHES`, and hide it in the tarball; the number cases invent
+ * a value outside the allow-list at run time; the poison strings for the
+ * content patterns are decoded from the rules' own `sample` fields.
  *
  * Exit 0 = every case behaved, 1 = a case failed, 2 = the test could not run,
  * which is also a failure.
@@ -65,6 +79,67 @@ function inventToken(length) {
 const SECRET = inventToken(Math.min(RULES.maxTokenLength, RULES.minTokenLength + 4));
 const SHORTEST = inventToken(RULES.minTokenLength);
 const envFor = token => ({ ...process.env, VF_EXTRA_TOKEN_HASHES: hashToken(RULES.salt, token) });
+
+/**
+ * A number the rules forbid, invented here, derived from `rules.numbers`.
+ *
+ * The numbers rule was the one class the 67 cases never exercised - which is
+ * why a 20-25 digit window could make it inert while both legs printed PASS
+ * and nothing noticed. It is exercised now, and like the name cases it is
+ * invented at run time: the shortest width the window covers, not on the
+ * allow-list, so this file spells out no value of its own.
+ */
+function inventNumber() {
+    const digits = RULES.numbers.minDigits;
+    for (let attempt = 0; attempt < 10_000; attempt += 1) {
+        let value = String(1 + Math.floor(Math.random() * 9));
+        while (value.length < digits) {
+            value += String(Math.floor(Math.random() * 10));
+        }
+        if (!RULES.numbers.allowed.has(value)) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+const FORBIDDEN_NUMBER = inventNumber();
+if (FORBIDDEN_NUMBER === undefined) {
+    refuse(`no ${RULES.numbers.minDigits}-digit number is outside numbers.allowed, so the numbers rule cannot be exercised`);
+}
+
+/**
+ * A number of the same width that is in no tracked file.
+ *
+ * Used to prove the sweep refuses an allow-list entry that occurs nowhere -
+ * the round-4 blocker, which was one entry kept only to silence a finding
+ * about a value that had been taken out of the tree. Read from the tree rather
+ * than assumed, so the case cannot quietly stop being about anything.
+ */
+function inventAbsentNumber() {
+    const tracked = execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '');
+    const corpus = tracked
+        .map(file => {
+            try {
+                return readFileSync(join(ROOT, file), 'utf8');
+            } catch {
+                return '';
+            }
+        })
+        .join('\n');
+    for (let attempt = 0; attempt < 10_000; attempt += 1) {
+        const value = inventNumber();
+        if (value !== undefined && !new RegExp(`(?<![0-9])${value}(?![0-9])`, 'u').test(corpus)) {
+            return value;
+        }
+    }
+    return undefined;
+}
+
+const ABSENT_NUMBER = inventAbsentNumber();
+if (ABSENT_NUMBER === undefined) {
+    refuse(`every ${RULES.numbers.minDigits}-digit number occurs in this tree, so the allow-list occurrence rule cannot be exercised`);
+}
 
 const hex = text => Buffer.from(text).toString('hex');
 const b64 = text => Buffer.from(text).toString('base64');
@@ -300,6 +375,15 @@ ENCODING_CASES.push(
 if (ENCODING_CASES.length === 0) {
     refuse('no encoding cases');
 }
+// The numbers rule, in the plaintext view and in every decoding of it: it now
+// carries all the numeric coverage, so it gets the same treatment the names
+// get rather than none at all.
+add('number', 'a-forbidden-number-in-plaintext', 'number:.*not on the allow-list', directory => {
+    appendFileSync(join(directory, 'dist/cli.js'), `\nconst count = ${FORBIDDEN_NUMBER};\n`);
+});
+add('number', 'a-forbidden-number-in-base64', 'number:.*not on the allow-list', directory => {
+    appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${b64(`${pad(2)} ${FORBIDDEN_NUMBER} ${pad(2)}`)}";\n`);
+});
 for (const entry of ENCODING_CASES) {
     add(
         'private name',
@@ -310,6 +394,158 @@ for (const entry of ENCODING_CASES) {
         },
         envFor(entry.token)
     );
+}
+
+// ---------------------------------------------------------------------------
+// Ruleset cases: a rule that cannot match anything is a REFUSAL, in BOTH legs.
+// ---------------------------------------------------------------------------
+//
+// Round 4 moved every numeric check into `numbers`, and `thresholds()` only
+// type-checked its two ends. A window of 20-25 digits made the rule inert and
+// both legs exited 0 and printed PASS - a gate with no input reporting
+// success, which is the failure this project keeps rediscovering. These cases
+// exist so that an inert rule is a test failure rather than the next
+// reviewer's finding.
+//
+// The mutations are DERIVED from the live rules, not typed: the inert window
+// is "just past the widest number the rules cover", so it moves when the rules
+// move. Each is run against the gate AND against the sweep, because a leg that
+// only refuses because its neighbour does is not a leg that refuses.
+const RULESET_CASES = [
+    {
+        name: 'numbers-window-inert',
+        expectation: 'fall outside the .*digit window',
+        mutate: rules => {
+            rules.numbers.minDigits = RULES.numbers.maxDigits + 1;
+            rules.numbers.maxDigits = RULES.numbers.maxDigits + 6;
+        }
+    },
+    {
+        name: 'numbers-allow-list-emptied',
+        expectation: 'numbers.allowed is empty',
+        mutate: rules => {
+            rules.numbers.allowed = [];
+        }
+    },
+    {
+        name: 'numbers-min-digits-zero',
+        expectation: 'numbers.minDigits',
+        mutate: rules => {
+            rules.numbers.minDigits = 0;
+        }
+    },
+    {
+        name: 'numbers-max-below-min',
+        expectation: 'numbers.maxDigits',
+        mutate: rules => {
+            rules.numbers.maxDigits = RULES.numbers.minDigits - 1;
+        }
+    },
+    {
+        name: 'numbers-digits-not-a-number',
+        expectation: 'numbers.minDigits',
+        mutate: rules => {
+            rules.numbers.minDigits = '4';
+        }
+    },
+    {
+        name: 'token-hashes-emptied',
+        expectation: 'no private-name hashes',
+        mutate: rules => {
+            rules.tokenHashes = [];
+        }
+    },
+    {
+        // The blocker itself, made impossible rather than documented: an
+        // allow-list entry that is in no tracked file is a caption pointing at
+        // a value somebody took out of the tree. Sweep only - the gate reads a
+        // tarball, not a repository.
+        name: 'an-allow-list-entry-that-is-in-no-file',
+        expectation: 'occur in no tracked file',
+        legs: ['sweep'],
+        mutate: rules => {
+            rules.numbers.allowed = [...rules.numbers.allowed, ABSENT_NUMBER];
+        }
+    },
+    {
+        name: 'a-history-residue-entry-for-a-blob-that-is-not-here',
+        expectation: 'not in this history',
+        legs: ['sweep --history'],
+        mutate: rules => {
+            // Replaced, not appended: the throwaway repository has its own
+            // history, so this repository's real residue blobs are not in it.
+            rules.historyNumberResidue = [{ blob: 'f'.repeat(40), findings: 1 }];
+        }
+    }
+];
+/**
+ * The legs, named once. `PLANNED` counts from this and the runner builds from
+ * it, so the two cannot disagree - which is the defect being fixed three
+ * paragraphs up, in miniature.
+ */
+const LEG_LABELS = ['gate', 'sweep', 'sweep --history'];
+const DEFAULT_LEGS = ['gate', 'sweep'];
+for (const entry of RULESET_CASES) {
+    for (const label of entry.legs ?? DEFAULT_LEGS) {
+        if (!LEG_LABELS.includes(label)) {
+            refuse(`the ruleset case "${entry.name}" names a leg that does not exist, so it would run nowhere`);
+        }
+    }
+}
+if (RULESET_CASES.length === 0) {
+    refuse('no ruleset cases');
+}
+
+function writeRuleset(root, mutate) {
+    const rules = JSON.parse(readFileSync(join(ROOT, 'scripts/rules.json'), 'utf8'));
+    mutate(rules);
+    writeFileSync(join(root, 'scripts/rules.json'), JSON.stringify(rules, null, 2));
+}
+
+/** A scripts-only root: enough for the gate, which reads no repository. */
+function buildGateRoot(workspace) {
+    const root = join(workspace, 'ruleset-gate');
+    mkdirSync(join(root, 'scripts'), { recursive: true });
+    for (const file of ['rules.mjs', 'check-tarball.mjs', 'check-leaks.mjs', 'rules.json']) {
+        cpSync(join(ROOT, 'scripts', file), join(root, 'scripts', file));
+    }
+    return root;
+}
+
+/**
+ * A throwaway repository: the sweep reads one, and running it against a
+ * scripts-only directory would refuse for the wrong reason - "not a git
+ * repository" rather than "this rule cannot match". A case that passes for the
+ * wrong reason proves nothing, so the scaffolding is a real repository and a
+ * control run with the REAL rules has to come back clean.
+ */
+function buildSweepRepo(workspace) {
+    const root = join(workspace, 'ruleset-sweep');
+    mkdirSync(root, { recursive: true });
+    for (const file of execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '')) {
+        mkdirSync(dirname(join(root, file)), { recursive: true });
+        cpSync(join(ROOT, file), join(root, file));
+    }
+    const env = {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'gate self-test',
+        GIT_AUTHOR_EMAIL: 'gate@example.invalid',
+        GIT_COMMITTER_NAME: 'gate self-test',
+        GIT_COMMITTER_EMAIL: 'gate@example.invalid'
+    };
+    for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'throwaway']]) {
+        execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', env });
+    }
+    return root;
+}
+
+function runNode(script, args, env = process.env) {
+    try {
+        const stdout = execFileSync(process.execPath, [script, ...args], { encoding: 'utf8', env });
+        return { code: 0, stdout };
+    } catch (error) {
+        return { code: error.status ?? -1, stdout: `${error.stdout ?? ''}${error.stderr ?? ''}` };
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -352,11 +588,17 @@ function poisonedTarball(name, poison) {
     return tarball;
 }
 
+const RULESET_RUNS = RULESET_CASES.reduce((total, entry) => total + (entry.legs ?? DEFAULT_LEGS).length, 0);
+const LEG_COUNT = LEG_LABELS.length;
+const PLANNED = plan.length + 1 + RULESET_RUNS + LEG_COUNT;
+
 try {
     log('gate self-test');
     log(`  ${plan.length} poisoned tarballs, every one of them derived from a rule the gate reads`);
+    log(`  ${RULESET_CASES.length} ruleset mutations over ${RULESET_RUNS} runs across ${LEG_COUNT} legs, plus one clean control per leg`);
     log(`  private-name cases use invented tokens of ${SHORTEST.length} and ${SECRET.length} characters, new every run`);
     log(`  (the rules are ${RULES.minTokenLength}-${RULES.maxTokenLength} characters, so a longer stand-in would prove nothing)`);
+    log(`  the number case uses an invented ${RULES.numbers.minDigits}-digit value that is not on the allow-list, new every run`);
     log('');
 
     const clean = pack();
@@ -386,12 +628,77 @@ try {
         }
     }
 
+    // --- the ruleset, against both legs ------------------------------------
+    const gateRoot = buildGateRoot(workspace);
+    const sweepRepo = buildSweepRepo(workspace);
+    const legs = [
+        {
+            label: LEG_LABELS[0],
+            root: gateRoot,
+            run: root => runNode(join(root, 'scripts/check-tarball.mjs'), [clean]),
+            // The throwaway repository's history is its own single commit, so
+            // this repository's residue blobs are not in it and the real list
+            // would rightly refuse. The control declares that difference
+            // instead of the case working around it.
+            control: () => {}
+        },
+        {
+            label: LEG_LABELS[1],
+            root: sweepRepo,
+            run: root => runNode(join(root, 'scripts/check-leaks.mjs'), []),
+            control: () => {}
+        },
+        {
+            label: LEG_LABELS[2],
+            root: sweepRepo,
+            run: root => runNode(join(root, 'scripts/check-leaks.mjs'), ['--history']),
+            control: rules => {
+                rules.historyNumberResidue = [];
+            }
+        }
+    ];
+    for (const leg of legs) {
+        ran += 1;
+        writeRuleset(leg.root, leg.control);
+        const control = leg.run(leg.root);
+        if (control.code === 0) {
+            log(`  PASS  control: "${leg.label}" accepts the real ruleset in the throwaway root (exit 0)`);
+        } else {
+            failures += 1;
+            log(`  FAIL  control: "${leg.label}" did not accept the real ruleset in the throwaway root (exit ${control.code})`);
+            log(control.stdout);
+        }
+    }
+    for (const entry of RULESET_CASES) {
+        for (const leg of legs.filter(candidate => (entry.legs ?? DEFAULT_LEGS).includes(candidate.label))) {
+            ran += 1;
+            writeRuleset(leg.root, rules => {
+                leg.control(rules);
+                entry.mutate(rules);
+            });
+            const result = leg.run(leg.root);
+            const refused = result.code === 2 && new RegExp(entry.expectation, 'u').test(result.stdout);
+            if (refused) {
+                log(`  PASS  "${leg.label}" refused "${entry.name}" (exit 2)`);
+            } else {
+                failures += 1;
+                log(`  FAIL  "${leg.label}" did NOT refuse "${entry.name}" (exit ${result.code}) - a rule that cannot match reported success`);
+                log(result.stdout);
+            }
+        }
+        for (const leg of legs) {
+            writeRuleset(leg.root, leg.control);
+        }
+    }
+
     log('');
-    if (ran !== plan.length + 1) {
-        refuse(`${plan.length + 1} cases were planned and ${ran} ran`);
+    if (ran !== PLANNED) {
+        refuse(`${PLANNED} cases were planned and ${ran} ran`);
     }
     if (failures === 0) {
-        log(`gate self-test: PASS - ${ran} cases (${plan.length} poisoned, 1 clean), every poisoned tarball rejected`);
+        log(
+            `gate self-test: PASS - ${ran} cases (${plan.length} poisoned tarballs, 1 clean tarball, ${RULESET_RUNS} ruleset-mutation runs, ${LEG_COUNT} controls)`
+        );
     } else {
         log(`gate self-test: FAIL - ${failures} of ${ran} case(s)`);
     }

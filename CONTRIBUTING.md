@@ -46,12 +46,17 @@ Streamable-HTTP MCP server:
 node dist/cli.js --url http://127.0.0.1:3000/mcp
 ```
 
-Four more checks exist, and CI runs all of them:
+Three more checks exist, and CI runs all three:
 
 ```bash
 npm run check:tarball   # what npm pack would publish, unpacked and read
-npm run test:gate       # poisons that tarball once per rule and checks the gate catches each
+npm run test:gate       # poisons that tarball once per rule, and mutates the ruleset once per refusal
 npm run check:leaks     # the repository itself, working tree and history
+```
+
+A fourth command prints rather than checks, and CI does not run it:
+
+```bash
 npm run rules:show      # print the rules both checks read, decoded
 ```
 
@@ -73,13 +78,26 @@ knowing why it looks the way it does:
   file and line, and never the value, because a CI log on a public repository is
   as public as the file.
 - **Numbers are not hashed at all.** A hash of a value from a small enumerable
-  space is the value with extra steps: the whole 4–5 digit space falls in under
-  a tenth of a second, and publishing a minimum length made it collapse further.
-  That class is covered by the opposite construction — `numbers.allowed`, an
+  space is the value with extra steps: that whole space falls in under a tenth
+  of a second, and publishing a minimum length made it collapse further. That
+  class is covered by the opposite construction — `numbers.allowed`, an
   allow-list of the numbers this repository may contain, with no captions. An
   allow-list tells a reader nothing they could not get by reading the files, and
   it catches every internal value of that shape, not only the ones someone
   remembered to add.
+- **Every entry on that allow-list has to occur in the working tree**, and the
+  rule is checkable rather than promised: `git grep` each one. An entry that
+  occurs nowhere is there to silence a finding about a value somebody took out,
+  a diff against the tree isolates it in one step, and an entry a reader can
+  isolate is a caption pointing at the value — which is the whole thing the
+  allow-list exists to avoid. One entry was like that and has been removed; the
+  occurrences it covered are in the history, cannot be recalled, and are
+  recorded as residue in `historyNumberResidue`, keyed by blob rather than by
+  value.
+- **A rule that cannot match anything is a refusal, not a quieter pass.** The
+  digit window and the allow-list have to describe the same class of number, so
+  moving the window off the allow-list makes both legs exit 2. It used to make
+  the number rule inert while both of them printed PASS.
 - Counts are not written down in this file on purpose; they drift. `npm run
   rules:show` prints how many of each there are, from the file itself.
 
@@ -95,18 +113,26 @@ uncovered. A number does not go on the hash list at all; decide whether it
 belongs in a public repository, and if it does, add it to `numbers.allowed`.
 
 **Both checks refuse rather than pass when they cannot see anything.** An empty
-repository, a ruleset with no entries, a history with no blobs, or a self-test
-whose plan shrank all exit 2 — a check that read nothing has not checked
-anything, and reporting that as success is the failure this project keeps
-finding.
+repository, a ruleset with no entries, a rule list whose window can no longer
+match what it is for, or a history with no blobs: all exit 2, in *each* leg
+rather than only in the pair — a leg that refuses because its neighbour does is
+not a leg that refuses. A check that read nothing has not checked anything, and
+reporting that as success is the failure this project keeps finding.
+
+The self-test asserts that every case it planned actually ran, and refuses when
+a rule list it derives cases from is empty. It holds no baseline against an
+earlier run, so it does not — and does not claim to — notice a rule list that
+merely got shorter.
 
 **What hashing does not do.** The hashes are a confirmation oracle: with a
-wordlist anyone could assemble from this README, a reviewer recovered 10 of the
-12 in seconds. That is accepted rather than overlooked. The list is internal
-naming — tables, roles, two ports, one environment-variable name — with no
-access value and nothing to rotate, and the real gain was never the strings; it
-was losing the captions that explained what each one *was*, and losing the
-exemption that stopped the sweep reading its own rules. Moving `rules.json` out
+wordlist anyone could assemble from this repository's own prose, a reviewer
+recovered most of them in seconds. That is accepted rather than overlooked. The
+list is internal naming with no access value and nothing to rotate, and the real
+gain was never the strings; it was losing the captions that explained what each
+one *was*, and losing the exemption that stopped the sweep reading its own
+rules. `npm run rules:show` prints how many there are; no count and no
+breakdown by category is written down here, because a breakdown is a wordlist
+hint and a count goes stale the moment the list changes. Moving `rules.json` out
 of this repository was considered and rejected: a rules file behind a secret
 means the sweep and the gate cannot run for an outside contributor or in a fork,
 so the check would report success in exactly the case it exists for.

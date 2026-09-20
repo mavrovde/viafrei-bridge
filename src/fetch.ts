@@ -1,14 +1,11 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { RedirectRefusedError, RequestTimeoutError, isRetryable } from './failure.js';
+import { MAX_REDIRECTS, RedirectRefusedError, RequestTimeoutError, isRetryable } from './failure.js';
 
 /** Statuses that mean "the hop in front of the server had a moment". */
 const RETRY_STATUS = new Set([502, 503, 504]);
 
 /** How long to wait before the single retry. */
 const RETRY_DELAY_MS = 250;
-
-/** How many same-origin hops are a redirect, and how many are a loop. */
-const MAX_REDIRECTS = 5;
 
 const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
 

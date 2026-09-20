@@ -50,13 +50,19 @@ first real release is this one.
   thresholds the decoders actually use, so it cannot claim a coverage the code
   does not have. Its self-test builds one poisoned tarball per rule the gate
   reads - every lifecycle script, every forbidden file name, every required
-  file, every pattern, every encoding at every alignment - and refuses to run at
-  all if that plan ever shrinks.
+  file, every pattern, every number, every encoding at every alignment - plus
+  one mutated ruleset per refusal the rules can produce, run against BOTH legs
+  with a clean control each. It asserts that every case it planned actually ran,
+  and refuses when a rule list it derives cases from is empty.
 - **A repository leak sweep** over the working tree and the history, with **no
   file skipped**, which refuses (exit 2) rather than passing when there is
-  nothing to read: no tracked files, no commits, no blobs, or an empty ruleset. The names it looks for are salted hashes rather than text, so
-  the rules file carries no secret and needs no exemption - the previous
-  arrangement published the list it was protecting and then skipped the file it
-  was in. Findings print a hash prefix and a location, never the name.
+  nothing to read: no tracked files, no commits, no blobs, an empty ruleset, or
+  a rule whose window can no longer match what it is for. The names it looks for
+  are salted hashes rather than text, so the rules file carries no secret and
+  needs no exemption - the previous arrangement published the list it was
+  protecting and then skipped the file it was in. A name is looked for across
+  every separator and at camel-case boundaries, in the file path as well as in
+  the contents. Findings print a hash prefix, a length and a location, never the
+  value - a host, a dependency spec and a path included.
 
 [0.1.0]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.1.0

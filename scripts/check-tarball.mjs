@@ -46,14 +46,42 @@
  * failure: a gate that cannot run has not passed).
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { blindSpots, loadRules, scanFile } from './rules.mjs';
+import { blindSpots, loadRules, opaque, safeString, scanFile, thresholds } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RULES = loadRules(ROOT);
+
+/**
+ * The ruleset has to be able to find something before the gate may report that
+ * it found nothing.
+ *
+ * check-leaks has refused on an empty rule list since round 3; this leg did
+ * not, so on its own it would have run a smaller, quieter check. Both
+ * workflows run both legs, so the system refused - but a leg that only refuses
+ * because of its neighbour is not a leg that refuses.
+ */
+function unrunnable() {
+    if (RULES.tokenHashes.size === 0) {
+        return 'the rules file lists no private-name hashes';
+    }
+    if (RULES.tarballPatterns.length === 0) {
+        return 'the rules file lists no tarball patterns';
+    }
+    if (RULES.embeddedSourcePatterns.length === 0) {
+        return 'the rules file lists no embedded-source patterns';
+    }
+    try {
+        // Token range, numbers window, numbers allow-list: all of it, up front.
+        thresholds(RULES);
+    } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+    }
+    return undefined;
+}
 
 /** Files that must be in the tarball for it to be the package at all. */
 export const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
@@ -182,7 +210,13 @@ function checkManifest(manifest) {
     // --- lifecycle scripts ------------------------------------------------
     const scripts = manifest.scripts ?? {};
     const names = Object.keys(scripts);
-    note(`gate: published manifest declares ${names.length === 0 ? 'no scripts' : `scripts: ${names.join(', ')}`}`);
+    // The COUNT, not the names. A script key is arbitrary text from the
+    // manifest under test, and this line goes into a public CI log. The names
+    // that matter are the ones the next loop turns into findings, and those
+    // are members of AUTO_RUN_SCRIPTS - a list published a few lines above in
+    // this same file, so naming one discloses nothing and is what makes the
+    // finding actionable.
+    note(`gate: published manifest declares ${names.length} script(s)`);
     for (const name of names) {
         if (AUTO_RUN_SCRIPTS.has(name)) {
             fail('lifecycle script', `the published manifest declares "${name}" - npm runs that by itself, on the machine that installs this`);
@@ -196,13 +230,19 @@ function checkManifest(manifest) {
     const fields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
     for (const field of fields) {
         for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
-            const shown = `${field} ${name}@${String(spec)}`;
+            // A dependency key and a dependency spec are both arbitrary text,
+            // and a spec is very often a URL - the private repository's own
+            // git URL is precisely what check 5 exists to catch. Printing
+            // either one in a finding republishes it in a public CI log, which
+            // is the thing this gate is for. Length and hash prefix; the
+            // manifest is two commands away for anyone entitled to read it.
+            const shown = `${field} entry ${opaque(name, RULES)}, spec ${opaque(String(spec), RULES)}`;
             const resolved = resolveSpec(name, String(spec));
             // Lower-cased on both sides: npm treats package names as
             // lower-case, so an upper-case spelling of the scope is the same
             // dependency wearing a hat.
             if (name.toLowerCase().startsWith(PRIVATE_SCOPE) || resolved.name.toLowerCase().startsWith(PRIVATE_SCOPE)) {
-                const how = resolved.aliased ? ` - the alias resolves to ${resolved.name}, and` : ' -';
+                const how = resolved.aliased ? ' - through an npm: alias, and' : ' -';
                 fail('dependencies', `${shown}${how} that scope carries the platform`);
                 continue;
             }
@@ -216,13 +256,19 @@ function checkManifest(manifest) {
     }
     const bundled = manifest.bundleDependencies ?? manifest.bundledDependencies ?? [];
     if (Array.isArray(bundled) && bundled.length > 0) {
-        fail('dependencies', `bundleDependencies ships code inside the tarball: ${bundled.join(', ')}`);
+        fail('dependencies', `bundleDependencies ships code inside the tarball: ${bundled.length} package(s)`);
     }
-    const dependencies = Object.entries(manifest.dependencies ?? {}).map(([name, spec]) => `${name}@${String(spec)}`);
-    note(`gate: dependencies = ${dependencies.join(', ') || '(none)'}`);
+    const dependencies = Object.keys(manifest.dependencies ?? {});
+    note(`gate: ${dependencies.length} runtime dependenc${dependencies.length === 1 ? 'y' : 'ies'} declared`);
 }
 
 function main() {
+    const reason = unrunnable();
+    if (reason !== undefined) {
+        note(`gate: CANNOT RUN - ${reason}`);
+        note('gate: this is a failure, not a pass: a gate that cannot look has not looked');
+        return 2;
+    }
     const given = process.argv[2];
     const workspace = mkdtempSync(join(tmpdir(), 'viafrei-tarball-'));
     let tarball;
@@ -263,7 +309,13 @@ function main() {
         }
         note(`gate: ${files.length} files in the tarball`);
         for (const file of files) {
-            note(`  - ${file}`);
+            // A path is a LOCATION, and a location is the one thing a finding
+            // is always allowed to say - except that a path can also carry a
+            // private name in it (`dist/<name>.js`), which nothing here read
+            // until now, because the scanners read contents and not names.
+            // safeString() withholds a path that does; scanFile() turns the
+            // same condition into a finding of its own.
+            note(`  - ${safeString(file, RULES)}`);
         }
 
         // --- check 1: it is actually the package, and only the package -------
@@ -275,7 +327,7 @@ function main() {
         for (const file of files) {
             for (const rule of FORBIDDEN_NAMES) {
                 if (rule.test(file)) {
-                    fail('file name', `${file} is a ${rule.label} and must not be published`);
+                    fail('file name', `${safeString(file, RULES)} is a ${rule.label} and must not be published`);
                 }
             }
         }
@@ -293,6 +345,7 @@ function main() {
         note(
             `gate: scanning ${files.length} files as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals`
         );
+        note('gate: a name is looked for across every separator and at camel-case boundaries, and in the file path as well as the contents');
         note(`gate: cannot see ${blindSpots(RULES).join('; ')}`);
         for (const file of files) {
             const isProse = file.endsWith('.md');
@@ -303,7 +356,11 @@ function main() {
                 patterns,
                 rules: RULES,
                 extraTokenHashes,
-                onFinding: finding => fail(finding.kind === 'pattern' ? 'content' : 'private name', `${finding.where} ${finding.detail}`)
+                // The finding's own kind, not a guess from it. Every kind that
+                // was not `pattern` used to be reported as "private name", so a
+                // number finding was labelled as a name - the one thing a
+                // finding line has to get right is what it is.
+                onFinding: finding => fail(finding.kind === 'pattern' ? 'content' : finding.kind, `${finding.where} ${finding.detail}`)
             });
         }
 
@@ -327,8 +384,31 @@ function main() {
     }
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+/**
+ * Is this file the program, or is it being imported?
+ *
+ * Through realpath on BOTH sides, which is not fussiness. `import.meta.url` is
+ * already resolved through symlinks and `process.argv[1]` is not, so running
+ * this file by a path with a symlinked component - every `mkdtemp` directory
+ * on macOS has one, `/var` -> `/private/var` - made the comparison false, and
+ * the gate then exited **0 having checked nothing at all**, silently. A gate
+ * that no-ops and reports success is the failure this whole file exists to
+ * prevent; it is not allowed to be true of the gate itself.
+ */
+function invokedDirectly() {
+    if (process.argv[1] === undefined) {
+        return false;
+    }
+    const real = path => {
+        try {
+            return realpathSync(path);
+        } catch {
+            return path;
+        }
+    };
+    return pathToFileURL(real(fileURLToPath(import.meta.url))).href === pathToFileURL(real(process.argv[1])).href;
+}
 
-if (invokedDirectly) {
+if (invokedDirectly()) {
     process.exit(main());
 }
