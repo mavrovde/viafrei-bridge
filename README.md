@@ -7,11 +7,6 @@ parking, charging, rail and fuel data, answered by your AI assistant.
 npx viafrei
 ```
 
-> **Status: the bridge is not published yet.** This repository currently holds
-> the licence, the security policy and the contribution rules. The code and the
-> npm package land next. `npx viafrei` will not do anything useful until then,
-> and this line will be the first thing to change when it does.
-
 ## What this is
 
 ViaFrei is a Germany-wide transport intelligence layer whose interface is the
@@ -25,6 +20,89 @@ every request to the public endpoint.
 
 So the bridge is a transport shim. It holds no data, no database and no
 credentials, and it makes no decision about an answer.
+
+## Using it
+
+Node 22 or newer. There is nothing to install: `npx` fetches it when the client
+starts it.
+
+**Claude Desktop** (`claude_desktop_config.json`) — and the same three lines fit
+any client that takes an stdio MCP server, including the `.mcp.json` an IDE
+reads:
+
+```json
+{
+  "mcpServers": {
+    "viafrei": {
+      "command": "npx",
+      "args": ["-y", "viafrei"]
+    }
+  }
+}
+```
+
+**A different endpoint** — your own deployment, or a server running locally on
+port 8787:
+
+```json
+{
+  "mcpServers": {
+    "viafrei": {
+      "command": "npx",
+      "args": ["-y", "viafrei", "--url", "http://127.0.0.1:8787/mcp"]
+    }
+  }
+}
+```
+
+`VIAFREI_MCP_URL` does the same thing for clients that pass environment
+variables rather than arguments. A flag wins over the variable; the variable
+wins over the built-in default.
+
+### Options
+
+| option | what it does |
+|---|---|
+| `--url <url>` | endpoint to relay to. Default `https://mcp.viafrei.de/mcp` |
+| `--header "Name: value"` | extra HTTP header on every request, repeatable. For an API key, when there is one |
+| `--timeout <ms>` | per-request timeout, default 30000. The event stream is never timed out |
+| `--version`, `--help` | print and exit |
+
+Environment: `VIAFREI_MCP_URL`, `VIAFREI_MCP_TIMEOUT_MS`.
+
+### When something is wrong
+
+The bridge prints one line to stderr and exits with a code that says what
+happened. No stack traces:
+
+```
+viafrei: cannot reach https://mcp.viafrei.de/mcp: connection refused (ECONNREFUSED) - check the URL, or pass --url for a different endpoint
+```
+
+| exit | meaning |
+|---|---|
+| `0` | clean shutdown (the client closed stdin, or sent SIGINT/SIGTERM) |
+| `1` | something else went wrong; the line says what |
+| `2` | bad usage — a flag or a value the bridge does not accept |
+| `3` | the endpoint could not be reached, stopped answering, or never answered in time |
+| `4` | the endpoint answered and this cannot continue: it refused (the line names the HTTP status), it forgot the session, it answered with something that is not MCP, or it redirected to another origin |
+| `5` | protocol version mismatch; the line names the version the server speaks |
+
+An established session is allowed to wobble — a dropped event stream is a
+warning, not an exit, and the bridge reconnects. It is not allowed to be dead in
+silence: several failures in a row with nothing succeeding in between end the
+process with the code above, so the client that started it finds out.
+
+### What it does not do
+
+No telemetry, no analytics, no usage counter, no update check. It writes no file
+outside the OS temp directory, and it stores no credential — `--header` is
+passed through to the endpoint and never persisted or logged.
+
+It also does not follow a redirect off the origin you pointed it at. Your
+headers go to that origin and nowhere else: a cross-origin redirect is refused
+with one line naming both ends, so a server cannot forward your API key
+somewhere you did not choose. Same-origin redirects are followed normally.
 
 ## What the server can answer
 

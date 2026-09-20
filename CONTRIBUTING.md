@@ -38,6 +38,49 @@ npm run build
 npm test
 ```
 
+`npm test` builds first and then runs the suite against a stub server it starts
+itself. To try the bridge by hand against that stub, or against any local
+Streamable-HTTP MCP server:
+
+```bash
+node dist/cli.js --url http://127.0.0.1:8787/mcp
+```
+
+Four more checks exist, and CI runs all of them:
+
+```bash
+npm run check:tarball   # what npm pack would publish, unpacked and read
+npm run test:gate       # poisons that tarball 25 ways and checks the gate catches each
+npm run check:leaks     # the repository itself, working tree and history
+npm run rules:show      # print the rules both checks read, decoded
+```
+
+`scripts/rules.json` is the single list both checks read, and it is worth
+knowing why it looks the way it does:
+
+- The private names are stored as **salted sha256 hashes**, never as text. The
+  first version of this file listed them in the clear, with a caption explaining
+  what each one was, in a public repository — a denylist of secrets is a list of
+  secrets. Hashing does not make a short name unguessable; it removes the
+  *publication*.
+- It was also the one file the sweep skipped, which is precisely where the leak
+  ended up. Nothing is skipped now: the rules file holds no secret, so it is
+  scanned like any other file.
+- The generic patterns (SQL keywords, a source-map marker) are base64 only so
+  that the file is not a match for itself. `npm run rules:show` decodes
+  everything; findings print a hash prefix and a file and line, never the name,
+  because a CI log on a public repository is as public as the file.
+
+Adding a rule: a new pattern needs a `sample` (base64) that it must match — the
+gate's self-test poisons a real tarball with it, so a rule added is a case added.
+A new private name is added as a hash: `node -e "…"` with the salt from the file,
+or ask a maintainer. Never paste the name.
+
+There is deliberately **no `prepack`, `prepare` or any other lifecycle script**
+in `package.json`. npm runs those by itself on every machine that installs the
+package, and the gate refuses a published manifest that declares one — including
+ours. Build explicitly (`npm run build`) instead.
+
 ## Tests are offline. Always.
 
 **No test and no CI job may contact the public endpoint or any provider.** Not
