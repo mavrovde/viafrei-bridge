@@ -43,14 +43,14 @@ itself. To try the bridge by hand against that stub, or against any local
 Streamable-HTTP MCP server:
 
 ```bash
-node dist/cli.js --url http://127.0.0.1:8787/mcp
+node dist/cli.js --url http://127.0.0.1:3000/mcp
 ```
 
 Four more checks exist, and CI runs all of them:
 
 ```bash
 npm run check:tarball   # what npm pack would publish, unpacked and read
-npm run test:gate       # poisons that tarball 28 ways and checks the gate catches each
+npm run test:gate       # poisons that tarball once per rule and checks the gate catches each
 npm run check:leaks     # the repository itself, working tree and history
 npm run rules:show      # print the rules both checks read, decoded
 ```
@@ -66,18 +66,39 @@ knowing why it looks the way it does:
 - It was also the one file the sweep skipped, which is precisely where the leak
   ended up. Nothing is skipped now: the rules file holds no secret, so it is
   scanned like any other file.
-- The generic patterns (SQL keywords, a source-map marker) are base64 only so
-  that the file is not a match for itself. `npm run rules:show` decodes
-  everything; findings print a hash prefix and a file and line, never the name,
-  because a CI log on a public repository is as public as the file.
+- The generic patterns (SQL keywords, a source-map marker) are stored base64
+  **and reversed**, so the file is not a hit for its own rules when read as text
+  *or* when read as base64 — the scanner does both now. `npm run rules:show`
+  decodes everything; findings print a hash prefix, a shape or a length, plus a
+  file and line, and never the value, because a CI log on a public repository is
+  as public as the file.
+- **Numbers are not hashed at all.** A hash of a value from a small enumerable
+  space is the value with extra steps: the whole 4–5 digit space falls in under
+  a tenth of a second, and publishing a minimum length made it collapse further.
+  That class is covered by the opposite construction — `numbers.allowed`, an
+  allow-list of the numbers this repository may contain, with no captions. An
+  allow-list tells a reader nothing they could not get by reading the files, and
+  it catches every internal value of that shape, not only the ones someone
+  remembered to add.
+- Counts are not written down in this file on purpose; they drift. `npm run
+  rules:show` prints how many of each there are, from the file itself.
 
-Adding a rule: a new pattern needs a `sample` (base64) that it must match — the
-gate's self-test poisons a real tarball with it, so a rule added is a case added.
-A new private name is added as a hash: `node -e "…"` with the salt from the file,
-or ask a maintainer. Never paste the name. If the new name is shorter than
-`minTokenLength` or longer than `maxTokenLength`, update those too: the decoders
-size themselves from that range, and `blindSpots()` reports what the range
-leaves uncovered.
+Adding a rule: a new pattern needs a `sample` (base64, reversed) that it must
+match, and a new forbidden file name needs a `sample` file name that it rejects —
+the gate's self-test builds one poisoned tarball per rule from those samples, so
+a rule added is a case added, and a rule without a usable sample stops the test
+rather than shrinking it. A new private name is added as a hash: `node -e "…"`
+with the salt from the file, or ask a maintainer. Never paste the name. If it
+falls outside `minTokenLength`/`maxTokenLength`, update those too — the decoders
+size themselves from that range and `blindSpots()` reports what it leaves
+uncovered. A number does not go on the hash list at all; decide whether it
+belongs in a public repository, and if it does, add it to `numbers.allowed`.
+
+**Both checks refuse rather than pass when they cannot see anything.** An empty
+repository, a ruleset with no entries, a history with no blobs, or a self-test
+whose plan shrank all exit 2 — a check that read nothing has not checked
+anything, and reporting that as success is the failure this project keeps
+finding.
 
 **What hashing does not do.** The hashes are a confirmation oracle: with a
 wordlist anyone could assemble from this README, a reviewer recovered 10 of the

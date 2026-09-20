@@ -72,6 +72,31 @@ function isProbablyText(buffer) {
 
 const withHistory = process.argv.includes('--history');
 
+/**
+ * Stop, loudly, rather than pass on nothing.
+ *
+ * Exit 2, never 0: this leg guards the only public repository we have, and a
+ * run that scanned nothing must not be reported as a run that found nothing.
+ * Until now this file asserted no count at all - in a repository with no
+ * commits it printed `0 blobs across 0 commits` and `PASS`.
+ */
+const refuse = reason => {
+    log('');
+    log(`sweep: CANNOT RUN - ${reason}`);
+    log('sweep: this is a failure, not a pass: a check that read nothing has not checked anything');
+    process.exit(2);
+};
+
+if (RULES.tokenHashes.size === 0) {
+    refuse('the rules file lists no private-name hashes');
+}
+if (RULES.repositoryPatterns.length === 0) {
+    refuse('the rules file lists no repository patterns');
+}
+if (RULES.allowedHosts.size === 0) {
+    refuse('the rules file lists no allowed hosts, so every host would pass');
+}
+
 log(`sweep: ${RULES.repositoryPatterns.length} generic patterns, ${RULES.tokenHashes.size} private-name hashes, ${RULES.allowedHosts.size} allowed hosts`);
 log('sweep: no file is skipped - the rules file holds hashes, not names, so it is scanned like any other');
 log(`sweep: host allow-list not applied to ${[...HOST_EXEMPT].join(', ')} (generated; every other check still is)`);
@@ -79,16 +104,28 @@ log('sweep: reading each line as plaintext, base64, hex, percent-encoding, JavaS
 log(`sweep: cannot see ${blindSpots(RULES).join('; ')}`);
 
 const tracked = git(['ls-files', '-z']).split('\0').filter(name => name !== '');
+if (tracked.length === 0) {
+    refuse('git lists no tracked files here - wrong directory, or a repository with nothing in it');
+}
 let scanned = 0;
+let binary = 0;
 for (const file of tracked) {
     const buffer = readFileSync(join(ROOT, file));
     if (!isProbablyText(buffer)) {
+        binary += 1;
         continue;
     }
     scan(file, buffer.toString('utf8'), !HOST_EXEMPT.has(file));
     scanned += 1;
 }
-log(`sweep: ${scanned} tracked text files scanned (of ${tracked.length} tracked)`);
+log(`sweep: ${scanned} tracked text files scanned, ${binary} binary (of ${tracked.length} tracked)`);
+// Every tracked file is accounted for, by name, not by hope.
+if (scanned + binary !== tracked.length) {
+    refuse(`${tracked.length} files are tracked but ${scanned + binary} were accounted for`);
+}
+if (scanned === 0) {
+    refuse('not one tracked file was read as text');
+}
 
 if (withHistory) {
     const revisions = git(['rev-list', '--all']).split('\n').filter(line => line !== '');
@@ -107,6 +144,18 @@ if (withHistory) {
         }
     }
     log(`sweep: ${blobs} blobs across ${revisions.length} commits scanned`);
+    if (revisions.length === 0) {
+        refuse('--history was asked for and there are no commits to read');
+    }
+    if (blobs === 0) {
+        refuse(`${revisions.length} commits hold no readable blob between them`);
+    }
+    // A floor derived from this repository rather than typed in: the history
+    // contains at least the current commit's tree, so it cannot hold fewer text
+    // blobs than the working tree holds text files.
+    if (blobs < scanned) {
+        refuse(`${blobs} blobs in the whole history is fewer than the ${scanned} text files in the working tree`);
+    }
 }
 
 log('');

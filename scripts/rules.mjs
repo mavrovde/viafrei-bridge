@@ -19,13 +19,22 @@ import { join } from 'node:path';
 
 export function loadRules(root) {
     const rules = JSON.parse(readFileSync(join(root, 'scripts/rules.json'), 'utf8'));
-    const text = value => (value === undefined ? undefined : Buffer.from(value, 'base64').toString('utf8'));
+    // Reversed as well as base64: see _patterns in rules.json. A file that
+    // matched its own rules once the scanner learned to decode base64 would have
+    // to be skipped, and "the one file we do not scan" is where the last leak
+    // lived.
+    const text = value => (value === undefined ? undefined : [...Buffer.from(value, 'base64').toString('utf8')].reverse().join(''));
     const decode = rule => ({ ...rule, source: text(rule.regex), sample: text(rule.sample) });
     return {
         salt: rules.salt,
         minTokenLength: rules.minTokenLength,
         maxTokenLength: rules.maxTokenLength,
         tokenHashes: new Set(rules.tokenHashes),
+        numbers: {
+            minDigits: rules.numbers?.minDigits,
+            maxDigits: rules.numbers?.maxDigits,
+            allowed: new Set((rules.numbers?.allowed ?? []).map(entry => String(entry)))
+        },
         allowedHosts: new Set(rules.allowedHosts),
         repositoryPatterns: rules.repositoryPatterns.map(decode),
         tarballPatterns: rules.tarballPatterns.map(decode),
@@ -51,6 +60,9 @@ export function compile(rule) {
  * candidate. A name is found inside a longer one; a longer number is not
  * mistaken for a port it merely contains.
  */
+/** Beyond this many pieces the combinations stop being worth their cost. */
+export const MAX_IDENTIFIER_PIECES = 12;
+
 export function tokenCandidates(line) {
     const candidates = new Set();
     for (const run of line.match(/[A-Za-z0-9_]+/gu) ?? []) {
@@ -63,7 +75,7 @@ export function tokenCandidates(line) {
             }
             pieces.push(...(part.match(/[a-z]+|[0-9]+/gu) ?? [part]));
         }
-        if (pieces.length > 12) {
+        if (pieces.length > MAX_IDENTIFIER_PIECES) {
             continue;
         }
         for (let start = 0; start < pieces.length; start += 1) {
@@ -88,8 +100,15 @@ export function tokenCandidates(line) {
  */
 export function thresholds(rules) {
     const min = rules.minTokenLength;
+    const max = rules.maxTokenLength;
     if (typeof min !== 'number' || min < 1) {
         throw new Error('rules.json must declare minTokenLength: the decoders size themselves from it');
+    }
+    if (typeof max !== 'number' || max < min) {
+        throw new Error('rules.json must declare maxTokenLength, and it may not be smaller than minTokenLength');
+    }
+    if (typeof rules.numbers.minDigits !== 'number' || typeof rules.numbers.maxDigits !== 'number') {
+        throw new Error('rules.json must declare numbers.minDigits and numbers.maxDigits');
     }
     return {
         minTokenLength: min,
@@ -127,9 +146,13 @@ export function decodings(line, limits) {
     const base64Runs = new RegExp(`[A-Za-z0-9+/=_-]{${limits.base64MinRun},}`, 'gu');
     for (const run of line.match(base64Runs) ?? []) {
         const standard = run.replace(/-/gu, '+').replace(/_/gu, '/');
-        // Four offsets, because base64 encodes three bytes at a time: a name
-        // that starts one or two bytes into the encoded run is unreadable from
-        // offset 0 and perfectly readable from offset 1 or 2.
+        // Four offsets, because base64 packs three bytes into four characters:
+        // where a run STARTS in the text need not be where the encoder started.
+        // Dropping one, two or three leading characters re-aligns the decoder
+        // to the other three phases; the fourth is the original. (Dropped
+        // characters shift by 6 bits each, so only whole-byte phases - 0 and 4
+        // characters - decode to the same bytes, which is why four offsets
+        // cover it and a fifth would repeat the first.)
         for (let offset = 0; offset < 4 && offset < standard.length; offset += 1) {
             try {
                 add('base64', readable(Buffer.from(standard.slice(offset), 'base64'), limits.minTokenLength));
@@ -138,11 +161,18 @@ export function decodings(line, limits) {
             }
         }
     }
-    const hexRuns = new RegExp(`(?:[0-9a-fA-F]{2}){${Math.ceil(limits.hexMinRun / 2)},}`, 'gu');
+    // The run is matched as characters, not as pairs. Matching pairs anchored at
+    // the run start silently truncated an odd-length run before the offset was
+    // applied, so the odd alignment always lost the run's LAST byte - and the
+    // end of a run is exactly where a name hides. Each offset is trimmed to a
+    // whole number of bytes at its own end instead.
+    const hexRuns = new RegExp(`[0-9a-fA-F]{${limits.hexMinRun},}`, 'gu');
     for (const run of line.match(hexRuns) ?? []) {
-        add('hex', readable(Buffer.from(run, 'hex'), limits.minTokenLength));
-        // Hex is two characters per byte, so an odd start shifts everything.
-        add('hex', readable(Buffer.from(run.slice(1), 'hex'), limits.minTokenLength));
+        for (let offset = 0; offset < 2; offset += 1) {
+            const shifted = run.slice(offset);
+            const whole = shifted.length % 2 === 0 ? shifted : shifted.slice(0, -1);
+            add('hex', readable(Buffer.from(whole, 'hex'), limits.minTokenLength));
+        }
     }
     if (line.includes('%')) {
         try {
@@ -166,6 +196,56 @@ export function decodings(line, limits) {
 }
 
 /**
+ * Numbers this repository is not allowed to contain.
+ *
+ * The inverse of the hash list, and deliberately so. A hash of a value drawn
+ * from a small enumerable space is the value with extra steps - the space falls
+ * in milliseconds - so that class is not hashed at all. What is published here
+ * instead is an ALLOW-list: the numbers that are already visible in this
+ * repository, with no captions saying what any of them is. It gives a reader
+ * nothing they could not get by reading the files, and it catches every
+ * internal value of this shape rather than the three somebody remembered.
+ *
+ * A match is reported by its length and its location, never its value.
+ */
+const YEAR_CONTEXT =
+    /(?:copyright|\(c\)|©|january|february|march|april|may|june|july|august|september|october|november|december)[\s,]*$/u;
+
+export function scanNumbers(line, rules, onFinding) {
+    const { minDigits, maxDigits, allowed } = rules.numbers;
+    const candidates = new RegExp(`(?<![0-9])[0-9]{${minDigits},${maxDigits}}(?![0-9])`, 'gu');
+    let match;
+    while ((match = candidates.exec(line)) !== null) {
+        const before = match.index === 0 ? '' : line[match.index - 1];
+        const after = line[match.index + match[0].length] ?? '';
+        const glued = /[A-Za-z_]/u;
+        const structural = /[.-]/u;
+        if (glued.test(before) || glued.test(after)) {
+            // Part of an identifier, a hash or a base64 blob, not a number.
+            continue;
+        }
+        if (structural.test(before) || structural.test(after)) {
+            // A date, a version or a dotted address: the digits belong to a
+            // shape that is not a bare number.
+            continue;
+        }
+        if (allowed.has(match[0])) {
+            continue;
+        }
+        const lead = line.slice(Math.max(0, match.index - 14), match.index).toLowerCase();
+        if (YEAR_CONTEXT.test(lead)) {
+            // A copyright line or a date in prose. Years are not the shape this
+            // check is about, and allow-listing each new one would rot annually.
+            continue;
+        }
+        onFinding({
+            kind: 'number',
+            detail: `a ${match[0].length}-digit number that is not on the allow-list appears here - if it is a port or another internal value it does not belong in a public repository; if it is harmless, add it to numbers.allowed in scripts/rules.json`
+        });
+    }
+}
+
+/**
  * What the scanner still cannot see. Printed on every run, never implied.
  *
  * Every sentence about an encoding is computed from the same thresholds the
@@ -177,8 +257,11 @@ export function blindSpots(rules) {
     const limits = thresholds(rules);
     return [
         `a name shorter than ${limits.minTokenLength} characters (the shortest rule is ${limits.minTokenLength}, the longest ${limits.maxTokenLength}; the decoders are sized to the shortest)`,
-        `base64 in a run shorter than ${limits.base64MinRun} characters, or hex in a run shorter than ${limits.hexMinRun} - shorter than that and there is no room for the shortest name`,
-        'anything split across two lines, since each line is read on its own',
+        `base64 in a run shorter than ${limits.base64MinRun} characters, or hex in a run shorter than ${limits.hexMinRun} - shorter than that there is no room for the shortest name`,
+        `a number of fewer than ${rules.numbers.minDigits} or more than ${rules.numbers.maxDigits} digits, and any number that is not written as a bare number`,
+        'a decoded run that contains even one byte outside printable ASCII - the run is discarded whole, so a name next to binary in the same run is not seen',
+        `an identifier that breaks into more than ${MAX_IDENTIFIER_PIECES} pieces, which is skipped rather than combined`,
+        'anything split across two lines, since every check reads one line at a time',
         'compressed (gzip/deflate) or encrypted payloads',
         'text assembled at runtime from arithmetic or character codes',
         'anything fetched at install or run time rather than shipped'
@@ -192,20 +275,67 @@ export function blindSpots(rules) {
  * plaintext AND to every decoding, because a name hidden in base64 is still
  * the name.
  */
+
+/**
+ * True when a decoded view is exactly one of our own rule definitions.
+ *
+ * Deliberately an EXACT comparison against the rule sources and samples: a
+ * decoded view that is precisely a rule's own text is this file talking about
+ * itself, while the same shape inside a real statement is longer than any rule
+ * definition and matches nothing here. It is a self-reference test, not an
+ * exemption for a file.
+ */
+function isOwnRuleText(text, rules) {
+    if (ownRuleTexts === undefined) {
+        ownRuleTexts = new Set();
+        for (const list of [rules.repositoryPatterns, rules.tarballPatterns, rules.embeddedSourcePatterns]) {
+            for (const rule of list ?? []) {
+                ownRuleTexts.add(rule.source);
+                if (rule.sample !== undefined) {
+                    ownRuleTexts.add(rule.sample);
+                }
+                ownRuleTexts.add([...rule.source].reverse().join(''));
+                if (rule.sample !== undefined) {
+                    ownRuleTexts.add([...rule.sample].reverse().join(''));
+                }
+            }
+        }
+    }
+    return ownRuleTexts.has(text.trim());
+}
+
+let ownRuleTexts;
+
 export function scanFile({ label, text, patterns, rules, extraTokenHashes = new Set(), onFinding }) {
     const limits = thresholds(rules);
     const lines = text.split('\n');
     for (const [index, line] of lines.entries()) {
         const where = `${label}:${index + 1}`;
 
-        for (const rule of patterns) {
-            const match = compile(rule).exec(line);
-            if (match !== null) {
-                onFinding({ kind: 'pattern', where, detail: `${rule.label} (matched ${JSON.stringify(match[0])})` });
+        const views = [{ encoding: 'plaintext', text: line }, ...decodings(line, limits)];
+
+        for (const view of views) {
+            const ownDefinition = view.encoding !== 'plaintext' && isOwnRuleText(view.text, rules);
+            for (const rule of patterns) {
+                if (ownDefinition) {
+                    // A decoded view that IS one of our own rule definitions is
+                    // the rules file describing itself - today's, or an older
+                    // one in the history. A rule matching its own definition is
+                    // a self-reference, not a leak, and the alternative is to
+                    // stop scanning a file, which is how the last one hid.
+                    continue;
+                }
+                if (compile(rule).test(view.text)) {
+                    // The shape, and where it is - not what matched. On a public
+                    // repository the log is as published as the file.
+                    onFinding({ kind: 'pattern', where, detail: `${rule.label}, as ${view.encoding}` });
+                }
             }
+            scanNumbers(view.text, rules, finding => {
+                onFinding({ kind: finding.kind, where, detail: `${finding.detail} (as ${view.encoding})` });
+            });
         }
 
-        const views = [{ encoding: 'plaintext', text: line }, ...decodings(line, limits)];
         for (const view of views) {
             for (const candidate of tokenCandidates(view.text)) {
                 const digest = hashToken(rules.salt, candidate);

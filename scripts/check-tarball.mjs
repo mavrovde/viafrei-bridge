@@ -49,27 +49,45 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { blindSpots, loadRules, scanFile } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RULES = loadRules(ROOT);
 
 /** Files that must be in the tarball for it to be the package at all. */
-const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
+export const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
 
 /** File names that have no business being published. */
-const FORBIDDEN_NAMES = [
-    { label: 'source map', test: name => name.endsWith('.map') },
-    { label: 'TypeScript source', test: name => name.endsWith('.ts') && !name.endsWith('.d.ts') },
-    { label: 'environment file', test: name => /(^|\/)\.env/u.test(name) },
-    { label: 'test file', test: name => /(^|\/)(test|tests|__tests__)(\/|$)/u.test(name) || /\.test\.[cm]?[jt]s$/u.test(name) },
-    { label: 'fixture', test: name => /(^|\/)(fixtures?|data)(\/|$)/u.test(name) },
-    { label: 'build config', test: name => /(^|\/)tsconfig[^/]*\.json$/u.test(name) },
-    { label: 'CI workflow', test: name => name.includes('.github/') },
-    { label: 'lockfile', test: name => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json)$/u.test(name) },
-    { label: 'bundled dependency tree', test: name => name.includes('node_modules/') },
-    { label: 'native build script (node-gyp runs it on install)', test: name => /(^|\/)binding\.gyp$/u.test(name) }
+/**
+ * Each rule carries a `sample`: a file name it must reject. The self-test packs
+ * the real tarball with that file added and requires the gate to refuse it, so
+ * a rule added here is a case added there - and a rule whose sample its own
+ * predicate accepts is a refusal to run, not a quiet pass.
+ */
+export const FORBIDDEN_NAMES = [
+    { label: 'source map', sample: 'dist/cli.js.map', test: name => name.endsWith('.map') },
+    { label: 'TypeScript source', sample: 'dist/cli.orig.ts', test: name => name.endsWith('.ts') && !name.endsWith('.d.ts') },
+    { label: 'environment file', sample: '.env', test: name => /(^|\/)\.env/u.test(name) },
+    {
+        label: 'test file',
+        sample: 'test/smoke.test.js',
+        test: name => /(^|\/)(test|tests|__tests__)(\/|$)/u.test(name) || /\.test\.[cm]?[jt]s$/u.test(name)
+    },
+    { label: 'fixture', sample: 'fixtures/sample.json', test: name => /(^|\/)(fixtures?|data)(\/|$)/u.test(name) },
+    { label: 'build config', sample: 'tsconfig.json', test: name => /(^|\/)tsconfig[^/]*\.json$/u.test(name) },
+    { label: 'CI workflow', sample: '.github/workflows/ci.yml', test: name => name.includes('.github/') },
+    {
+        label: 'lockfile',
+        sample: 'package-lock.json',
+        test: name => /(^|\/)(package-lock\.json|npm-shrinkwrap\.json)$/u.test(name)
+    },
+    { label: 'bundled dependency tree', sample: 'node_modules/helper/index.js', test: name => name.includes('node_modules/') },
+    {
+        label: 'native build script (node-gyp runs it on install)',
+        sample: 'binding.gyp',
+        test: name => /(^|\/)binding\.gyp$/u.test(name)
+    }
 ];
 
 /**
@@ -77,7 +95,7 @@ const FORBIDDEN_NAMES = [
  * here is remote code execution on somebody else's machine, so the published
  * manifest may not carry one - not even ours.
  */
-const AUTO_RUN_SCRIPTS = new Set([
+export const AUTO_RUN_SCRIPTS = new Set([
     'preinstall',
     'install',
     'postinstall',
@@ -180,7 +198,10 @@ function checkManifest(manifest) {
         for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
             const shown = `${field} ${name}@${String(spec)}`;
             const resolved = resolveSpec(name, String(spec));
-            if (name.startsWith(PRIVATE_SCOPE) || resolved.name.startsWith(PRIVATE_SCOPE)) {
+            // Lower-cased on both sides: npm treats package names as
+            // lower-case, so an upper-case spelling of the scope is the same
+            // dependency wearing a hat.
+            if (name.toLowerCase().startsWith(PRIVATE_SCOPE) || resolved.name.toLowerCase().startsWith(PRIVATE_SCOPE)) {
                 const how = resolved.aliased ? ` - the alias resolves to ${resolved.name}, and` : ' -';
                 fail('dependencies', `${shown}${how} that scope carries the platform`);
                 continue;
@@ -306,4 +327,8 @@ function main() {
     }
 }
 
-process.exit(main());
+const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (invokedDirectly) {
+    process.exit(main());
+}

@@ -24,7 +24,7 @@
     "",
     "What the hashes do NOT do, said here rather than discovered later: they are",
     "a confirmation oracle. With a wordlist assembled from this project's own",
-    "README, a reviewer recovered 10 of the 12 in seconds. That is accepted, not",
+    "README, a reviewer recovered most of them in seconds. That is accepted, not",
     "overlooked - this is internal naming with no access value and nothing to",
     "rotate. The gain was never the strings; it was losing the captions that said",
     "what each name was, and losing the exemption that stopped the sweep from",
@@ -37,19 +37,22 @@
   "salt": "viafrei-bridge/rules/v1",
   "hashAlgorithm": "sha256",
   "_tokenLength": [
-    "The shortest and longest name behind the hashes, in characters.",
+    "The shortest and longest entry behind the hashes, in characters.",
     "",
-    "This is here because the scanner's decoders need a minimum run length,",
-    "and a threshold chosen without reference to the rules is how a check",
-    "comes to report success about what it never read: the first version",
-    "needed 18 characters of plaintext before it would even look at base64,",
-    "and NO name on the list is that long. Publishing a length range is a",
-    "far smaller disclosure than a check that silently covers nothing.",
+    "The decoders size themselves from the shortest: a threshold chosen without",
+    "reference to what is being looked for is how a check comes to report success",
+    "about what it never read. The first version demanded 18 bytes of plaintext",
+    "before it would look at base64, and no entry was that long.",
     "",
-    "blindSpots() derives its statement from these numbers, so it cannot",
-    "claim a coverage the thresholds do not give."
+    "A length range is a disclosure, so it is kept as small as it can be: the one",
+    "class whose space a length hint collapses is not on this list any more (see",
+    "_numbers). What remains is long enough that a length bound adds nothing a",
+    "wordlist did not already give, which is the limitation _read_me concedes.",
+    "",
+    "blindSpots() derives its statement from these numbers, so it cannot claim a",
+    "coverage the thresholds do not give."
   ],
-  "minTokenLength": 4,
+  "minTokenLength": 7,
   "maxTokenLength": 15,
   "_tokenHashes": [
     "sha256(`${salt}:${token.toLowerCase()}`). A finding reports the hash prefix",
@@ -65,10 +68,7 @@
     "b1923547b0de6e01cb9a66c0339ef2a757e241e022d5f9b355f6c882c5d7d2f4",
     "2ae3bb3ac6b0ebeef04a784c545423086835d73d5f00b14fcdf21480db00053c",
     "db4c0c8e7f8e11f3fee11492d21509741a7344635ae951765284dd8eb9a90c75",
-    "5fd59f95516d35c4994f883d12be2f5614fbd69ebebd64db1c630cb04b303d69",
-    "b4a1c26440431b3d43fb6a27499996774351330ba250d95617eecc25dadf3485",
-    "6a6338f1160a95180becac80de77b6ca5af4908377f4e553ee244efe4be3e7d4",
-    "c09eea108223beced0f8c9d7af850e9093ab5f7c3001d3562d862daec70abda6"
+    "5fd59f95516d35c4994f883d12be2f5614fbd69ebebd64db1c630cb04b303d69"
   ],
   "_allowedHosts": [
     "The public repository may name these and nothing else. apache.org is the",
@@ -91,48 +91,48 @@
   "repositoryPatterns": [
     {
       "label": "SQL write",
-      "regex": "aW5zZXJ0IGludG8=",
+      "regex": "b3RuaSB0cmVzbmk=",
       "flags": "i"
     },
     {
       "label": "a run of nineteen digits",
-      "regex": "KD88IVswLTldKVswLTldezE5fSg/IVswLTldKQ=="
+      "regex": "KV05LTBbIT8ofTkxe105LTBbKV05LTBbITw/KA=="
     }
   ],
   "tarballPatterns": [
     {
       "label": "SQL read",
-      "regex": "c2VsZWN0IA==",
+      "regex": "IHRjZWxlcw==",
       "flags": "i",
-      "sample": "c2VsZWN0IA=="
+      "sample": "IHRjZWxlcw=="
     },
     {
       "label": "SQL write",
-      "regex": "aW5zZXJ0IGludG8=",
+      "regex": "b3RuaSB0cmVzbmk=",
       "flags": "i",
-      "sample": "aW5zZXJ0IGludG8="
+      "sample": "b3RuaSB0cmVzbmk="
     },
     {
       "label": "the PostgreSQL driver",
-      "regex": "KD88IVtBLVphLXowLTlfJC1dKXBnKD8hW0EtWmEtejAtOV8kLV0p",
-      "sample": "cmVxdWlyZSgicGciKQ=="
+      "regex": "KV0tJF85LTB6LWFaLUFbIT8oZ3ApXS0kXzktMHotYVotQVshPD8o",
+      "sample": "KSJncCIoZXJpdXFlcg=="
     }
   ],
   "embeddedSourcePatterns": [
     {
       "label": "embedded original sources",
-      "regex": "c291cmNlc0NvbnRlbnQ=",
-      "sample": "c291cmNlc0NvbnRlbnQ="
+      "regex": "dG5ldG5vQ3NlY3J1b3M=",
+      "sample": "dG5ldG5vQ3NlY3J1b3M="
     },
     {
       "label": "source map link",
-      "regex": "c291cmNlTWFwcGluZ1VSTA==",
-      "sample": "c291cmNlTWFwcGluZ1VSTA=="
+      "regex": "TFJVZ25pcHBhTWVjcnVvcw==",
+      "sample": "TFJVZ25pcHBhTWVjcnVvcw=="
     },
     {
       "label": "inline source comment",
-      "regex": "Ly8jIHNvdXJjZQ==",
-      "sample": "Ly8jIHNvdXJjZQ=="
+      "regex": "ZWNydW9zICMvLw==",
+      "sample": "ZWNydW9zICMvLw=="
     }
   ],
   "_samples": [
@@ -142,5 +142,43 @@
     "self-test never has to spell a forbidden string out itself. The repository",
     "patterns carry no sample - one of them is a run of nineteen digits, and a",
     "sample of that is the very thing this repository may not contain."
+  ],
+  "_numbers": [
+    "Numbers are NOT hashed, and this is the round-3 defect being repaired.",
+    "",
+    "A hash of a value drawn from a small enumerable space is not a hash, it is",
+    "the value with extra steps: a reviewer exhausted the space of one such class",
+    "in 49 milliseconds on a laptop, with the salt taken from this file and no",
+    "wordlist at all. Publishing a minimum length made it worse.",
+    "",
+    "So that class is not on the hash list any more. It is covered instead by the",
+    "opposite construction: an ALLOW-list of the numbers this repository may",
+    "contain, with no captions. An allow-list gives a reader nothing - these are",
+    "the numbers that are here, which they can already see - and it is strictly",
+    "stronger than the hashes were, because it catches every internal value of",
+    "this shape, including the ones nobody thought to add.",
+    "",
+    "Adding one: if a number in this range is genuinely part of this repository,",
+    "put it here. If it is an internal value, it does not belong in the file at",
+    "all, and the point of the check is that you have to make that choice."
+  ],
+  "numbers": {
+    "minDigits": 4,
+    "maxDigits": 5,
+    "allowed": [
+      1024,
+      1234,
+      3000,
+      8787,
+      30000
+    ]
+  },
+  "_patterns": [
+    "Each pattern is stored base64-encoded AND reversed, and both halves of that",
+    "are load-bearing. base64 keeps the file from matching its own rules when it",
+    "is read as text; reversing keeps it from matching them when it is read as",
+    "base64, which the scanner now also does. Neither is secrecy - the shapes are",
+    "generic and `npm run rules:show` prints them - it is a file that must not be",
+    "a hit for itself while still being scanned like every other file."
   ]
 }

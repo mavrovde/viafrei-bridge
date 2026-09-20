@@ -14,12 +14,12 @@ describe('parseOptions', () => {
     });
 
     it('takes the endpoint from the environment', () => {
-        const options = parseOptions([], { VIAFREI_MCP_URL: 'http://127.0.0.1:8787/mcp' });
-        assert.equal(options.url, 'http://127.0.0.1:8787/mcp');
+        const options = parseOptions([], { VIAFREI_MCP_URL: 'http://127.0.0.1:3000/mcp' });
+        assert.equal(options.url, 'http://127.0.0.1:3000/mcp');
     });
 
     it('lets --url win over the environment', () => {
-        const options = parseOptions(['--url', 'http://127.0.0.1:9/mcp'], { VIAFREI_MCP_URL: 'http://127.0.0.1:8787/mcp' });
+        const options = parseOptions(['--url', 'http://127.0.0.1:9/mcp'], { VIAFREI_MCP_URL: 'http://127.0.0.1:3000/mcp' });
         assert.equal(options.url, 'http://127.0.0.1:9/mcp');
     });
 

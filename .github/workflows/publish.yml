@@ -50,7 +50,7 @@ jobs:
       # Trusted Publishing needs a recent npm CLI; the one bundled with Node
       # may predate it.
       - name: Use an npm that can do Trusted Publishing
-        run: npm install -g npm@latest
+        run: npm install -g npm@latest --ignore-scripts
 
       # --ignore-scripts: no dependency's install hook runs in a job that can
       # build or publish this package. The gate refuses a lifecycle script in

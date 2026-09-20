@@ -46,12 +46,15 @@ first real release is this one.
   **every dependency judged by what it resolves to**, not by its name, because a
   git URL under an innocent name is still a git URL. The scan decodes base64,
   hex, percent-encoding, JavaScript escapes and concatenated string literals,
-  and prints what it still cannot see on every run - and that statement is
-  computed from the thresholds the decoders actually use, so it cannot claim a
-  coverage the code does not have. Its self-test poisons a real tarball 28 ways
-  and checks the gate rejects each one.
+  and prints what it still cannot see on every run - computed from the
+  thresholds the decoders actually use, so it cannot claim a coverage the code
+  does not have. Its self-test builds one poisoned tarball per rule the gate
+  reads - every lifecycle script, every forbidden file name, every required
+  file, every pattern, every encoding at every alignment - and refuses to run at
+  all if that plan ever shrinks.
 - **A repository leak sweep** over the working tree and the history, with **no
-  file skipped**. The names it looks for are salted hashes rather than text, so
+  file skipped**, which refuses (exit 2) rather than passing when there is
+  nothing to read: no tracked files, no commits, no blobs, or an empty ruleset. The names it looks for are salted hashes rather than text, so
   the rules file carries no secret and needs no exemption - the previous
   arrangement published the list it was protecting and then skipped the file it
   was in. Findings print a hash prefix and a location, never the name.

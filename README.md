@@ -42,14 +42,14 @@ reads:
 ```
 
 **A different endpoint** — your own deployment, or a server running locally on
-port 8787:
+port 3000:
 
 ```json
 {
   "mcpServers": {
     "viafrei": {
       "command": "npx",
-      "args": ["-y", "viafrei", "--url", "http://127.0.0.1:8787/mcp"]
+      "args": ["-y", "viafrei", "--url", "http://127.0.0.1:3000/mcp"]
     }
   }
 }

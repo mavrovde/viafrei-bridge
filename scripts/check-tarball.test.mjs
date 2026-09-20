@@ -7,54 +7,51 @@
  * ways the gate exists to catch and checks that it is rejected - naming the
  * finding, so a case cannot pass by failing for the wrong reason.
  *
- * Three of these cases are here because a reviewer got them past the previous
- * gate, which exited 0 and printed `gate: PASS`:
+ * **Every case is derived from the gate's own rules**, not typed out here: one
+ * per lifecycle script npm can start by itself, one per forbidden file name,
+ * one per required file, one per content pattern, and one per encoding at each
+ * alignment. A rule added to the gate is a case added here; a rule list that
+ * goes empty is a REFUSAL to run rather than a smaller, quieter pass. That was
+ * a real hole: this file used to exit on `failures === 0` whatever the number
+ * of cases, so emptying a list in `rules.json` deleted six cases and still
+ * printed PASS.
  *
- *   - a `postinstall` in the published manifest (remote code execution on
- *     every machine that runs `npm install`),
- *   - a dependency on the private repository under a name with no `@viafrei/`
- *     in it (`git+ssh://…`), because the check was on the NAME,
- *   - a private name base64-encoded inside `dist/cli.js`, because the scan
- *     only ever read plaintext.
+ * Nothing private is written down here, in any form. The private-name cases
+ * invent a token at run time, hand its salted hash to the gate through
+ * `VF_EXTRA_TOKEN_HASHES`, and hide it in the tarball; the poison strings for
+ * the content patterns are decoded from the rules' own `sample` fields.
  *
- * Two rules about what this file may contain, both load-bearing:
- *
- *   - The poison strings for the generic patterns are decoded from the
- *     `sample` field of `scripts/rules.json`, so this file never spells out a
- *     string it forbids and a rule added there is a case added here.
- *   - No private name appears here in any form. The private-name cases invent
- *     a random token at run time, hand its salted hash to the gate through
- *     `VF_EXTRA_TOKEN_HASHES`, and hide the token in the tarball. That proves
- *     the hashed path and every decoding without a real name - or a stand-in
- *     for one - ever being written down in a public repository.
+ * Exit 0 = every case behaved, 1 = a case failed, 2 = the test could not run,
+ * which is also a failure.
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
 import { hashToken, loadRules } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GATE = join(ROOT, 'scripts/check-tarball.mjs');
 const RULES = loadRules(ROOT);
 
-const workspace = mkdtempSync(join(tmpdir(), 'viafrei-gate-test-'));
-let failures = 0;
-let cases = 0;
 const log = message => {
     process.stdout.write(`${message}\n`);
 };
 
-/**
- * A name nobody has ever used, invented now, so nothing private is written down.
- *
- * The length matters and used to be wrong here. This test invented a 20-letter
- * token, which is longer than every name on the real list (4 to 15 characters)
- * - so the encoded cases passed while the same encodings could not have caught
- * a real name. Tokens are now as short as the shortest rule and as ordinary as
- * a middling one.
- */
+/** Stop rather than run a smaller test and call it the same test. */
+const refuse = reason => {
+    log('');
+    log(`gate self-test: CANNOT RUN - ${reason}`);
+    log('gate self-test: this is a failure, not a pass: a suite that shrank has not proved what it used to');
+    process.exit(2);
+};
+
+// ---------------------------------------------------------------------------
+// Tokens: invented here, never a real name, and no longer than a real one.
+// ---------------------------------------------------------------------------
+
 function inventToken(length) {
     const letters = 'abcdefghijklmnopqrstuvwxyz';
     let token = '';
@@ -64,14 +61,264 @@ function inventToken(length) {
     return token;
 }
 
-const SECRET = inventToken(11);
-const SECRET_HASH = hashToken(RULES.salt, SECRET);
-const withSecret = { ...process.env, VF_EXTRA_TOKEN_HASHES: SECRET_HASH };
-
-/** The shortest name the rules claim to cover - the hardest case to encode. */
+/** A middling name, and the shortest the rules claim to cover. */
+const SECRET = inventToken(Math.min(RULES.maxTokenLength, RULES.minTokenLength + 4));
 const SHORTEST = inventToken(RULES.minTokenLength);
-const SHORTEST_HASH = hashToken(RULES.salt, SHORTEST);
-const withShortest = { ...process.env, VF_EXTRA_TOKEN_HASHES: SHORTEST_HASH };
+const envFor = token => ({ ...process.env, VF_EXTRA_TOKEN_HASHES: hashToken(RULES.salt, token) });
+
+const hex = text => Buffer.from(text).toString('hex');
+const b64 = text => Buffer.from(text).toString('base64');
+/**
+ * Filler either side of the name inside the encoded run.
+ *
+ * Deliberately NOT letters: a letter next to the name makes one identifier, and
+ * then the case would be testing the tokeniser rather than the alignment. Real
+ * encoded payloads have punctuation and separators in them; this is that.
+ */
+const pad = count => '-'.repeat(count);
+
+// ---------------------------------------------------------------------------
+// The plan, built from the gate's own rules.
+// ---------------------------------------------------------------------------
+
+const plan = [];
+const add = (kind, name, expectation, poison, env = process.env, codes = [1]) => {
+    plan.push({ kind, name, expectation, poison, env, codes });
+};
+
+function editManifest(directory, edit) {
+    const path = join(directory, 'package.json');
+    const manifest = JSON.parse(readFileSync(path, 'utf8'));
+    edit(manifest);
+    writeFileSync(path, JSON.stringify(manifest, null, 2));
+}
+
+function writeInto(directory, relative, contents) {
+    const path = join(directory, relative);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, contents);
+}
+
+// --- one case per script npm can start by itself ---------------------------
+if (AUTO_RUN_SCRIPTS.size === 0) {
+    refuse('the gate lists no auto-run scripts, so every lifecycle script would pass');
+}
+for (const script of AUTO_RUN_SCRIPTS) {
+    add('lifecycle', `lifecycle-${script}`, `lifecycle script.*"${script}"`, directory => {
+        editManifest(directory, manifest => {
+            manifest.scripts = { ...manifest.scripts, [script]: 'node -e "process.exit(0)"' };
+        });
+    });
+}
+add('lifecycle', 'gypfile-manifest', 'lifecycle script.*gypfile', directory => {
+    editManifest(directory, manifest => {
+        manifest.gypfile = true;
+    });
+});
+
+// --- one case per forbidden file name, from the rule's own sample ----------
+if (FORBIDDEN_NAMES.length === 0) {
+    refuse('the gate lists no forbidden file names');
+}
+for (const rule of FORBIDDEN_NAMES) {
+    if (typeof rule.sample !== 'string' || !rule.test(rule.sample)) {
+        refuse(`the file-name rule "${rule.label}" has no sample that it rejects, so nothing proves it works`);
+    }
+    add('file name', `file-${rule.label.replace(/[^a-z]+/giu, '-')}`, 'file name', directory => {
+        writeInto(directory, rule.sample, 'poison\n');
+    });
+}
+
+// --- one case per required file -------------------------------------------
+if (REQUIRED.length === 0) {
+    refuse('the gate requires no files, so an empty tarball would be the package');
+}
+for (const required of REQUIRED) {
+    const relative = required.replace(/^package\//u, '');
+    // Removing the manifest leaves the gate nothing to read, so it exits 2 -
+    // "could not run", which is a failure too and is the honest answer here.
+    const isManifest = relative === 'package.json';
+    add(
+        'contents',
+        `missing-${relative.replace(/[^a-z]+/giu, '-')}`,
+        isManifest ? 'could not run' : 'contents',
+        directory => {
+            unlinkSync(join(directory, relative));
+        },
+        process.env,
+        isManifest ? [2] : [1]
+    );
+}
+
+// --- dependencies, judged by what they resolve to --------------------------
+const DEPENDENCY_SPECS = [
+    { name: 'a-viafrei-dependency', dependency: '@viafrei/mcp', spec: '*', expectation: 'dependencies.*scope carries the platform' },
+    {
+        name: 'a-viafrei-dependency-shouting',
+        dependency: '@VIAFREI/mcp',
+        spec: '*',
+        expectation: 'dependencies.*scope carries the platform'
+    },
+    {
+        name: 'an-npm-alias-onto-the-private-scope',
+        dependency: 'mcp-helper',
+        spec: 'npm:@viafrei/mcp@^1.0.0',
+        expectation: 'dependencies.*scope carries the platform'
+    },
+    {
+        name: 'an-npm-alias-shouting',
+        dependency: 'mcp-helper',
+        spec: 'npm:@ViaFrei/mcp@^1.0.0',
+        expectation: 'dependencies.*scope carries the platform'
+    },
+    {
+        name: 'the-private-repo-under-another-name',
+        dependency: 'vf-platform',
+        spec: 'git+ssh://git@github.com/example/example.git#main',
+        expectation: 'dependencies.*not a registry semver range'
+    },
+    { name: 'a-tarball-url', dependency: 'helper', spec: 'https://example.invalid/helper.tgz', expectation: 'dependencies.*not a registry semver range' },
+    { name: 'a-file-path', dependency: 'helper', spec: 'file:../helper', expectation: 'dependencies.*not a registry semver range' },
+    { name: 'a-workspace-link', dependency: 'helper', spec: 'workspace:*', expectation: 'dependencies.*not a registry semver range' },
+    { name: 'a-github-shorthand', dependency: 'helper', spec: 'github:example/example', expectation: 'dependencies.*not a registry semver range' },
+    { name: 'an-alias-onto-a-git-url', dependency: 'helper', spec: 'npm:other@git+ssh://git@github.com/example/example.git', expectation: 'dependencies.*not a registry semver range' }
+];
+for (const entry of DEPENDENCY_SPECS) {
+    add('dependencies', entry.name, entry.expectation, directory => {
+        editManifest(directory, manifest => {
+            manifest.dependencies = { ...manifest.dependencies, [entry.dependency]: entry.spec };
+        });
+    });
+}
+add('dependencies', 'a-bundled-dependency', 'dependencies.*bundleDependencies', directory => {
+    editManifest(directory, manifest => {
+        manifest.bundleDependencies = ['helper'];
+    });
+});
+
+// --- one case per content pattern, from the rule's own sample --------------
+for (const [list, label, target] of [
+    [RULES.embeddedSourcePatterns, 'embedded', 'dist/cli.js'],
+    [RULES.tarballPatterns, 'content', 'dist/index.js']
+]) {
+    if (list.length === 0) {
+        refuse(`the rules file lists no ${label} patterns`);
+    }
+    for (const rule of list) {
+        if (typeof rule.sample !== 'string' || !new RegExp(rule.source, `${rule.flags ?? ''}u`).test(rule.sample)) {
+            refuse(`the pattern "${rule.label}" has no sample that it matches, so nothing proves it works`);
+        }
+        add('content', `${label}-${rule.label.replace(/\s+/gu, '-')}`, 'content:', directory => {
+            appendFileSync(join(directory, target), `\n// ${rule.sample}\n`);
+        });
+    }
+}
+
+// --- one case per encoding, at every alignment, with the name at the TAIL ---
+//
+// The tail is where the last defect lived: the hex decoder truncated the run
+// before it shifted, so the odd alignment lost the run's final byte every time
+// and a name at the end of a run was invisible. Head and middle placements
+// passed throughout, which is why nothing caught it.
+const ENCODING_CASES = [];
+for (let shift = 0; shift < 4; shift += 1) {
+    ENCODING_CASES.push({
+        name: `base64-tail-alignment-${shift}`,
+        expectation: 'private name.*as base64',
+        token: SECRET,
+        build: token => `const blob = "${b64(pad(shift) + token)}";`
+    });
+}
+ENCODING_CASES.push(
+    {
+        name: 'base64-middle',
+        expectation: 'private name.*as base64',
+        token: SECRET,
+        build: token => `const blob = "${b64(`${pad(2)}${token}${pad(3)}`)}";`
+    },
+    {
+        name: 'base64-shortest-name',
+        expectation: 'private name.*as base64',
+        token: SHORTEST,
+        build: token => `const blob = "${b64(token)}";`
+    },
+    {
+        name: 'hex-tail-even-alignment',
+        expectation: 'private name.*as hex',
+        token: SECRET,
+        build: token => `const blob = "${hex(pad(2) + token)}";`
+    },
+    {
+        name: 'hex-tail-odd-alignment',
+        expectation: 'private name.*as hex',
+        token: SECRET,
+        build: token => `const blob = "${`c${hex(pad(2) + token)}`}";`
+    },
+    {
+        name: 'hex-middle-odd-alignment',
+        expectation: 'private name.*as hex',
+        token: SECRET,
+        build: token => `const blob = "${`c${hex(`${pad(2)}${token}${pad(2)}`)}`}";`
+    },
+    {
+        name: 'hex-head',
+        expectation: 'private name.*as hex',
+        token: SECRET,
+        build: token => `const blob = "${hex(token + pad(3))}";`
+    },
+    {
+        name: 'hex-shortest-name-odd-alignment',
+        expectation: 'private name.*as hex',
+        token: SHORTEST,
+        build: token => `const blob = "${`c${hex(pad(2) + token)}`}";`
+    },
+    {
+        name: 'percent-encoded',
+        expectation: 'private name.*as percent',
+        token: SECRET,
+        build: token => `const blob = "${[...token].map(character => `%${character.charCodeAt(0).toString(16)}`).join('')}";`
+    },
+    {
+        name: 'javascript-escapes',
+        expectation: 'private name.*as js-escape',
+        token: SECRET,
+        build: token => `const blob = "${[...token].map(character => `\\x${character.charCodeAt(0).toString(16)}`).join('')}";`
+    },
+    {
+        name: 'split-across-literals',
+        expectation: 'private name.*as concatenated literals',
+        token: SECRET,
+        build: token => `const blob = "${token.slice(0, 3)}" + "${token.slice(3)}";`
+    },
+    {
+        name: 'plaintext-inside-a-longer-identifier',
+        expectation: 'private name.*as plaintext',
+        token: SECRET,
+        build: token => `const my_${token}_backup = 1;`
+    }
+);
+if (ENCODING_CASES.length === 0) {
+    refuse('no encoding cases');
+}
+for (const entry of ENCODING_CASES) {
+    add(
+        'private name',
+        entry.name,
+        entry.expectation,
+        directory => {
+            appendFileSync(join(directory, 'dist/cli.js'), `\n${entry.build(entry.token)}\n`);
+        },
+        envFor(entry.token)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Run it.
+// ---------------------------------------------------------------------------
+
+const workspace = mkdtempSync(join(tmpdir(), 'viafrei-gate-test-'));
+let failures = 0;
+let ran = 0;
 
 function runGate(tarball, env = process.env) {
     try {
@@ -96,7 +343,6 @@ function pack() {
     return join(workspace, out[0].filename);
 }
 
-/** Unpack the clean tarball, let `poison` edit it, repack. */
 function poisonedTarball(name, poison) {
     const directory = join(workspace, `poison-${name}`);
     cpSync(join(workspace, 'clean'), directory, { recursive: true });
@@ -106,40 +352,18 @@ function poisonedTarball(name, poison) {
     return tarball;
 }
 
-function expectFail(name, expectation, poison, env = process.env) {
-    cases += 1;
-    const result = runGate(poisonedTarball(name, poison), env);
-    const caught = result.code === 1 && new RegExp(expectation, 'u').test(result.stdout);
-    if (caught) {
-        log(`  PASS  the gate rejected "${name}" (exit ${result.code})`);
-        for (const line of result.stdout.split('\n').filter(entry => entry.trim().startsWith('!'))) {
-            log(`        ${line.trim()}`);
-        }
-    } else {
-        failures += 1;
-        log(`  FAIL  the gate ACCEPTED "${name}" (exit ${result.code}) - it would have shipped`);
-        log(result.stdout);
-    }
-}
-
-function editManifest(directory, edit) {
-    const path = join(directory, 'package.json');
-    const manifest = JSON.parse(readFileSync(path, 'utf8'));
-    edit(manifest);
-    writeFileSync(path, JSON.stringify(manifest, null, 2));
-}
-
 try {
     log('gate self-test');
-    log(`  (private-name cases use invented tokens of ${SECRET.length} and ${SHORTEST.length} characters, new every run)`);
-    log(`  (the real rules are ${RULES.minTokenLength}-${RULES.maxTokenLength} characters, so a longer stand-in would prove nothing)`);
+    log(`  ${plan.length} poisoned tarballs, every one of them derived from a rule the gate reads`);
+    log(`  private-name cases use invented tokens of ${SHORTEST.length} and ${SECRET.length} characters, new every run`);
+    log(`  (the rules are ${RULES.minTokenLength}-${RULES.maxTokenLength} characters, so a longer stand-in would prove nothing)`);
     log('');
 
     const clean = pack();
     mkdirSync(join(workspace, 'clean'), { recursive: true });
     execFileSync('tar', ['-xzf', clean, '-C', join(workspace, 'clean')]);
 
-    cases += 1;
+    ran += 1;
     const cleanResult = runGate(clean);
     if (cleanResult.code === 0) {
         log('  PASS  the gate accepted the real tarball');
@@ -149,180 +373,27 @@ try {
         log(cleanResult.stdout);
     }
 
-    // --- the three the reviewer got past the previous gate --------------------
-
-    expectFail('a-postinstall-script', 'lifecycle script.*postinstall', directory => {
-        editManifest(directory, manifest => {
-            manifest.scripts = { ...manifest.scripts, postinstall: 'node -e "process.exit(0)"' };
-        });
-    });
-
-    expectFail('the-private-repo-under-another-name', 'dependencies.*not a registry semver range', directory => {
-        editManifest(directory, manifest => {
-            manifest.dependencies = { ...manifest.dependencies, 'vf-platform': 'git+ssh://git@github.com/example/example.git#main' };
-        });
-    });
-
-    expectFail(
-        'a-private-name-in-base64',
-        'private name.*as base64',
-        directory => {
-            appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${Buffer.from(SECRET).toString('base64')}";\n`);
-        },
-        withSecret
-    );
-
-    expectFail(
-        'the-shortest-name-there-is-in-base64',
-        'private name.*as base64',
-        directory => {
-            appendFileSync(join(directory, 'dist/index.js'), `\nconst blob = "${Buffer.from(SHORTEST).toString('base64')}";\n`);
-        },
-        withShortest
-    );
-
-    expectFail(
-        'the-shortest-name-there-is-in-hex',
-        'private name.*as hex',
-        directory => {
-            appendFileSync(join(directory, 'dist/index.js'), `\nconst blob = "${Buffer.from(SHORTEST).toString('hex')}";\n`);
-        },
-        withShortest
-    );
-
-    expectFail('an-npm-alias-onto-the-private-scope', 'dependencies.*@viafrei/', directory => {
-        editManifest(directory, manifest => {
-            manifest.dependencies = { ...manifest.dependencies, 'mcp-helper': 'npm:@viafrei/mcp@^1.0.0' };
-        });
-    });
-
-    // --- the rest of the lifecycle and dependency surface ---------------------
-
-    expectFail('a-prepare-script', 'lifecycle script.*prepare', directory => {
-        editManifest(directory, manifest => {
-            manifest.scripts = { ...manifest.scripts, prepare: 'node ./anything.js' };
-        });
-    });
-
-    expectFail('a-gypfile-manifest', 'lifecycle script.*gypfile', directory => {
-        editManifest(directory, manifest => {
-            manifest.gypfile = true;
-        });
-    });
-
-    expectFail('a-viafrei-dependency', 'dependencies.*@viafrei/', directory => {
-        editManifest(directory, manifest => {
-            manifest.dependencies = { ...manifest.dependencies, '@viafrei/mcp': '*' };
-        });
-    });
-
-    expectFail('a-tarball-url-dependency', 'dependencies.*not a registry semver range', directory => {
-        editManifest(directory, manifest => {
-            manifest.dependencies = { ...manifest.dependencies, helper: 'https://example.invalid/helper.tgz' };
-        });
-    });
-
-    expectFail('a-file-path-dependency', 'dependencies.*not a registry semver range', directory => {
-        editManifest(directory, manifest => {
-            manifest.dependencies = { ...manifest.dependencies, helper: 'file:../helper' };
-        });
-    });
-
-    expectFail('a-bundled-dependency', 'dependencies.*bundleDependencies', directory => {
-        editManifest(directory, manifest => {
-            manifest.bundleDependencies = ['helper'];
-        });
-    });
-
-    // --- what the files contain, in every encoding the scanner claims ---------
-
-    for (const rule of RULES.embeddedSourcePatterns) {
-        expectFail(`embedded-${rule.label.replace(/\s+/gu, '-')}`, 'embedded (original )?sources|source map link|inline source comment', directory => {
-            appendFileSync(join(directory, 'dist/cli.js'), `\n${rule.sample}\n`);
-        });
+    for (const entry of plan) {
+        ran += 1;
+        const result = runGate(poisonedTarball(entry.name, entry.poison), entry.env);
+        const caught = entry.codes.includes(result.code) && new RegExp(entry.expectation, 'u').test(result.stdout);
+        if (caught) {
+            log(`  PASS  rejected "${entry.name}" (${entry.kind})`);
+        } else {
+            failures += 1;
+            log(`  FAIL  ACCEPTED "${entry.name}" (${entry.kind}, exit ${result.code}) - it would have shipped`);
+            log(result.stdout);
+        }
     }
-
-    for (const rule of RULES.tarballPatterns) {
-        expectFail(`content-${rule.label.replace(/\s+/gu, '-')}`, 'content:', directory => {
-            appendFileSync(join(directory, 'dist/index.js'), `\n// ${rule.sample}\n`);
-        });
-    }
-
-    expectFail(
-        'a-private-name-inside-a-longer-identifier',
-        'private name.*as plaintext',
-        directory => {
-            appendFileSync(join(directory, 'dist/index.js'), `\nconst my_${SECRET}_backup = 1;\n`);
-        },
-        withSecret
-    );
-
-    expectFail(
-        'a-private-name-in-hex',
-        'private name.*as hex',
-        directory => {
-            appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${Buffer.from(SECRET).toString('hex')}";\n`);
-        },
-        withSecret
-    );
-
-    expectFail(
-        'a-private-name-percent-encoded',
-        'private name.*as percent',
-        directory => {
-            appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${encodeURIComponent(SECRET).replace(/[a-z]/gu, c => `%${c.charCodeAt(0).toString(16)}`)}";\n`);
-        },
-        withSecret
-    );
-
-    expectFail(
-        'a-private-name-in-js-escapes',
-        'private name.*as js-escape',
-        directory => {
-            const escaped = [...SECRET].map(character => `\\x${character.charCodeAt(0).toString(16)}`).join('');
-            appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${escaped}";\n`);
-        },
-        withSecret
-    );
-
-    expectFail(
-        'a-private-name-split-across-literals',
-        'private name.*as concatenated literals',
-        directory => {
-            const half = Math.floor(SECRET.length / 2);
-            appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${SECRET.slice(0, half)}" + "${SECRET.slice(half)}";\n`);
-        },
-        withSecret
-    );
-
-    // --- file names -----------------------------------------------------------
-
-    expectFail('a-source-map-file', 'file name', directory => {
-        writeFileSync(join(directory, 'dist/cli.js.map'), '{"version":3}');
-    });
-
-    expectFail('the-typescript-source', 'file name', directory => {
-        writeFileSync(join(directory, 'dist/cli.orig.ts'), 'export const x = 1;\n');
-    });
-
-    expectFail('a-bundled-node-modules-tree', 'file name', directory => {
-        mkdirSync(join(directory, 'node_modules/helper'), { recursive: true });
-        writeFileSync(join(directory, 'node_modules/helper/index.js'), 'module.exports = 1;\n');
-    });
-
-    expectFail('a-native-build-script', 'file name', directory => {
-        writeFileSync(join(directory, 'binding.gyp'), '{"targets":[]}\n');
-    });
-
-    expectFail('a-missing-readme', 'contents', directory => {
-        unlinkSync(join(directory, 'README.md'));
-    });
 
     log('');
+    if (ran !== plan.length + 1) {
+        refuse(`${plan.length + 1} cases were planned and ${ran} ran`);
+    }
     if (failures === 0) {
-        log(`gate self-test: PASS - ${cases} cases, every poisoned tarball rejected, the real one accepted`);
+        log(`gate self-test: PASS - ${ran} cases (${plan.length} poisoned, 1 clean), every poisoned tarball rejected`);
     } else {
-        log(`gate self-test: FAIL - ${failures} of ${cases} case(s)`);
+        log(`gate self-test: FAIL - ${failures} of ${ran} case(s)`);
     }
 } finally {
     rmSync(workspace, { recursive: true, force: true });
