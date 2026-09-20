@@ -1,0 +1,119 @@
+{
+  "_read_me": [
+    "The rules both checks run on. Two kinds, kept apart on purpose.",
+    "",
+    "1. tokenHashes - the names that must never appear here or in the published",
+    "   tarball. They are stored as SALTED HASHES, never as text. The previous",
+    "   version of this file listed them in the clear, captioned with what each",
+    "   one was, in a PUBLIC repository - a denylist of secrets is a list of",
+    "   secrets, and it was also the one file the sweep skipped, so the sweep",
+    "   structurally could not see it. Nothing is skipped now, because nothing",
+    "   sensitive is written down.",
+    "",
+    "   Honesty about what this does and does not buy: sha256 over a short,",
+    "   guessable name is not secrecy. A reader who already knows a name can",
+    "   confirm it. What this removes is the PUBLICATION - the list, the",
+    "   captions, and the shape of the platform, handed to a stranger.",
+    "",
+    "2. patterns - generic shapes that give nothing away (SQL keywords, a source",
+    "   map marker, a run of nineteen digits). Their `regex` is base64 so that",
+    "   this file is not a match for itself; that is a self-reference fix, NOT",
+    "   secrecy, and they decode to exactly what their label says.",
+    "",
+    "`npm run rules:show` prints the decoded patterns and the hash count."
+  ],
+  "salt": "viafrei-bridge/rules/v1",
+  "hashAlgorithm": "sha256",
+  "_tokenHashes": [
+    "sha256(`${salt}:${token.toLowerCase()}`). A finding reports the hash prefix",
+    "and the file and line - never the token, because a CI log on a public",
+    "repository is as public as this file."
+  ],
+  "tokenHashes": [
+    "db97344d16060cf4507e68d35e96555dfbd5ab09c8d33d1570f38ceca5058f66",
+    "1be5fadfdb0f5a8fef4374ee7c513e2cd03986468eefc36d1a18372285000178",
+    "2bfc7943b8d10c4b2364e36a2353582375c40fd1ae07493ff68cfa8a858160d9",
+    "2309752a366ae0cf662ef117a217361be03a8bf59365c67c3dee72c87ae40165",
+    "c8dced2bd58be32a429cd1504f131f4d507f1638b9ce3c409955513bd707bfaa",
+    "b1923547b0de6e01cb9a66c0339ef2a757e241e022d5f9b355f6c882c5d7d2f4",
+    "2ae3bb3ac6b0ebeef04a784c545423086835d73d5f00b14fcdf21480db00053c",
+    "db4c0c8e7f8e11f3fee11492d21509741a7344635ae951765284dd8eb9a90c75",
+    "5fd59f95516d35c4994f883d12be2f5614fbd69ebebd64db1c630cb04b303d69",
+    "b4a1c26440431b3d43fb6a27499996774351330ba250d95617eecc25dadf3485",
+    "6a6338f1160a95180becac80de77b6ca5af4908377f4e553ee244efe4be3e7d4",
+    "c09eea108223beced0f8c9d7af850e9093ab5f7c3001d3562d862daec70abda6"
+  ],
+  "_allowedHosts": [
+    "The public repository may name these and nothing else. apache.org is the",
+    "licence, github.com is this repository, viafrei.de and mcp.viafrei.de are",
+    "the public service. The loopback and the reserved .invalid TLD belong to",
+    "the offline tests; the npm registry appears in the publish workflow and in",
+    "package-lock.json."
+  ],
+  "allowedHosts": [
+    "apache.org",
+    "www.apache.org",
+    "github.com",
+    "viafrei.de",
+    "mcp.viafrei.de",
+    "127.0.0.1",
+    "localhost",
+    "example.invalid",
+    "registry.npmjs.org"
+  ],
+  "repositoryPatterns": [
+    {
+      "label": "SQL write",
+      "regex": "aW5zZXJ0IGludG8=",
+      "flags": "i"
+    },
+    {
+      "label": "a run of nineteen digits",
+      "regex": "KD88IVswLTldKVswLTldezE5fSg/IVswLTldKQ=="
+    }
+  ],
+  "tarballPatterns": [
+    {
+      "label": "SQL read",
+      "regex": "c2VsZWN0IA==",
+      "flags": "i",
+      "sample": "c2VsZWN0IA=="
+    },
+    {
+      "label": "SQL write",
+      "regex": "aW5zZXJ0IGludG8=",
+      "flags": "i",
+      "sample": "aW5zZXJ0IGludG8="
+    },
+    {
+      "label": "the PostgreSQL driver",
+      "regex": "KD88IVtBLVphLXowLTlfJC1dKXBnKD8hW0EtWmEtejAtOV8kLV0p",
+      "sample": "cmVxdWlyZSgicGciKQ=="
+    }
+  ],
+  "embeddedSourcePatterns": [
+    {
+      "label": "embedded original sources",
+      "regex": "c291cmNlc0NvbnRlbnQ=",
+      "sample": "c291cmNlc0NvbnRlbnQ="
+    },
+    {
+      "label": "source map link",
+      "regex": "c291cmNlTWFwcGluZ1VSTA==",
+      "sample": "c291cmNlTWFwcGluZ1VSTA=="
+    },
+    {
+      "label": "inline source comment",
+      "regex": "Ly8jIHNvdXJjZQ==",
+      "sample": "Ly8jIHNvdXJjZQ=="
+    }
+  ],
+  "_samples": [
+    "Each tarball/embedded-source pattern carries a `sample`: a base64 string",
+    "that the pattern must match. The gate's self-test poisons a copy of the",
+    "real tarball with it, so a rule added here is a case added there and the",
+    "self-test never has to spell a forbidden string out itself. The repository",
+    "patterns carry no sample - one of them is a run of nineteen digits, and a",
+    "sample of that is the very thing this repository may not contain."
+  ]
+}

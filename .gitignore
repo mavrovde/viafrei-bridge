@@ -1,6 +1,10 @@
 # Build output
 dist/
+.test-build/
 *.tsbuildinfo
+
+# Packed tarballs - the gate packs into a temp dir, but npm pack by hand does not
+*.tgz
 
 # Dependencies
 node_modules/

@@ -1,0 +1,15 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "rootDir": ".",
+        "outDir": ".test-build",
+        "declaration": false,
+        // The SDK declares `onclose?: (() => void) | undefined` on its transport
+        // classes and `onclose?: () => void` on the `Transport` interface, which
+        // exactOptionalPropertyTypes rejects when the stub hands a server
+        // transport to `connect()`. `src/` keeps the strict setting; only the
+        // stub needs the relaxation, and casting it away would hide more.
+        "exactOptionalPropertyTypes": false
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts"]
+}

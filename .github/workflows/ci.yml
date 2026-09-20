@@ -1,0 +1,68 @@
+name: CI
+
+# Build, offline tests, and the two checks that keep this repository and the
+# published tarball free of anything belonging to the closed platform.
+#
+# Nothing here contacts the public MCP endpoint or any data provider. The tests
+# start their own stub server; the network is not part of the contract.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The leak sweep reads history; a shallow clone cannot answer what is
+          # in it, and a check that cannot run has not passed.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Offline tests
+        run: npm test
+
+      - name: Publish-hygiene gate (built tarball)
+        run: npm run check:tarball
+
+      - name: Publish-hygiene gate self-test (poisoned tarballs)
+        run: npm run test:gate
+
+      - name: Repository leak sweep (working tree and history)
+        run: node scripts/check-leaks.mjs --history
+
+      # The public endpoint may be *asserted about* - one test checks that the
+      # default really is it - but it may never be handed to something that
+      # connects. Any occurrence outside an assertion fails the build.
+      - name: No test may connect to the public endpoint
+        run: |
+          hits="$(grep -rn 'mcp\.viafrei\.de' test/ || true)"
+          echo "occurrences in test/:"
+          echo "${hits:-  (none)}"
+          offenders="$(printf '%s\n' "$hits" | grep -v 'assert' | grep -v '^$' || true)"
+          if [ -n "$offenders" ]; then
+            echo "The public endpoint appears outside an assertion:" >&2
+            echo "$offenders" >&2
+            exit 1
+          fi
+          echo "OK: every occurrence is an assertion about the default."
