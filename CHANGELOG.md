@@ -99,6 +99,16 @@ first real release is this one.
   all" while the entry was stored the other way, and a check that overstates
   its own coverage is worse than one that understates it; it now states the
   condition it actually depends on.
+- **The worked example for that spelling rule can now be reproduced.** The pair
+  it used was shorter than `minTokenLength`, so a reader who tried it literally
+  matched nothing and concluded the rule was broken - and it is printed on every
+  run, in four places. Both spellings of the replacement are inside the declared
+  window. `_tokenLength` now says what those two numbers are: **the scanner's
+  bounds, not a description of the entries, and not to be adjusted to fit them.**
+  The decoders size themselves from the lower bound, so trimming the range to
+  match whatever is on the list would stop shorter encoded forms from being
+  looked at *and* sharpen a published range, in one edit that would feel like
+  housekeeping. An entry outside the window means widening the window.
 - **Earlier wordings of those notes, in this file and in `scripts/rules.json`,
   said what the changed entries were *about*.** Together those descriptions
   narrowed the guess for a live entry further than the hashes do, which is the

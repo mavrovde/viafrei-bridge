@@ -25,11 +25,14 @@
  *
  *    This holds in both directions only if the ENTRY is stored glued. A
  *    boundary-free run offers no place to put a separator back, so an entry
- *    spelled `one_two` cannot be found inside `xyzonetwoxyz` by any
- *    construction here, while `onetwo` is found in that and in every
- *    separated spelling as well - 10 placements of 10 against 9. rules.json
- *    carries that as a rule for authors; `blindSpots()` states the gap for
- *    readers, because nothing in this file can check a hash for its spelling.
+ *    spelled `alpha_beta` cannot be found inside `xyzalphabetaxyz` by any
+ *    construction here, while `alphabeta` is found in that and in every
+ *    separated spelling as well - 10 placements of 10 against 9. Both
+ *    spellings in that example are inside the length range the rules declare,
+ *    so it can be tried as written; an example that matches nothing when a
+ *    reader runs it teaches them the rule is broken. rules.json carries this
+ *    as a rule for authors; `blindSpots()` states the gap for readers,
+ *    because nothing in this file can check a hash for its spelling.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -162,8 +165,8 @@ export function compile(rule) {
  * windows cross the old separators, so one construction covers all of them.
  *
  * Windows are bounded by the rules rather than by a count of pieces: a
- * candidate shorter than the shortest name on the list, or longer than the
- * longest, cannot be one of them, so it is never hashed. That bound is what
+ * candidate shorter than the lower bound the rules declare, or longer than the
+ * upper one, cannot be one of them, so it is never hashed. That bound is what
  * keeps a line of prose - now one run of pieces from end to end - cheap, and
  * it replaces the old piece-count cliff that skipped a long identifier whole
  * rather than looking inside it.
@@ -460,7 +463,7 @@ export function blindSpots(rules) {
         'a name written backwards, which is worth naming because this repository uses reversal as an encoding itself in scripts/rules.json',
         'a listed name that is not spelled in letters, digits and underscores: every candidate is drawn from [a-z0-9_], so a hash of a name containing anything else matches nothing, and this file cannot detect that for you because it holds hashes rather than names',
         'a near-miss rather than a spelling: a character inserted into, removed from or changed inside a name is a different string and is not matched',
-        'a multi-segment name that is STORED with a separator in it: the candidates for a run of letters and digits with no boundary in it cannot have a separator put back, so `one_two` on the list is not found in `xyzonetwoxyz`, while `onetwo` on the list is found in every spelling including that one. The list is hashed, so this file cannot check how an entry was spelled; rules.json says to store such a name glued, and that is the only thing standing between this sentence and a silent gap',
+        'a multi-segment name that is STORED with a separator in it: the candidates for a run of letters and digits with no boundary in it cannot have a separator put back, so `alpha_beta` on the list is not found in `xyzalphabetaxyz`, while `alphabeta` on the list is found in every spelling including that one. The list is hashed, so this file cannot check how an entry was spelled; rules.json says to store such a name glued, and that is the only thing standing between this sentence and a silent gap',
         'UTF-16 or any other wide encoding - every decoder reads its bytes as UTF-8',
         'anything split across two lines, since every check reads one line at a time',
         'compressed (gzip/deflate) or encrypted payloads',

@@ -133,12 +133,18 @@ to a stranger", and two rules answer it:
 Then: add it as a hash — `node -e "…"` with the salt from the file, or ask a
 maintainer — and **never paste the name** into the file, a commit message, an
 issue or a pull request. Spell a name of several segments **glued**
-(`onetwo`, not `one_two`): the scanner offers every window of a line both glued
-and underscore-joined, so the glued form is found in every separated spelling
-*and* inside a run with no boundaries in it, which the separated form cannot be.
-If the name falls outside `minTokenLength`/`maxTokenLength`, update those too —
-the decoders size themselves from that range and `blindSpots()` reports what it
-leaves uncovered.
+(`alphabeta`, not `alpha_beta`): the scanner offers every window of a line both
+glued and underscore-joined, so the glued form is found in every separated
+spelling *and* inside a run with no boundaries in it, which the separated form
+cannot be. Both spellings in that example are inside the declared length range,
+so you can try it.
+
+If the name falls outside `minTokenLength`/`maxTokenLength`, **widen** them —
+and never narrow them to fit the list. They are the scanner's bounds, not a
+description of the entries: the decoders size themselves from the lower one, so
+tidying them inwards would cost coverage and sharpen a published range in a
+single edit that felt like housekeeping. `blindSpots()` reports what the range
+leaves uncovered, on every run.
 
 When an entry has to change, record **the rule that was applied, the lengths,
 and any narrowing** in `rules.json` — never what the entry was *about*. Several

@@ -39,7 +39,8 @@ show('repository sweep', rules.repositoryPatterns);
 show('published tarball', rules.tarballPatterns);
 show('embedded sources (tarball, non-prose files)', rules.embeddedSourcePatterns);
 
-console.log(`\nprivate names: ${rules.tokenHashes.size} salted ${'sha256'} hashes, ${rules.minTokenLength}-${rules.maxTokenLength} characters, no plaintext anywhere in this repository`);
+console.log(`\nprivate names: ${rules.tokenHashes.size} salted ${'sha256'} hashes, no plaintext anywhere in this repository`);
+console.log(`scanner window: ${rules.minTokenLength}-${rules.maxTokenLength} characters - the bounds a candidate is tested in, not a description of the entries`);
 console.log(`salt: ${rules.salt}`);
 console.log('\nA finding reports a hash prefix and a location, never the name itself:');
 console.log('a CI log on a public repository is as public as the file would have been.');
