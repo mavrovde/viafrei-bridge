@@ -170,7 +170,7 @@ export function describeFailure(error: unknown, url: string): Failure {
     if (code !== undefined) {
         const explanation = SYSCALL_TEXT[code] ?? code;
         return {
-            line: `viafrei: cannot reach ${url}: ${explanation} (${code}) - check the URL, or pass --url for a different endpoint`,
+            line: `viafrei: cannot reach ${url}: ${explanation} (${code}) - check your network connection; --url only if you relay through a proxy`,
             exitCode: EXIT.UNREACHABLE
         };
     }

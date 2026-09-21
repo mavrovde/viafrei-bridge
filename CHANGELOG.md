@@ -33,6 +33,12 @@ for it, so the number is free; the bridge will use it when the platform does.
   it, so 50 passing tests said nothing about the only invocation that exists.
   The regression test spawns through a symlink and fails against the old check.
 
+- **The unreachable-endpoint line advised something that does not exist.** It
+  ended "check the URL, or pass `--url` for a different endpoint", which reads
+  as though another ViaFrei could be reached at another address. There is one,
+  it is hosted, and `--url` is for a proxy in front of it. The line now says to
+  check the network connection, and names `--url` only for the proxy case.
+
 ### Added
 
 - **The bridge.** `npx viafrei` opens an MCP server on stdio and relays every

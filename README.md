@@ -9,26 +9,40 @@ npx viafrei
 
 ## Ask your assistant things like
 
-> **Wie ist die Lage auf der A3 zwischen Köln und Frankfurt?**
-> Auf der A3 sind aktuell drei Störungen gemeldet …
+> **Welche Züge fahren als Nächstes ab Hamburg Hbf?**
+>
+> Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
+> 09:22 RE RE1 → Rostock Hbf, Gleis 7A-D, pünktlich
+> 09:28 ICE 606 → Hamburg-Altona, Gleis 5, pünktlich
+> 09:34 RJ 175 → Dresden Hbf, Gleis 8A-F, pünktlich
+> …
+> Stand 09:18 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace,
+> CC BY 4.0, bearbeitet
+
+Every answer ends with a line like that last one. It is the licence talking,
+and it is meant to be shown to whoever reads the answer — see
+[Using the data you get back](#using-the-data-you-get-back).
 
 Plain German or plain English, whichever you speak:
 
-- *Ist die A7 gerade gesperrt?*
-- *Next trains from Hamburg Hbf, with platform and delay*
+- *Gibt es gerade Stau auf der A8?*
 - *Find a rest area with lorry parking on the A9*
 - *Sind auf der A8 Baustellen geplant, wenn ich nächste Woche fahre?*
 - *Wo kann ich in Leipzig mit Typ 2 laden?*
 - *Gibt es eine Unwetterwarnung für Freiburg?*
 - *Brauche ich in Deutschland eine Umweltplakette?*
-- **Tell me when the A8 reopens** — the server can watch a situation and say so
-  when it changes, without being asked again
+- *Tell me when the A8 reopens* — the server can watch a situation and tell
+  your assistant when it changes, so you need not keep asking. The watch lives
+  in the conversation that opened it: it reaches no inbox and no phone, and it
+  ends with the session or after 24 hours, whichever comes first
 
-Thirteen tools today. The list is not copied onto this page, deliberately: one
-pasted list goes stale the first time the server changes, and then this page
-describes a server that no longer exists. Ask the server instead — any MCP
-client gets the current catalogue from `tools/list`, and
-<https://viafrei.de> renders that same list.
+Thirteen tools at the time of writing, and no list of them on this page. A
+pasted catalogue goes stale the first time a description changes on the server,
+and this page is frozen inside a published tarball — it cannot be corrected
+without a release. So there is one source of truth and it is the running
+server: connect any MCP client and call `tools/list` for the catalogue as it
+is today. (<https://viafrei.de> is the live national traffic digest, not a
+catalogue.)
 
 ## Quick start
 
@@ -88,7 +102,7 @@ want.
 One line to stderr and an exit code that says what happened. No stack traces:
 
 ```
-viafrei: cannot reach https://mcp.viafrei.de/mcp: connection refused (ECONNREFUSED) - check the URL, or pass --url for a different endpoint
+viafrei: cannot reach https://mcp.viafrei.de/mcp: DNS lookup failed (EAI_AGAIN) - check your network connection; --url only if you relay through a proxy
 ```
 
 | exit | meaning |
