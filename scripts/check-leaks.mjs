@@ -212,6 +212,10 @@ function isProbablyText(buffer) {
 }
 
 const withHistory = process.argv.includes('--history');
+// Scope of the history leg. Default: the ref being built. --all-refs asks
+// for every ref, which is what the publishing build wants -- see the
+// comment on the rev-list call for why the default is not that.
+const allRefs = process.argv.includes('--all-refs');
 
 if (RULES.tokenHashes.size === 0) {
     refuse('the rules file lists no private-name hashes');
@@ -305,15 +309,24 @@ if (scanned === 0) {
 }
 
 if (withHistory) {
-    // Scoped to the ref being built, not --all. CI checks out with
-    // fetch-depth: 0, so every remote branch is present in every job's clone:
-    // with --all, one unmerged branch carrying a residue blob turned EVERY
-    // other branch's run red, and a branch-local suppression entry could only
-    // ever rescue the branch that declared it. The working-tree leg above
-    // still scans everything tracked; what narrows here is only which history
-    // this ref is answerable for. A branch cut from main still reaches main's
-    // blobs, so nothing that was scanned before stops being scanned.
-    const revisions = git(['rev-list', 'HEAD']).split('\n').filter(line => line !== '');
+    // Scoped to the ref being built by default, not --all. CI checks out
+    // with fetch-depth: 0, so every remote branch is present in every job's
+    // clone: with --all, one unmerged branch carrying a residue blob turned
+    // EVERY other branch's run red, and a branch-local suppression entry could
+    // only ever rescue the branch that declared it.
+    //
+    // What narrows is only which HISTORY a ref is answerable for; the
+    // working-tree leg above still scans everything tracked. The honest
+    // statement of the loss, which an earlier version of this comment got
+    // wrong by claiming there was none: a blob reachable ONLY from some other
+    // ref -- an abandoned branch, a tag off the main line -- is swept when
+    // that ref is pushed and is not swept again afterwards. That is why
+    // --all-refs exists and why the publishing build passes it: a published
+    // artefact should be answerable for the whole repository, and it is the
+    // one build where paying for every ref is obviously worth it.
+    const revisions = git(['rev-list', ...(allRefs ? ['--all'] : ['HEAD'])])
+        .split('\n')
+        .filter(line => line !== '');
     let blobs = 0;
     for (const revision of revisions) {
         const entries = git(['ls-tree', '-r', '-z', revision]).split('\0').filter(entry => entry !== '');
@@ -328,8 +341,14 @@ if (withHistory) {
             blobs += 1;
         }
     }
-    log(`sweep: ${blobs} blobs across ${revisions.length} commits scanned`);
+    log(
+        `sweep: ${blobs} blobs across ${revisions.length} commits scanned` + ` (${allRefs ? 'every ref' : 'this ref only'})`
+    );
     if (revisions.length === 0) {
+        // Reachable through --all-refs, which lists nothing in a repository
+        // with no refs at all. The default scoping cannot get here: rev-list
+        // on an unborn HEAD exits 128 and runGit refuses first, with a better
+        // sentence than this one.
         refuse('--history was asked for and there are no commits to read');
     }
     if (blobs === 0) {
@@ -381,7 +400,9 @@ if (withHistory) {
             findings.push(
                 `scripts/rules.json historyNumberResidue entry ${entry.blob.slice(0, 12)}… matched no blob in this history - ` +
                     (present
-                        ? 'the object is in this repository but is not reachable from any ref, which is what a squash or a rewritten history does to it'
+                        ? allRefs
+                            ? 'the object is in this repository but is not reachable from any ref, which is what a squash or a rewritten history does to it'
+                            : "the object is in this repository but this ref's history does not reach it. That is ordinary on a branch that does not descend from the commit which carried it, and it is NOT evidence of a rewrite: re-run with --all-refs before believing it is"
                         : 'the object is not in this repository at all, which is what a shallow or partial clone does to it') +
                     '. It suppresses nothing, so nothing is hidden; remove the entry, or restore the history that contained it.'
             );

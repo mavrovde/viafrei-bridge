@@ -31,13 +31,13 @@ real one names each source's URL, which the licence requires you to keep.
 
 **No account, no API key, no sign-up — ask and the answer comes back.**
 
-ViaFrei is in its stabilisation and testing phase at the time of writing: live,
-free, and still being filled in. Some sources are thinner than they will be,
-and a tool may answer slowly or not at all. **Tell us when one does** —
+ViaFrei is in its stabilisation and testing phase at the time of writing: live
+and free, with some sources thinner than they will be, and the occasional tool
+that answers slowly or not at all. **Tell us when that happens** —
 [open an issue](https://github.com/mavrovde/viafrei-bridge/issues) with what you
-asked and what came back. Nothing here reports home — see
-[What it does not do](#what-it-does-not-do) — so a report from you is the only
-way we find out that a question went unanswered.
+asked and what came back. The server sees that a call failed; it cannot see
+that the answer was useless to you, and this bridge sends us nothing at all
+(see [What it does not do](#what-it-does-not-do)).
 
 Plain German or plain English, whichever you speak — the answers come back in
 the language you asked in, not translated from one house language:

@@ -54,6 +54,9 @@ jobs:
       - name: Repository leak sweep (working tree and history)
         run: node scripts/check-leaks.mjs --history
 
+      - name: Leak-sweep scope self-test
+        run: npm run test:leaks
+
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that
       # connects. Any occurrence outside an assertion fails the build.

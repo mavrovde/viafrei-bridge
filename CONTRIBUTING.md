@@ -271,8 +271,9 @@ file at several revisions.
 
 Every one of those blobs lives only in an intermediate commit of a feature
 branch. A squash merge writes a single new commit whose tree does not contain
-them and leaves no parent that does, so `git rev-list --all` on `main` can no
-longer reach any of them. `npm run check:leaks -- --history` then reports every entry
+them and leaves no parent that does, so neither `git rev-list HEAD` on `main`
+— which is what the sweep reads — nor `git rev-list --all`, which it reads
+under `--all-refs` in the publishing build, can reach any of them. `npm run check:leaks -- --history` then reports every entry
 as matching no blob in this history — on `main`, for everyone who clones it,
 for a condition no contributor introduced. This is not hypothetical: it was
 measured in a fresh clone of a squash-merged branch before the rule was written

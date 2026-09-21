@@ -70,11 +70,11 @@ jobs:
     steps:
       # Pinned to a commit, not a tag: a tag is mutable and this workflow
       # publishes. v4 as of 2026-09-21.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
@@ -118,8 +118,15 @@ jobs:
       - name: Offline tests
         run: npm test
 
+      # --all-refs, unlike ci.yml: a branch build is answerable for its own
+      # history, but the build that publishes is answerable for the whole
+      # repository -- this is the one place where paying for every ref is
+      # obviously worth it.
       - name: Repository leak sweep
-        run: node scripts/check-leaks.mjs --history
+        run: node scripts/check-leaks.mjs --history --all-refs
+
+      - name: Leak-sweep scope self-test
+        run: npm run test:leaks
 
       - name: Publish-hygiene gate self-test
         run: npm run test:gate
