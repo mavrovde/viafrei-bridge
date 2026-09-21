@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeSync } from 'node:fs';
+import { realpathSync, writeSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { startBridge } from './bridge.js';
 import { EXIT, type ExitCode, UsageError, helpText, parseOptions } from './config.js';
@@ -84,7 +84,35 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     }
 }
 
-const invokedDirectly = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+/**
+ * Was this file the program the user started, rather than something imported?
+ *
+ * The entry point is compared BOTH as given and resolved through symlinks,
+ * because the only way anybody actually starts this package is the symlink npm
+ * writes on install: `node_modules/.bin/viafrei -> ../viafrei/dist/cli.js`.
+ * Node resolves a module's own URL through symlinks, so `argv[1]` is the link
+ * while `import.meta.url` is its target; comparing only the unresolved form
+ * made this false for every real invocation, and the process then loaded the
+ * file, ran nothing and exited 0 in silence - which is what `npx viafrei` did.
+ * Comparing only the resolved form is not enough either: under
+ * `--preserve-symlinks-main` the module URL is the link, so both forms are
+ * offered and a match on either is the answer.
+ */
+function isEntryPoint(): boolean {
+    const entry = process.argv[1];
+    if (entry === undefined) {
+        return false;
+    }
+    const candidates = [pathToFileURL(entry).href];
+    try {
+        candidates.push(pathToFileURL(realpathSync(entry)).href);
+    } catch {
+        // The entry point cannot be resolved on disk; the form given is all there is.
+    }
+    return candidates.includes(import.meta.url);
+}
+
+const invokedDirectly = isEntryPoint();
 
 if (invokedDirectly || process.env['VIAFREI_FORCE_CLI'] === '1') {
     main().catch((error: unknown) => {
