@@ -69,28 +69,49 @@ first real release is this one.
   place, so there is no second printing site to remember. The self-test asserts
   the absence as well as the presence - a case that catches what it was given
   and prints it while doing so fails.
-- **Two entries on the private-name list were changed, under one narrow rule
-  that is now written down in `scripts/rules.json`: an entry must not be a
-  substring of text this repository legitimately prints.** Such an entry can
-  never be satisfied, and the only ways out are deleting it or narrowing the
-  scanner - and narrowing the scanner is strictly worse. Changing a rule that
-  has just started failing is otherwise exactly the move that should never pass
-  unexplained, so both are recorded there with the reasoning.
-  - One was **removed**: 8 characters, a proper substring of a word the README
-    has to print, which it flagged the moment the scanner learned to look
-    inside an unbroken run. The normal answer to a finding is to change the
-    file, and that file is the sentence saying which database the service is
-    built on.
-  - One was **replaced**, 7 characters out and 11 in. The old entry was an
-    ordinary English noun; it protected a private source path, and a bare noun
-    is the wrong token for a path. The replacement is a compound of two path
-    segments, which the tokeniser builds from every spelling of that path and
-    which no ordinary sentence produces. The narrowing is declared: the final
-    segment written alone is no longer matched, and that spelling identifies
-    nothing.
-  - The remaining six were audited against the same rule in the same round.
-    They are platform-specific identifiers rather than vocabulary and they
-    stay.
+- **Two rules now govern what may go on the private-name list, and they are in
+  `scripts/rules.json` next to the list rather than in a review thread.** They
+  fail in opposite directions. An entry must not be a substring of text this
+  repository legitimately prints, because such an entry can never be satisfied
+  and the only ways out are deleting it or weakening the scanner. And nothing
+  whose harm *is* the confirmation of a guess may ever be added - a credential,
+  a key or token, a password, a session, subscription or contract identifier, a
+  certificate serial, a hostname that grants access, personal data - because
+  the list is public and it answers questions. A table name confirmed is a fact
+  about a schema a stranger cannot reach; an identifier confirmed *is* the
+  identifier. Nothing on the list is from that class, checked rather than
+  assumed.
+- **What the hashes do is now a measured number rather than an impression.**
+  A wordlist built from the platform's own files recovers **all** of them; a
+  wordlist of ordinary English and technical vocabulary recovers **none** over
+  236,132 candidates. The file used to say "most of them", which understated
+  the property the arrangement depends on. The hashing is a lint aid, not a
+  store, and that sentence is now at the two places where somebody is told how
+  to add an entry, rather than four paragraphs away in the rationale.
+- **Two entries changed under the first of those rules**: one removed (8
+  characters) and one replaced (7 characters out, 10 in), with the rule, the
+  lengths and the declared narrowing recorded and nothing else. A name of
+  several segments is stored **glued** from now on: the scanner offers every
+  window both glued and underscore-joined, so the glued form is found in all
+  ten placements measured - including inside a run of letters with no boundary
+  in it, the shape a name takes in a minified bundle - while the
+  underscore-joined form is found in nine. `blindSpots()` said "with none at
+  all" while the entry was stored the other way, and a check that overstates
+  its own coverage is worse than one that understates it; it now states the
+  condition it actually depends on.
+- **Earlier wordings of those notes, in this file and in `scripts/rules.json`,
+  said what the changed entries were *about*.** Together those descriptions
+  narrowed the guess for a live entry further than the hashes do, which is the
+  caption failure the numbers list refuses on the facing page. The wording is
+  corrected going forward and no more than that is claimed: the earlier text is
+  in this repository's history and in the pull request that carried it, and
+  editing a published file does not unpublish it - the same reasoning
+  `CONTRIBUTING.md` gives for not squash-merging. The rule from here on is to
+  record the rule, the lengths and the narrowing, and never the subject.
+- **Two more module-scope ruleset loads are guarded.** The gate's self-test and
+  the rule printer both died with an uncaught exception on a malformed or
+  missing `rules.json` - the self-test with exit 1 where its own header defines
+  2. Each leg loads the file for itself, so one guard cannot cover another.
 - **The publish gate cannot die of its own ruleset any more.** Loading
   `rules.json` ran outside every guard, so an unreadable or malformed file
   killed the gate with an uncaught exception - exit 1, the code that means

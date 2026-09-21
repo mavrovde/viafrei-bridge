@@ -9,8 +9,23 @@
 import { fileURLToPath } from 'node:url';
 import { blindSpots, loadRules, thresholds } from './rules.mjs';
 
-const rules = loadRules(fileURLToPath(new URL('..', import.meta.url)));
-const limits = thresholds(rules);
+/**
+ * Guarded like the checks are. This one has no verdict to give, so it cannot
+ * report a false pass - but it used to end in an uncaught exception and a
+ * stack trace carrying absolute paths, which is the wrong way for anything in
+ * a leak-hygiene repository to fail, and "it is only a printer" is how the
+ * next unguarded loader gets written.
+ */
+let rules;
+let limits;
+try {
+    rules = loadRules(fileURLToPath(new URL('..', import.meta.url)));
+    limits = thresholds(rules);
+} catch (error) {
+    const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, ' ').trim();
+    console.error(`rules: CANNOT RUN - the ruleset could not be read - ${text.length > 200 ? `${text.slice(0, 199)}…` : text}`);
+    process.exit(2);
+}
 
 const show = (title, list) => {
     console.log(`\n${title}`);

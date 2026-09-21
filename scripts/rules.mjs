@@ -22,6 +22,14 @@
  *    sliding window, so a name welded into a longer run with no separator and
  *    no case change is seen too. That last one was the gap: it scored 0 out of
  *    60 placements when the filler was lower case.
+ *
+ *    This holds in both directions only if the ENTRY is stored glued. A
+ *    boundary-free run offers no place to put a separator back, so an entry
+ *    spelled `one_two` cannot be found inside `xyzonetwoxyz` by any
+ *    construction here, while `onetwo` is found in that and in every
+ *    separated spelling as well - 10 placements of 10 against 9. rules.json
+ *    carries that as a rule for authors; `blindSpots()` states the gap for
+ *    readers, because nothing in this file can check a hash for its spelling.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -451,7 +459,8 @@ export function blindSpots(rules) {
         'an encoding inside an encoding: each line is decoded exactly ONE level, so base64 of base64, or base64 of hex, is not seen',
         'a name written backwards, which is worth naming because this repository uses reversal as an encoding itself in scripts/rules.json',
         'a listed name that is not spelled in letters, digits and underscores: every candidate is drawn from [a-z0-9_], so a hash of a name containing anything else matches nothing, and this file cannot detect that for you because it holds hashes rather than names',
-        'a near-miss rather than a spelling: a character inserted into, removed from or changed inside a name is a different string and is not matched - what IS matched is the same name written with any separator, with none at all, or buried inside a longer run',
+        'a near-miss rather than a spelling: a character inserted into, removed from or changed inside a name is a different string and is not matched',
+        'a multi-segment name that is STORED with a separator in it: the candidates for a run of letters and digits with no boundary in it cannot have a separator put back, so `one_two` on the list is not found in `xyzonetwoxyz`, while `onetwo` on the list is found in every spelling including that one. The list is hashed, so this file cannot check how an entry was spelled; rules.json says to store such a name glued, and that is the only thing standing between this sentence and a silent gap',
         'UTF-16 or any other wide encoding - every decoder reads its bytes as UTF-8',
         'anything split across two lines, since every check reads one line at a time',
         'compressed (gzip/deflate) or encrypted payloads',

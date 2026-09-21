@@ -48,7 +48,6 @@ import { hashToken, loadRules } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GATE = join(ROOT, 'scripts/check-tarball.mjs');
-const RULES = loadRules(ROOT);
 
 const log = message => {
     process.stdout.write(`${message}\n`);
@@ -66,6 +65,25 @@ const refuse = reason => {
 // Tokens: invented here, never a real name, and no longer than a real one.
 // ---------------------------------------------------------------------------
 
+/**
+ * The ruleset, loaded through the same door as every other failure here.
+ *
+ * It used to run bare at module scope, so a malformed or missing rules.json
+ * ended this file with an uncaught exception and exit 1 - the code its own
+ * header gives to "a case failed" - for a condition that header defines as
+ * exit 2. Each leg loads the file for itself, so the guard the gate grew in
+ * round 6 does not reach this one.
+ */
+let RULES;
+try {
+    RULES = loadRules(ROOT);
+} catch (error) {
+    // Not withheld: there is no ruleset to withhold against, and withholding
+    // needs the very thing that failed to load.
+    const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, ' ').trim();
+    refuse(`the ruleset could not be loaded - ${text.length > 200 ? `${text.slice(0, 199)}…` : text}`);
+}
+
 function inventToken(length) {
     const letters = 'abcdefghijklmnopqrstuvwxyz';
     let token = '';
@@ -77,6 +95,23 @@ function inventToken(length) {
 
 /** A middling name, and the shortest the rules claim to cover. */
 const SECRET = inventToken(Math.min(RULES.maxTokenLength, RULES.minTokenLength + 4));
+/**
+ * A stand-in for a name of SEVERAL SEGMENTS, invented in halves.
+ *
+ * rules.json tells an author to store such a name glued, because the glued
+ * spelling is produced by every separated spelling as well as by a run with no
+ * boundary in it, while the underscore spelling cannot be produced from a
+ * boundary-free run at all. That is a rule about the list, which this file
+ * cannot check - the list is hashed. What it CAN check is the property the
+ * rule rests on, and these two cases do: one glued hash, found in the
+ * separated spelling and inside an unbroken run.
+ */
+const SEGMENT_A = inventToken(Math.max(3, Math.ceil(RULES.minTokenLength / 2)));
+const SEGMENT_B = inventToken(Math.max(4, RULES.minTokenLength - SEGMENT_A.length + 1));
+const COMPOUND = `${SEGMENT_A}${SEGMENT_B}`;
+if (COMPOUND.length < RULES.minTokenLength || COMPOUND.length > RULES.maxTokenLength) {
+    refuse(`the invented multi-segment stand-in is ${COMPOUND.length} characters, outside the ${RULES.minTokenLength}-${RULES.maxTokenLength} the rules cover`);
+}
 const SHORTEST = inventToken(RULES.minTokenLength);
 const envFor = token => ({ ...process.env, VF_EXTRA_TOKEN_HASHES: hashToken(RULES.salt, token) });
 
@@ -437,6 +472,24 @@ ENCODING_CASES.push(
         expectation: 'private name.*as plaintext',
         token: SHORTEST,
         build: token => `const blob = "${'w'.repeat(GLUE_LEFT)}${token}${'x'.repeat(GLUE_RIGHT)}";`
+    },
+    // A GLUED hash of a two-segment name, planted in the SEPARATED spelling.
+    // This is the half of "store it glued" that can be tested: the glued form
+    // must be offered for text that has a boundary in it, or the rule would be
+    // trading one gap for another.
+    {
+        name: 'a-glued-two-segment-name-written-with-a-separator',
+        expectation: 'private name.*as plaintext',
+        token: COMPOUND,
+        build: () => `const ${SEGMENT_A}_${SEGMENT_B}_dir = 1;`
+    },
+    // ...and the half it was changed for: the same hash inside a run with no
+    // boundary anywhere in it.
+    {
+        name: 'a-glued-two-segment-name-inside-an-unbroken-run',
+        expectation: 'private name.*as plaintext',
+        token: COMPOUND,
+        build: () => `const blob = "wxyz${SEGMENT_A}${SEGMENT_B}wxyz";`
     }
 );
 if (ENCODING_CASES.length === 0) {

@@ -105,12 +105,45 @@ Adding a rule: a new pattern needs a `sample` (base64, reversed) that it must
 match, and a new forbidden file name needs a `sample` file name that it rejects —
 the gate's self-test builds one poisoned tarball per rule from those samples, so
 a rule added is a case added, and a rule without a usable sample stops the test
-rather than shrinking it. A new private name is added as a hash: `node -e "…"`
-with the salt from the file, or ask a maintainer. Never paste the name. If it
-falls outside `minTokenLength`/`maxTokenLength`, update those too — the decoders
-size themselves from that range and `blindSpots()` reports what it leaves
-uncovered. A number does not go on the hash list at all; decide whether it
-belongs in a public repository, and if it does, add it to `numbers.allowed`.
+rather than shrinking it. A number does not go on the hash list at all; decide
+whether it belongs in a public repository, and if it does, add it to
+`numbers.allowed`.
+
+### Adding a private name
+
+**Read this before you add one: the hash does not hide the name.** It keeps the
+list out of the clear so that the rules file is not itself the publication, and
+it confirms a guess for anyone who already has one. The audit in `rules.json`
+recovered *every* entry on the current list from a wordlist. So the question to
+ask is never "is the hash strong enough" — it is "may this string be confirmed
+to a stranger", and two rules answer it:
+
+1. **It must not be a substring of text this repository legitimately prints.**
+   Such an entry can never be satisfied; the only ways out are deleting it or
+   weakening the scanner, and weakening the scanner is strictly worse. Two
+   entries have already had to go for this.
+2. **It must not be anything whose harm *is* the confirmation of a guess** — a
+   credential, an API key or token, a password, a session, subscription or
+   contract identifier, a certificate serial, a hostname that grants access,
+   personal data. A table name confirmed is a fact about a schema a stranger
+   cannot reach; an identifier confirmed *is* the identifier. Anything from that
+   class does not belong in this repository at all: remove it and rotate it,
+   and do not add a hash of it here.
+
+Then: add it as a hash — `node -e "…"` with the salt from the file, or ask a
+maintainer — and **never paste the name** into the file, a commit message, an
+issue or a pull request. Spell a name of several segments **glued**
+(`onetwo`, not `one_two`): the scanner offers every window of a line both glued
+and underscore-joined, so the glued form is found in every separated spelling
+*and* inside a run with no boundaries in it, which the separated form cannot be.
+If the name falls outside `minTokenLength`/`maxTokenLength`, update those too —
+the decoders size themselves from that range and `blindSpots()` reports what it
+leaves uncovered.
+
+When an entry has to change, record **the rule that was applied, the lengths,
+and any narrowing** in `rules.json` — never what the entry was *about*. Several
+such notes together narrow the guess more than the hashes do, which is the
+caption failure this whole arrangement exists to have stopped.
 
 **Both checks refuse rather than pass when they cannot see anything.** An empty
 repository, a ruleset with no entries, a rule list whose window can no longer
