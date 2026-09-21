@@ -69,14 +69,40 @@ first real release is this one.
   place, so there is no second printing site to remember. The self-test asserts
   the absence as well as the presence - a case that catches what it was given
   and prints it while doing so fails.
-- **One entry left the private-name list, and the reason is written down in
-  `scripts/rules.json`.** It was a proper substring of a published product name
-  that this repository's own README has to print, so it flagged the README the
-  moment the scanner learned to look inside an unbroken run. Deleting a rule
-  that has just started failing is normally the wrong answer; this one named a
-  public product rather than a private name, so it protected nothing, and the
-  file it pointed at is the sentence that says which database the service is
-  built on.
+- **Two entries on the private-name list were changed, under one narrow rule
+  that is now written down in `scripts/rules.json`: an entry must not be a
+  substring of text this repository legitimately prints.** Such an entry can
+  never be satisfied, and the only ways out are deleting it or narrowing the
+  scanner - and narrowing the scanner is strictly worse. Changing a rule that
+  has just started failing is otherwise exactly the move that should never pass
+  unexplained, so both are recorded there with the reasoning.
+  - One was **removed**: 8 characters, a proper substring of a word the README
+    has to print, which it flagged the moment the scanner learned to look
+    inside an unbroken run. The normal answer to a finding is to change the
+    file, and that file is the sentence saying which database the service is
+    built on.
+  - One was **replaced**, 7 characters out and 11 in. The old entry was an
+    ordinary English noun; it protected a private source path, and a bare noun
+    is the wrong token for a path. The replacement is a compound of two path
+    segments, which the tokeniser builds from every spelling of that path and
+    which no ordinary sentence produces. The narrowing is declared: the final
+    segment written alone is no longer matched, and that spelling identifies
+    nothing.
+  - The remaining six were audited against the same rule in the same round.
+    They are platform-specific identifiers rather than vocabulary and they
+    stay.
+- **The publish gate cannot die of its own ruleset any more.** Loading
+  `rules.json` ran outside every guard, so an unreadable or malformed file
+  killed the gate with an uncaught exception - exit 1, the code that means
+  *findings*, and a stack trace carrying absolute paths - for a condition its
+  own contract defines as exit 2. It now refuses like the sweep does, and a
+  ruleset file that is not JSON is a case in the self-test on all three legs.
+- **The tarball that is checked is the tarball that is published.** The publish
+  workflow packed once for the gate and again for `npm publish`; it now packs
+  once and hands that exact file to both.
+- **The endpoint check in CI fails when it reads nothing.** It grepped `test/`
+  and passed on no hits, so an empty or renamed directory reported success; it
+  now asserts that the one legitimate occurrence is there before judging it.
 - **Merged with a merge commit, never a squash**, and
   [CONTRIBUTING.md](CONTRIBUTING.md) says why at length: the history sweep's
   accepted residue is keyed by blob, those blobs live only in intermediate

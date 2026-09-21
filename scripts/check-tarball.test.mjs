@@ -183,6 +183,23 @@ const add = (kind, name, expectation, poison, env = process.env, codes = [1], to
     plan.push({ kind, name, expectation, poison, env, codes, token });
 };
 
+/**
+ * "Did the run print the stand-in?", asked in a way that has teeth for a
+ * NUMBER as well as for a name.
+ *
+ * A plain substring test is right for an invented name - eleven random letters
+ * do not occur by accident - and wrong for an invented 4-digit number, which
+ * would match inside a byte count, a timestamp or a longer number and fail the
+ * case for nothing. The sweep already has the right shape for this, so it is
+ * borrowed rather than reinvented: the same digit boundaries the number rule
+ * itself uses.
+ */
+const printsStandIn = (output, token) =>
+    (/^[0-9]+$/u.test(token)
+        ? new RegExp(`(?<![0-9])${token}(?![0-9])`, 'u')
+        : new RegExp(token.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'iu')
+    ).test(output);
+
 function editManifest(directory, edit) {
     const path = join(directory, 'package.json');
     const manifest = JSON.parse(readFileSync(path, 'utf8'));
@@ -428,12 +445,28 @@ if (ENCODING_CASES.length === 0) {
 // The numbers rule, in the plaintext view and in every decoding of it: it now
 // carries all the numeric coverage, so it gets the same treatment the names
 // get rather than none at all.
-add('number', 'a-forbidden-number-in-plaintext', 'number:.*not on the allow-list', directory => {
-    appendFileSync(join(directory, 'dist/cli.js'), `\nconst count = ${FORBIDDEN_NUMBER};\n`);
-});
-add('number', 'a-forbidden-number-in-base64', 'number:.*not on the allow-list', directory => {
-    appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${b64(`${pad(2)} ${FORBIDDEN_NUMBER} ${pad(2)}`)}";\n`);
-});
+add(
+    'number',
+    'a-forbidden-number-in-plaintext',
+    'number:.*not on the allow-list',
+    directory => {
+        appendFileSync(join(directory, 'dist/cli.js'), `\nconst count = ${FORBIDDEN_NUMBER};\n`);
+    },
+    process.env,
+    [1],
+    FORBIDDEN_NUMBER
+);
+add(
+    'number',
+    'a-forbidden-number-in-base64',
+    'number:.*not on the allow-list',
+    directory => {
+        appendFileSync(join(directory, 'dist/cli.js'), `\nconst blob = "${b64(`${pad(2)} ${FORBIDDEN_NUMBER} ${pad(2)}`)}";\n`);
+    },
+    process.env,
+    [1],
+    FORBIDDEN_NUMBER
+);
 for (const entry of ENCODING_CASES) {
     add(
         'private name',
@@ -533,6 +566,9 @@ const RULESET_CASES = [
         name: 'an-allow-list-entry-that-is-in-no-file',
         expectation: 'occur in no tracked file',
         legs: ['sweep'],
+        // The round-4 finding was that this exact list captions a value, so
+        // the refusal it produces must not print one either.
+        token: ABSENT_NUMBER,
         mutate: rules => {
             rules.numbers.allowed = [...rules.numbers.allowed, ABSENT_NUMBER];
         }
@@ -558,6 +594,58 @@ const RULESET_CASES = [
         },
         mutate: rules => {
             rules.tokenHashes = [...rules.tokenHashes, hashToken(RULES.salt, SECRET)];
+        }
+    },
+    {
+        // The ruleset file itself unreadable. Round 6 found the gate dying
+        // here with an uncaught exception and exit 1 - the code that means
+        // "findings" - and a stack trace carrying absolute paths, which is
+        // the wrong failure mode for a leak gate on a public repository. Run
+        // on every leg, because each one loads the file for itself.
+        name: 'a-ruleset-file-that-is-not-json',
+        expectation: 'CANNOT RUN',
+        // Every leg, named literally rather than through LEG_LABELS, which is
+        // declared below this list; the loop under it checks each name against
+        // LEG_LABELS and refuses on one that does not exist, so a typo here
+        // stops the run instead of quietly running nowhere.
+        legs: ['gate', 'sweep', 'sweep --history'],
+        mutate: () => {},
+        prepare: root => {
+            writeFileSync(join(root, 'scripts/rules.json'), '{ "salt": "x", this is not json');
+        }
+    },
+    {
+        // The residue count-mismatch branch. A blob cannot change, so a
+        // disagreement means the SCANNER changed - the one thing this list
+        // exists to notice. It had no case: only the "matched no blob" branch
+        // was exercised.
+        name: 'a-residue-entry-that-claims-more-than-its-blob-yields',
+        expectation: 'the entry and the blob disagree',
+        legs: ['sweep --history'],
+        codes: [1],
+        verdict: 'reported',
+        mutate: () => {},
+        prepare: root => {
+            // A blob that is really in this throwaway history and really
+            // yields no number findings, claiming one. Read from git rather
+            // than typed, so the case cannot rot into "no such blob" and pass
+            // through the neighbouring branch.
+            const blob = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD:README.md'], { encoding: 'utf8' }).trim();
+            const path = join(root, 'scripts/rules.json');
+            const rules = JSON.parse(readFileSync(path, 'utf8'));
+            rules.historyNumberResidue = [{ blob, findings: 1 }];
+            writeFileSync(path, JSON.stringify(rules, null, 2));
+        }
+    },
+    {
+        // The one REFUSAL in that loop: a claim that is not a whole number
+        // cannot be checked against anything, and it suppresses while it
+        // cannot be checked.
+        name: 'a-residue-entry-with-no-usable-findings-count',
+        expectation: 'whole number of findings',
+        legs: ['sweep --history'],
+        mutate: rules => {
+            rules.historyNumberResidue = [{ blob: 'f'.repeat(40), findings: 0 }];
         }
     },
     {
@@ -719,7 +807,7 @@ try {
         ran += 1;
         const result = runGate(poisonedTarball(entry.name, entry.poison), entry.env);
         const caught = entry.codes.includes(result.code) && new RegExp(entry.expectation, 'u').test(result.stdout);
-        const leaked = entry.token !== undefined && result.stdout.toLowerCase().includes(entry.token.toLowerCase());
+        const leaked = entry.token !== undefined && printsStandIn(result.stdout, entry.token);
         if (caught && !leaked) {
             log(`  PASS  rejected "${entry.name}" (${entry.kind})`);
         } else if (leaked) {
@@ -727,7 +815,7 @@ try {
             // The output is deliberately NOT reprinted: it contains the thing
             // that must not be printed, and a self-test that echoes the leak
             // to prove there was one has published it as well.
-            log(`  FAIL  "${entry.name}" (${entry.kind}) printed the ${entry.token.length}-character stand-in name in its own output`);
+            log(`  FAIL  "${entry.name}" (${entry.kind}) printed the ${entry.token.length}-character stand-in in its own output`);
         } else {
             failures += 1;
             log(`  FAIL  ACCEPTED "${entry.name}" (${entry.kind}, exit ${result.code}) - it would have shipped`);
@@ -798,12 +886,12 @@ try {
             const codes = entry.codes ?? [2];
             const verdict = entry.verdict ?? 'refused';
             const caught = codes.includes(result.code) && new RegExp(entry.expectation, 'u').test(result.stdout);
-            const leaked = entry.token !== undefined && result.stdout.toLowerCase().includes(entry.token.toLowerCase());
+            const leaked = entry.token !== undefined && printsStandIn(result.stdout, entry.token);
             if (caught && !leaked) {
                 log(`  PASS  "${leg.label}" ${verdict} "${entry.name}" (exit ${result.code})`);
             } else if (leaked) {
                 failures += 1;
-                log(`  FAIL  "${leg.label}" printed the ${entry.token.length}-character stand-in name while handling "${entry.name}"`);
+                log(`  FAIL  "${leg.label}" printed the ${entry.token.length}-character stand-in while handling "${entry.name}"`);
             } else {
                 failures += 1;
                 log(`  FAIL  "${leg.label}" did NOT ${verdict.replace(/ed$/u, '')} "${entry.name}" (exit ${result.code}, wanted ${codes.join(' or ')})`);

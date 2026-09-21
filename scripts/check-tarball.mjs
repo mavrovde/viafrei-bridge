@@ -53,7 +53,36 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const RULES = loadRules(ROOT);
+
+/**
+ * Loading the ruleset is itself a thing that can fail, so it is guarded.
+ *
+ * It used to run bare at module scope. An unreadable or malformed rules file
+ * therefore killed the gate with an uncaught exception - **exit 1, and a stack
+ * trace carrying absolute paths** - for a condition this file's own header
+ * defines as exit 2. Wrong code, and the wrong failure mode for a leak gate on
+ * a public repository, which should not print a path it was not asked about.
+ * check-leaks has guarded exactly this since round 5; this leg had not, which
+ * is the same "a leg that only behaves because of its neighbour" defect as the
+ * paragraph below, one storey down.
+ *
+ * The failure is REMEMBERED rather than exited on, because this module is also
+ * imported (the self-test reads its rule lists), and a module that calls
+ * process.exit() while being imported takes its importer with it. It comes out
+ * through `unrunnable()`, which is the gate's one exit-2 door.
+ */
+let RULES;
+let RULES_FAILURE;
+try {
+    RULES = loadRules(ROOT);
+} catch (error) {
+    // Not through safeMessage(): there is no ruleset to withhold against, and
+    // withholding needs the very thing that just failed to load. The message
+    // is clipped and flattened instead, so a malformed file cannot print its
+    // own contents through the exception text.
+    const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, ' ').trim();
+    RULES_FAILURE = text.length > 200 ? `${text.slice(0, 199)}…` : text;
+}
 
 /**
  * The ruleset has to be able to find something before the gate may report that
@@ -65,6 +94,9 @@ const RULES = loadRules(ROOT);
  * because of its neighbour is not a leg that refuses.
  */
 function unrunnable() {
+    if (RULES_FAILURE !== undefined) {
+        return `the ruleset could not be loaded - ${RULES_FAILURE}`;
+    }
     if (RULES.tokenHashes.size === 0) {
         return 'the rules file lists no private-name hashes';
     }
@@ -276,7 +308,11 @@ function main() {
     try {
         if (given !== undefined) {
             tarball = resolve(given);
-            note(`gate: checking the tarball it was given: ${tarball}`);
+            // Through safeString() like every other path: this one comes from
+            // argv, and a private name can be in a file name (that is a rule
+            // here), so the one path the gate prints before it has read
+            // anything should not be the one that escapes.
+            note(`gate: checking the tarball it was given: ${safeString(tarball, RULES, extraTokenHashes)}`);
         } else {
             // Built explicitly, because the published manifest may not carry a
             // `prepack` script to do it - see the lifecycle check below.

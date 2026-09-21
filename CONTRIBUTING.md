@@ -241,11 +241,12 @@ the residue list exists to excuse. That content is already published — a merge
 commit changes *reachability*, not publication, and reachability is the only
 thing a sweep can check.
 
-The repository owner should also turn off "Allow squash merging" in
-Settings → General → Pull Requests. A rule that depends on which of three
-buttons somebody clicks will eventually lose to the default. That setting is not
-part of any diff, so it cannot be done in a pull request; until it is off, this
-section is the rule.
+"Allow squash merging" is **off** in Settings → General → Pull Requests, so the
+button is not there to click; merge commit and rebase are the only two offered.
+A rule that depends on which of three buttons somebody presses would eventually
+lose to the default, and a repository setting is not part of any diff, so it
+could not be done in the pull request that needed it. If you ever find the
+option back on, this section is why it should not be.
 
 ## Security
 

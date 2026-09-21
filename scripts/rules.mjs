@@ -109,8 +109,16 @@ export function opaque(value, rules) {
  */
 export function safeMessage(error, rules, extraTokenHashes = new Set(), limit = 300) {
     const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, ' ').trim();
-    const clipped = text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
-    return safeString(clipped, rules, extraTokenHashes);
+    // Checked BEFORE it is clipped. The other way round, a name lying across
+    // the cut is truncated below the shortest length the rules cover, matches
+    // nothing, and the part of it left of the cut prints - up to one character
+    // short of the whole name. The clip is for readability; it must not be
+    // able to decide what is safe.
+    const verdict = safeString(text, rules, extraTokenHashes);
+    if (verdict !== text) {
+        return verdict;
+    }
+    return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
 
 export function safeString(value, rules, extraTokenHashes = new Set()) {

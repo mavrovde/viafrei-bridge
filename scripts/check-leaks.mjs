@@ -320,7 +320,14 @@ if (withHistory) {
     let unreachable = 0;
     for (const entry of RULES.historyNumberResidue) {
         if (!Number.isInteger(entry.findings) || entry.findings < 1) {
-            refuse('a historyNumberResidue entry does not declare a whole number of findings of at least 1');
+            // The one refusal (exit 2) in a loop whose other two branches are
+            // findings (exit 1), so here is why. Those two are decided AFTER
+            // every blob has been read, against a number this run measured; a
+            // claim that is not a whole number cannot be checked against
+            // anything at all, and it is still suppressing while it cannot be.
+            // An unverifiable claim that suppresses is a check that has not
+            // checked, which is the one thing exit 2 is for.
+            refuse('a historyNumberResidue entry does not declare a whole number of findings of at least 1 - so nothing can tell whether it still describes the blob, while it goes on suppressing');
         }
         const seen = residueSeen.get(entry.blob);
         if (seen === undefined) {

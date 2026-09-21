@@ -80,13 +80,27 @@ jobs:
       - name: Publish-hygiene gate self-test
         run: npm run test:gate
 
+      # Packed ONCE, here, and that exact file is what the gate reads and what
+      # npm uploads. `npm run check:tarball` used to pack its own copy and
+      # `npm publish` then packed another, so the artefact that was checked
+      # was never the artefact that shipped - two builds of the same tree,
+      # believed identical. They almost always are; "almost" is the whole
+      # reason this gate exists.
+      - name: Pack the tarball
+        id: pack
+        run: |
+          set -eu
+          file="$(npm pack --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].filename))')"
+          test -f "$file"
+          echo "tarball=$PWD/$file" >> "$GITHUB_OUTPUT"
+
       - name: Publish-hygiene gate on the tarball about to be published
-        run: npm run check:tarball
+        run: npm run check:tarball -- "${{ steps.pack.outputs.tarball }}"
 
       - name: Publish
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public "${{ steps.pack.outputs.tarball }}"
 
       - name: Dry run only
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-        run: npm publish --provenance --access public --dry-run
+        run: npm publish --provenance --access public --dry-run "${{ steps.pack.outputs.tarball }}"
