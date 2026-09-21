@@ -3,9 +3,19 @@
  * Repository leak sweep.
  *
  * This repository is public and the platform it talks to is not. Nothing that
- * describes the platform - a table, a role, a provider portal, an internal
- * port - may appear here, in any file, including a workflow, a test fixture or
- * a comment.
+ * describes the platform - a table, a role, an internal port, a host we deploy
+ * to, the route a feed is collected by - may appear here, in any file,
+ * including a workflow, a test fixture or a comment.
+ *
+ * A DATA PROVIDER IS NOT THAT, and since SOURCES.md the difference is written
+ * down rather than left to the list. Who publishes a dataset, under which
+ * licence, and the attribution line a recipient owes are things the hosted
+ * server already tells every user, verbatim, because a licence obliges it to.
+ * Text a licence compels cannot also be forbidden here, so the boundary is:
+ * a provider may be NAMED where the server's own public attribution names it,
+ * and the channel by which we fetch from that provider may not. The rule that
+ * admits a host lives in `_allowedHosts` in scripts/rules.json; the rule that
+ * took two names off the hash list is recorded in `_tokenHashes` there.
  *
  * **Nothing is skipped.** The previous version skipped exactly one file, the
  * one that listed the forbidden names in the clear - which is where the leak

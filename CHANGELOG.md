@@ -156,6 +156,39 @@ for it, so the number is free; the bridge will use it when the platform does.
 - **The endpoint check in CI fails when it reads nothing.** It grepped `test/`
   and passed on no hits, so an empty or renamed directory reported success; it
   now asserts that the one legitimate occurrence is there before judging it.
+- **[SOURCES.md](SOURCES.md) - where every answer comes from**, and it ships in
+  the tarball beside NOTICE rather than living only on the web page. One entry
+  per source: who publishes it, what it covers, the publisher's own rhythm, the
+  licence with the operative sentence quoted and the date it was read, and the
+  **exact attribution line** a recipient has to reproduce. Two obligations that
+  bind the *reader* are stated before the catalogue rather than linked from it:
+  MTS-K fuel prices are consumer information only and may not be redistributed
+  in any form, aggregates included, and DELFI public-transport realtime is
+  CC BY-SA 4.0, so anything derived from it stays share-alike. The page says
+  which sources do **not** answer today - fuel coverage is a watch list and not
+  the country, station lift and escalator status is not available on the public
+  service yet - and it names the three cases where a publisher's terms are
+  unknown or unreadable instead of rounding them up to "open data".
+- **The leak sweep now distinguishes a data provider from the platform, in
+  writing.** It did not before, and the distinction was carried by the list
+  rather than by a rule: the sweep refused the page above. **Two entries were
+  removed under the first list rule** (10 and 12 characters), because a licence
+  obliges this repository to reproduce certain attribution lines and one link
+  character for character, the hosted server already emits those same
+  characters to every user who receives such an answer, and an entry that
+  forbids text a licence compels can never be satisfied. Rule 2 was applied to
+  both before they went - neither is a credential, an identifier or a host that
+  grants access. The declared narrowing is recorded in `scripts/rules.json`
+  with the rule and the lengths, and what replaces the two entries is a
+  boundary rather than a hash: **a public data provider may be named where the
+  server's own public attribution names it, and nothing about how this platform
+  is built, reached or operated may be named at all.** The host allow-list
+  gains a second group on the same test - the page that publishes a source's
+  terms, the licence text it invokes, or a URL a licence compels us to print -
+  and `_allowedHosts` states what that group is explicitly not a door for: no
+  host we deploy to, build on or hold data on, and no fetch endpoint or
+  per-offer deep link that would show how a feed is collected rather than who
+  publishes it.
 - **Merged with a merge commit, never a squash**, and
   [CONTRIBUTING.md](CONTRIBUTING.md) says why at length: the history sweep's
   accepted residue is keyed by blob, those blobs live only in intermediate
