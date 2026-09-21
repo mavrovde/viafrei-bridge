@@ -1,0 +1,89 @@
+name: CI
+
+# Build, offline tests, and the two checks that keep this repository and the
+# published tarball free of anything belonging to the closed platform.
+#
+# Nothing here contacts the public MCP endpoint or any data provider. The tests
+# start their own stub server; the network is not part of the contract.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The leak sweep reads history; a shallow clone cannot answer what is
+          # in it, and a check that cannot run has not passed.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # --ignore-scripts: no dependency's install hook runs in a job that can
+      # build or publish this package. The gate refuses a lifecycle script in
+      # OUR manifest; this is the same rule applied to everyone else's.
+      - run: npm ci --ignore-scripts
+
+      - name: Build
+        run: npm run build
+
+      - name: Offline tests
+        run: npm test
+
+      - name: Publish-hygiene gate (built tarball)
+        run: npm run check:tarball
+
+      - name: Publish-hygiene gate self-test (poisoned tarballs)
+        run: npm run test:gate
+
+      - name: Repository leak sweep (working tree and history)
+        run: node scripts/check-leaks.mjs --history
+
+      # The public endpoint may be *asserted about* - one test checks that the
+      # default really is it - but it may never be handed to something that
+      # connects. Any occurrence outside an assertion fails the build.
+      - name: No test may connect to the public endpoint
+        run: |
+          set -u
+          # The directory has to exist and the grep has to run. Without this,
+          # an empty or renamed test/ - or a grep that errors - reaches the
+          # `|| true` below and reports success having read nothing, which is
+          # the failure every other check here refuses.
+          if [ ! -d test ]; then
+            echo "test/ does not exist, so this check read nothing" >&2
+            exit 2
+          fi
+          hits="$(grep -rn 'mcp\.viafrei\.de' test/ || true)"
+          count="$(printf '%s' "$hits" | grep -c . || true)"
+          echo "occurrences in test/: ${count}"
+          echo "${hits:-  (none)}"
+          # Exactly one occurrence is legitimate: the assertion that the
+          # default URL really is the public endpoint. Zero means the
+          # assertion was deleted or this check stopped finding it - either
+          # way it is no longer checking what it claims to.
+          if [ "$count" -lt 1 ]; then
+            echo "expected the one assertion about the default URL and found none - this check has read nothing" >&2
+            exit 2
+          fi
+          offenders="$(printf '%s\n' "$hits" | grep -v 'assert' | grep -v '^$' || true)"
+          if [ -n "$offenders" ]; then
+            echo "The public endpoint appears outside an assertion:" >&2
+            echo "$offenders" >&2
+            exit 1
+          fi
+          echo "OK: ${count} occurrence(s), every one an assertion about the default."
