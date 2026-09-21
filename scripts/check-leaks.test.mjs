@@ -5,7 +5,9 @@
 // fetch-depth: 0, so every remote branch is present in every job's clone, and
 // one unmerged branch carrying a finding turned every other branch's run red.
 // It now reads `git rev-list HEAD` by default and takes `--all-refs` for the
-// publishing build, which should be answerable for the whole repository.
+// publishing build, which answers for every ref rather than only for its own
+// ancestry. Every ref is not the whole repository -- see the rev-list comment
+// in check-leaks.mjs for what it does and does not cover.
 //
 // That change had no test: the tarball gate's 107 cases all stayed green with
 // the scoping reverted, which is the silent-skip class in its usual clothes --
@@ -82,8 +84,7 @@ const STRAY = '9'.repeat(5);
 
 // A repository with the sweep in it, a clean `main`, and a `side` branch that
 // `main` does not reach carrying that finding.
-function buildRepo() {
-    const root = mkdtempSync(join(tmpdir(), 'sweep-scope-'));
+function buildRepo(root) {
     mkdirSync(join(root, 'scripts'));
     for (const file of ['check-leaks.mjs', 'rules.mjs']) {
         copyFileSync(join(here, file), join(root, 'scripts', file));
@@ -119,15 +120,19 @@ function buildRepo() {
     git(root, ['add', 'stray.txt']);
     git(root, ['commit', '-q', '-m', 'a finding on a branch main does not reach']);
     git(root, ['checkout', '-q', 'main']);
-    return root;
 }
 
-// Built inside the try, not before it: a throw in buildRepo() used to leave
-// the temporary directory behind, because the finally that removes it had not
-// been entered yet. `repo` is assigned first thing so the cleanup can find it.
-let repo;
+// The directory is created HERE, before the try, and buildRepo() is handed one
+// that already exists. Two earlier arrangements both leaked it on a throw: the
+// first created it before any try at all, and the second -- which claimed in
+// this comment to have fixed that -- created it as buildRepo()'s first
+// statement and assigned `repo` from the return value, so `repo` was still
+// undefined while every git call inside was free to throw, and the finally
+// duly skipped the cleanup it was guarding. Creation is the one step that has
+// to happen outside, because a path is all the cleanup needs.
+const repo = mkdtempSync(join(tmpdir(), 'sweep-scope-'));
 try {
-    repo = buildRepo();
+    buildRepo(repo);
     // The defect, stated as a test: standing on `main`, whose own history and
     // whose own working tree are clean, another branch must not redden it.
     check('the default scope does not report a finding that lives only on another branch', () => {
@@ -194,9 +199,7 @@ try {
         assert.equal(all.code, 0, `expected the entry to apply under --all-refs, got ${all.code}:\n${all.out}`);
     });
 } finally {
-    if (repo !== undefined) {
-        rmSync(repo, { recursive: true, force: true });
-    }
+    rmSync(repo, { recursive: true, force: true });
 }
 
 console.log(cases.join('\n'));

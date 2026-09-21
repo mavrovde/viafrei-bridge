@@ -35,10 +35,8 @@ ViaFrei is in its stabilisation and testing phase at the time of writing: live
 and free, with some sources thinner than they will be, and the occasional tool
 that answers slowly or not at all. **Tell us when that happens** —
 [open an issue](https://github.com/mavrovde/viafrei-bridge/issues) with what you
-asked and what came back. The server necessarily sees the questions it is
-asked, and it sees when one of them fails — what it cannot see is that an
-answer was useless to you. Beyond relaying, the bridge adds nothing of its
-own: no telemetry, no analytics, no usage counter
+asked and what came back. The server necessarily sees the question, and sees
+it fail; what it cannot see is that an answer was useless to you
 (see [What it does not do](#what-it-does-not-do)).
 
 Plain German or plain English, whichever you speak — the answers come back in
