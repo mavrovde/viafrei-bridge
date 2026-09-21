@@ -9,21 +9,29 @@ npx viafrei
 
 ## Ask your assistant things like
 
-> **Welche Züge fahren als Nächstes ab Hamburg Hbf?**
->
-> Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
-> 09:22 RE RE1 → Rostock Hbf, Gleis 7A-D, pünktlich
-> 09:28 ICE 606 → Hamburg-Altona, Gleis 5, pünktlich
-> 09:34 RJ 175 → Dresden Hbf, Gleis 8A-F, pünktlich
-> …
-> Stand 09:18 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace,
-> CC BY 4.0, bearbeitet
+**Welche Züge fahren als Nächstes ab Hamburg Hbf?**
+
+```
+Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
+09:45 ICE 519 → München Hbf, Gleis 14, +3 min (ca. 09:48)
+09:51 IC 306 → Stockholm Central, Gleis 12, pünktlich
+09:51 ICE 707 → Berlin Hbf, Gleis 8A-F, +1 min (ca. 09:52)
+… seven more
+
+Stand 09:43 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace,
+CC BY 4.0, bearbeitet (…) · Bahnhofsdaten: … (…)
+```
 
 Every answer ends with a line like that last one. It is the licence talking,
 and it is meant to be shown to whoever reads the answer — see
-[Using the data you get back](#using-the-data-you-get-back).
+[Using the data you get back](#using-the-data-you-get-back). **Reproduce the
+line the server sends you, not this one:** it has been shortened here, and the
+real one names each source's URL, which the licence requires you to keep.
 
-Plain German or plain English, whichever you speak:
+No account, no API key, no sign-up — ask and the answer comes back.
+
+Plain German or plain English, whichever you speak — the answers come back in
+the language you asked in, not translated from one house language:
 
 - *Gibt es gerade Stau auf der A8?*
 - *Find a rest area with lorry parking on the A9*
@@ -34,7 +42,8 @@ Plain German or plain English, whichever you speak:
 - *Tell me when the A8 reopens* — the server can watch a situation and tell
   your assistant when it changes, so you need not keep asking. The watch lives
   in the conversation that opened it: it reaches no inbox and no phone, and it
-  ends with the session or after 24 hours, whichever comes first
+  ends with the session — or after three hours, which is the default, and 24 is
+  as long as one can be asked to run
 
 Thirteen tools at the time of writing, and no list of them on this page. A
 pasted catalogue goes stale the first time a description changes on the server,
