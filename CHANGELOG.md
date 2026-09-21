@@ -3,13 +3,35 @@
 All notable changes to this package are documented here. The format follows Keep
 a Changelog and the versions follow Semantic Versioning.
 
-## [0.1.0] - 2026-09-20
+## [0.0.9] - 2026-09-21
 
 The first release with code in it.
 
 `viafrei@0.0.2` on the registry is a three-file placeholder published to reserve
 the name; no code was ever shipped under it. npm versions are immutable, so the
-first real release is this one.
+first release that ships anything is this one.
+
+**Why 0.0.9 and not 0.1.0.** This package is the client end of a hosted service,
+and a version that does not say which service it was built against is a version
+you have to look up. So the bridge tracks the platform: 0.0.9 is what the hosted
+endpoint runs today. Nothing was ever published as 0.1.0 and no tag was ever cut
+for it, so the number is free; the bridge will use it when the platform does.
+
+### Fixed
+
+- **`npx viafrei` started nothing.** The check for "was this file the program,
+  or was it imported" compared `process.argv[1]` with `import.meta.url` without
+  resolving symlinks. npm installs a `bin` as a symlink and every client starts
+  the package through it, so `argv[1]` was the link while Node had already
+  resolved the module's own URL to the target: the two never matched, the
+  process loaded the file, ran nothing and exited **0 with no output**, which
+  reads as a bridge that started and closed rather than as a failure. The entry
+  point is now compared both as given and resolved, so it holds under
+  `--preserve-symlinks-main` too. Found by installing the packed tarball into an
+  empty directory and running the installed command - the whole test suite
+  spawned the built file by its real path, which is the one way nobody starts
+  it, so 50 passing tests said nothing about the only invocation that exists.
+  The regression test spawns through a symlink and fails against the old check.
 
 ### Added
 
@@ -140,4 +162,4 @@ first real release is this one.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
-[0.1.0]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.1.0
+[0.0.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.0.9
