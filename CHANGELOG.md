@@ -170,25 +170,33 @@ for it, so the number is free; the bridge will use it when the platform does.
   service yet - and it names the three cases where a publisher's terms are
   unknown or unreadable instead of rounding them up to "open data".
 - **The leak sweep now distinguishes a data provider from the platform, in
-  writing.** It did not before, and the distinction was carried by the list
-  rather than by a rule: the sweep refused the page above. **Two entries were
-  removed under the first list rule** (10 and 12 characters), because a licence
-  obliges this repository to reproduce certain attribution lines and one link
-  character for character, the hosted server already emits those same
-  characters to every user who receives such an answer, and an entry that
-  forbids text a licence compels can never be satisfied. Rule 2 was applied to
-  both before they went - neither is a credential, an identifier or a host that
-  grants access. The declared narrowing is recorded in `scripts/rules.json`
-  with the rule and the lengths, and what replaces the two entries is a
-  boundary rather than a hash: **a public data provider may be named where the
-  server's own public attribution names it, and nothing about how this platform
-  is built, reached or operated may be named at all.** The host allow-list
-  gains a second group on the same test - the page that publishes a source's
-  terms, the licence text it invokes, or a URL a licence compels us to print -
-  and `_allowedHosts` states what that group is explicitly not a door for: no
-  host we deploy to, build on or hold data on, and no fetch endpoint or
-  per-offer deep link that would show how a feed is collected rather than who
-  publishes it.
+  writing.** It did not before, and the distinction was carried by the
+  private-name list rather than by a rule: the sweep refused the page above,
+  in eleven places in it and one in the rules file itself. **Two entries were
+  removed under the first list rule** (10 and 12 characters), and **the two had
+  different reasons**, which is worth separating because the stronger one does
+  not cover both. The 12-character spelling is **compelled**: a licence
+  requires that source to be named by a link, and the link's host contains it.
+  The 10-character one is not compelled by any licence - the attribution
+  conditions require the creator, the notices and a supplied URI, and none of
+  them requires naming an intermediary - it is simply a spelling **our own
+  server already broadcasts** in the attribution line it hands to every user
+  who receives such an answer, so a page that quotes that line cannot avoid it
+  and the rule could be satisfied only by never writing the page. The
+  alternative was real and was not taken: the server's own line could have been
+  narrowed so it never named the intermediary. It was not, because that line is
+  the server's to decide rather than a lint rule's, and because naming the route
+  data reached us by is provenance a reader checking a claim uses. That is a
+  product decision, and it is recorded as one rather than as law. Rule 2 was
+  applied to both before they went - neither is a credential, an identifier or a
+  host that grants access. What replaces them is a boundary between a **name**
+  and a **route**: a publisher or an intermediary may be named wherever the
+  server's own public attribution names it, while a fetch endpoint, an API path,
+  a per-offer deep link or a subscription identifier may not appear at all -
+  which is why the access point is named in words and its host is on no
+  allow-list. The host allow-list gains a second group on the same test: the
+  page that publishes a source's terms, the licence text it invokes, or a URL a
+  licence compels us to print, and nothing that merely looks relevant.
 - **Merged with a merge commit, never a squash**, and
   [CONTRIBUTING.md](CONTRIBUTING.md) says why at length: the history sweep's
   accepted residue is keyed by blob, those blobs live only in intermediate

@@ -8,14 +8,27 @@
  * including a workflow, a test fixture or a comment.
  *
  * A DATA PROVIDER IS NOT THAT, and since SOURCES.md the difference is written
- * down rather than left to the list. Who publishes a dataset, under which
- * licence, and the attribution line a recipient owes are things the hosted
- * server already tells every user, verbatim, because a licence obliges it to.
- * Text a licence compels cannot also be forbidden here, so the boundary is:
- * a provider may be NAMED where the server's own public attribution names it,
- * and the channel by which we fetch from that provider may not. The rule that
- * admits a host lives in `_allowedHosts` in scripts/rules.json; the rule that
- * took two names off the hash list is recorded in `_tokenHashes` there.
+ * down rather than left to the list. The boundary is between a NAME and a
+ * ROUTE, and it is deliberately not between "us" and "them":
+ *
+ *   A publisher OR AN INTERMEDIARY - a catalogue, an access point, a
+ *   marketplace - may be NAMED here wherever the server's own public
+ *   attribution for that source names it. SOURCES.md names one such
+ *   intermediary, in words, several times, because the attribution line the
+ *   server hands to every user contains it and that page quotes the line.
+ *
+ *   The ROUTE may not appear: a fetch endpoint, an API path, a per-offer deep
+ *   link, a subscription, contract or certificate identifier, credentials -
+ *   anything saying HOW a feed is obtained rather than WHO publishes it.
+ *   Naming a catalogue is not naming a route; a URL into it is, which is why
+ *   that host is absent from `allowedHosts` while the name is written out.
+ *
+ * Two names came off the hash list for this, and one of the two reasons is
+ * weaker than the other: one spelling is compelled by a licence that requires
+ * a link, the other is merely one OUR OWN SERVER already broadcasts in every
+ * relevant answer - a product decision that could be reversed, not a legal
+ * fact. `_tokenHashes` in scripts/rules.json records both, separately, and
+ * `_allowedHosts` records what may be admitted and what may not.
  *
  * **Nothing is skipped.** The previous version skipped exactly one file, the
  * one that listed the forbidden names in the clear - which is where the leak

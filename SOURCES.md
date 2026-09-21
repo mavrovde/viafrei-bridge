@@ -3,8 +3,9 @@
 Every answer the ViaFrei MCP server gives is built from **official open data**,
 and every result says which source it came from. This page is the human-readable
 copy of that list: who publishes each dataset, what it covers, how often the
-publisher releases it, under which licence, and the **exact attribution line**
-that has to travel with the answer.
+publisher releases it, under which licence, and the **attribution line** that has
+to travel with the answer — shortened by one part, for a reason given where the
+lines are printed.
 
 It is not only a credits page. Several of these licences put obligations on
 **you** — the person or product that receives a tool result — and two of them
@@ -119,10 +120,13 @@ places where it would have been easier to write "live" and leave it.
   and the feed is in the service, but the tool that exposes it was answering
   with an internal error when this page was checked on 2026-09-21. Do not build
   on it until this row says otherwise.
-- **Lift and escalator status does not answer today.** The licence is read and
-  the tool exists; the station register it needs is not loaded on the public
-  host, and the tool says so in as many words rather than reporting that
-  everything works.
+- **Lift and escalator status does not answer today, and the reason is one step
+  earlier than the feed.** The licence is read and the tool exists; what is
+  missing is the station directory that turns a name like "Köln Hbf" into the
+  station number this feed is keyed by. Without it the lookup cannot even be
+  attempted, so the tool refuses — naming the missing directory and stating that
+  this is not an all-clear — instead of returning an empty list that would read
+  as "nothing is broken".
 - **Address lookup is not available on the public service.** Address data is
   imported per deployment and the public one has none, so the service answers
   places, stations and motorways but not house numbers. Where it *is* imported,
@@ -131,9 +135,20 @@ places where it would have been easier to write "live" and leave it.
 ## The sources in detail
 
 Each block gives the licence in the publisher's own words where we have it, and
-the attribution line the server emits. **Reproduce the line as written** — these
-are not suggestions; CC BY 4.0 § 3 and its equivalents terminate the grant when
-the condition is not met.
+the attribution line that belongs to that source.
+
+**Reproduce the line as you received it from the server, not as it is printed
+here.** The lines below are shortened: every attribution line in a real tool
+result ends with the source URI in parentheses, and this page leaves that URI
+off on purpose — a public page in this repository does not carry deep links into
+the catalogues we fetch through. CC BY 4.0 § 3(a)(1)(A)(iv) makes you retain a
+URI the licensor supplied, so the copy in the tool result is the one that
+discharges the obligation and the copies here are for reading, not for pasting.
+Same text, one part deliberately missing; if you have the result, use the
+result, and `viafrei://attribution` carries every line in full.
+
+The obligation itself is not a suggestion: CC BY 4.0 § 3 and its equivalents
+terminate the grant when the condition is not met.
 
 Why several lines end in `bearbeitet` ("edited"): CC BY 4.0 § 3(a)(1)(B) makes
 you indicate that you changed the material. An answer is always a derived form —
@@ -191,9 +206,11 @@ Both are **CC BY 4.0**, not BY-SA — the share-alike is on the realtime feed.
 Tankstellenpreise: Tankerkönig.de — MTS-K, CC BY 4.0, bearbeitet
 ```
 
-The line must carry a link to
-<https://creativecommons.tankerkoenig.de> — naming the source is required
-("insbesondere ist eine Namensnennung nötig", read 2026-09-21).
+This is the one line whose **link is part of the obligation** rather than part
+of the server's formatting: naming the source is required and the publisher
+names a link as the way to do it ("insbesondere ist eine Namensnennung nötig",
+read 2026-09-21), so the line must carry
+<https://creativecommons.tankerkoenig.de> wherever it appears.
 
 The CC BY licence is **not** the binding constraint here. The MTS-K purpose
 limitation sits on top of it and is stricter: consumer information only, no
@@ -227,7 +244,9 @@ list is enough. That is a relaxation **for OSM**, not permission to drop the
 line from your own results.
 
 Facility status — the live state of lifts and escalators — **does not answer on
-the public service today**, for the reason given above. Do not build on it yet.
+the public service today**, and not because of this feed: the station directory
+that resolves a station name to the number the feed is keyed by is not loaded
+there, so the lookup stops before it starts. Do not build on it yet.
 
 Publisher: <https://developers.deutschebahn.com>
 
