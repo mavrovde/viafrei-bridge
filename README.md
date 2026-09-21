@@ -68,7 +68,7 @@ decision about any answer.
 
 | option | what it does |
 |---|---|
-| `--url <url>` | endpoint to relay to. Default `https://mcp.viafrei.de/mcp` |
+| `--url <url>` | endpoint to relay to. Default `https://mcp.viafrei.de/mcp` — see the note below |
 | `--header "Name: value"` | extra HTTP header on every request, repeatable. For an API key, when there is one |
 | `--timeout <ms>` | per-request timeout, default 30000. The event stream is never timed out |
 | `--version`, `--help` | print and exit |
@@ -77,18 +77,11 @@ decision about any answer.
 pass environment variables rather than arguments. A flag wins over the
 variable; the variable wins over the built-in default.
 
-Pointing it somewhere else — for example a server running locally on port 3000:
-
-```json
-{
-  "mcpServers": {
-    "viafrei": {
-      "command": "npx",
-      "args": ["-y", "viafrei", "--url", "http://127.0.0.1:3000/mcp"]
-    }
-  }
-}
-```
+**There is no self-hosted ViaFrei.** The server is a hosted service, so `--url`
+is not a way to run your own — it is there for a proxy or gateway in front of
+the service, and for the stub server this repository's test suite starts.
+Leave it unset and the bridge goes to the hosted endpoint, which is what you
+want.
 
 ## When something is wrong
 

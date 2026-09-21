@@ -40,8 +40,9 @@ for it, so the number is free; the bridge will use it when the platform does.
   notifications and progress, in both directions, unchanged. It is a message
   relay rather than a client/server pair, so a tool added on the server works
   through it the same day without a release here.
-- **Configuration.** `--url` / `VIAFREI_MCP_URL` for the endpoint (self-hosters,
-  a local server), `--header` for a future API key, `--timeout` /
+- **Configuration.** `--url` / `VIAFREI_MCP_URL` for the endpoint (a proxy in
+  front of the service, or the test suite's stub - the server itself is hosted
+  and cannot be run yourself), `--header` for a future API key, `--timeout` /
   `VIAFREI_MCP_TIMEOUT_MS`, `--version`, `--help`. No telemetry, no analytics,
   and no file written outside the OS temp directory.
 - **Honest failure.** An unreachable or refusing endpoint prints one line naming
