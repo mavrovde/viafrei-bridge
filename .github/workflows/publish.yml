@@ -28,6 +28,34 @@ permissions:
   contents: read
   id-token: write # required for provenance and Trusted Publishing
 
+env:
+  # The npm CLI this pipeline publishes with. PINNED, and it stays pinned.
+  #
+  # This step used to install `npm@latest`, which made the outcome of a release
+  # depend on the day it ran rather than on anything committed here. On
+  # 2026-09-21 that bill came due: npm 12 was `latest`, and npm 12 changed
+  # `npm pack --json` from an array to an object keyed by package name - a
+  # deliberate major-version change, announced in npm's own source (npm 11's
+  # lib/commands/pack.js: "XXX(BREAKING_CHANGE): publish outputs a json object
+  # with package names as keys. Pack should do the same here instead of an
+  # array"). The job broke with no commit in this repository.
+  #
+  # 12.0.2 is chosen because it is what `latest` resolves to today, so pinning
+  # it changes nothing about the run except that tomorrow's run is the same as
+  # today's; it has lib/utils/oidc.js and so can do Trusted Publishing; and its
+  # `npm pack --json` shape is one of the two scripts/npm-pack-json.mjs reads.
+  #
+  # Before bumping this pin, in the same commit:
+  #   1. run `npm run test:gate` against the new npm (install it into a temp
+  #      prefix, do not change the machine's npm) - it proves the reader
+  #      handles what that npm prints, and the reader refuses with one line if
+  #      npm has invented a third shape;
+  #   2. check the new npm still has lib/utils/oidc.js, i.e. it can still
+  #      exchange a GitHub OIDC token for a publish credential without a token
+  #      in this file;
+  #   3. rehearse with the workflow_dispatch dry run before spending a tag.
+  NPM_VERSION: '12.0.2'
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -48,9 +76,20 @@ jobs:
           cache: npm
 
       # Trusted Publishing needs a recent npm CLI; the one bundled with Node
-      # may predate it.
-      - name: Use an npm that can do Trusted Publishing
-        run: npm install -g npm@latest --ignore-scripts
+      # may predate it. Which one is decided above, by NPM_VERSION, and the
+      # install is ASSERTED rather than assumed: a pin nobody checks is a
+      # comment, and this whole step exists because a version nobody checked
+      # changed underneath a release.
+      - name: Use the pinned npm that can do Trusted Publishing
+        run: |
+          set -eu
+          npm install -g "npm@${NPM_VERSION}" --ignore-scripts
+          installed="$(npm --version)"
+          echo "npm ${installed} (pinned ${NPM_VERSION})"
+          if [ "${installed}" != "${NPM_VERSION}" ]; then
+            echo "Pinned npm ${NPM_VERSION} but npm --version says ${installed}." >&2
+            exit 1
+          fi
 
       # --ignore-scripts: no dependency's install hook runs in a job that can
       # build or publish this package. The gate refuses a lifecycle script in
@@ -88,9 +127,16 @@ jobs:
       # reason this gate exists.
       - name: Pack the tarball
         id: pack
+        #
+        # The filename comes out of scripts/npm-pack-json.mjs, which is the one
+        # reader for `npm pack --json` in this repository. It used to be an
+        # inline `JSON.parse(s)[0].filename` here and a second hand-rolled
+        # parse in each of the two gates - three copies of an assumption about
+        # a format none of them owns. The reader knows both shapes npm has
+        # printed and exits 2 with one sentence when it is handed a third.
         run: |
           set -eu
-          file="$(npm pack --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s)[0].filename))')"
+          file="$(npm pack --json | node scripts/npm-pack-json.mjs)"
           test -f "$file"
           echo "tarball=$PWD/$file" >> "$GITHUB_OUTPUT"
 
