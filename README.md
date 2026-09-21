@@ -19,7 +19,8 @@ Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
 … seven more
 
 Stand 09:43 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace,
-CC BY 4.0, bearbeitet (…) · Bahnhofsdaten: … (…)
+CC BY 4.0, bearbeitet (…) · Bahnhofsdaten: Deutsche Bahn AG,
+DB API Marketplace, CC BY 4.0, bearbeitet (…)
 ```
 
 Every answer ends with a line like that last one. It is the licence talking,
@@ -29,6 +30,12 @@ line the server sends you, not this one:** it has been shortened here, and the
 real one names each source's URL, which the licence requires you to keep.
 
 No account, no API key, no sign-up — ask and the answer comes back.
+
+**ViaFrei is in its stabilisation and testing phase.** It is live, it is free,
+and it is being hardened in the open. Some sources are thinner than they will
+be, and a tool may occasionally answer slowly or not at all. When that happens
+we would rather hear it than not: [open an issue](../../issues) and say what
+you asked and what came back.
 
 Plain German or plain English, whichever you speak — the answers come back in
 the language you asked in, not translated from one house language:
@@ -41,9 +48,9 @@ the language you asked in, not translated from one house language:
 - *Brauche ich in Deutschland eine Umweltplakette?*
 - *Tell me when the A8 reopens* — the server can watch a situation and tell
   your assistant when it changes, so you need not keep asking. The watch lives
-  in the conversation that opened it: it reaches no inbox and no phone, and it
-  ends with the session — or after three hours, which is the default, and 24 is
-  as long as one can be asked to run
+  in the conversation that opened it: it reaches no inbox and no phone, and
+  it ends with the session. Three hours by default; 24 is the longest one can
+  be asked to run
 
 Thirteen tools at the time of writing, and no list of them on this page. A
 pasted catalogue goes stale the first time a description changes on the server,
