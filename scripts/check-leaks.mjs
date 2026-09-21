@@ -22,8 +22,15 @@
  * in this repository's history are recorded in `historyNumberResidue` by BLOB,
  * and suppressed for the `number` rule only, in the history leg only. A blob
  * is immutable, so such an entry can never grow to cover a line added later;
- * every entry must be matched exactly as often as it claims or the run
- * refuses; and the working tree is never exempt from anything.
+ * every entry must be matched exactly as often as it claims; and the working
+ * tree is never exempt from anything.
+ *
+ * That record is only as durable as the history it names, so **this repository
+ * is merged with merge commits and never with a squash** - a squash builds one
+ * new tree and drops the intermediate ones, which would leave every entry here
+ * naming a blob no ref reaches. The reason is written down in CONTRIBUTING.md,
+ * because a rule without its reason gets reverted by whoever clicks the
+ * default button.
  *
  * Usage:
  *   node scripts/check-leaks.mjs              # tracked files in the working tree
@@ -33,7 +40,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { blindSpots, loadRules, opaque, safeString, scanFile, thresholds } from './rules.mjs';
+import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -74,18 +81,43 @@ try {
  *
  * Run outside a repository this file used to die with an uncaught exception
  * and exit 1 - the code that means "findings" - for a condition it defines
- * exit 2 for. The exit status and the subcommand are printed, never git's own
- * message: that message carries the absolute path of the checkout, and this
- * output goes to a public CI log.
+ * exit 2 for.
+ *
+ * The message is printed, through `safeMessage`, rather than withheld. The
+ * round-5 comment here claimed it had to be withheld because it "carries the
+ * absolute path of the checkout"; it does not - Node builds it from the
+ * command line and the child's stderr, neither of which is the cwd - and a
+ * diagnostic thrown away on the strength of a wrong reason is a diagnostic
+ * thrown away. Uncontrolled text still goes through the same door as every
+ * other uncontrolled string.
  */
 const runGit = (args, options = {}) => {
     try {
         return execFileSync('git', ['-c', 'color.ui=false', ...args], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024, ...options });
     } catch (error) {
-        return refuse(`git ${args[0]} could not be run here (exit ${error?.status ?? 'none'}) - is this a git repository?`);
+        return refuse(`git ${args[0]} could not be run here (exit ${error?.status ?? 'none'}) - ${safeMessage(error, RULES)}`);
     }
 };
 const git = args => runGit(args, { encoding: 'utf8' });
+
+/**
+ * Is this object in the repository at all, reachable or not?
+ *
+ * Deliberately NOT through `runGit`: a missing object is an expected answer
+ * here, not a broken git, and routing it through the refusal helper would turn
+ * a question into an exit. It tells "unreachable from any ref" apart from
+ * "never fetched", which are different causes with different remedies - a
+ * rewritten history versus a shallow clone - and guessing between them in the
+ * message would have been a guess printed as a fact.
+ */
+function blobExists(sha) {
+    try {
+        execFileSync('git', ['-c', 'color.ui=false', 'cat-file', '-e', `${sha}^{blob}`], { cwd: ROOT, stdio: 'ignore' });
+        return true;
+    } catch {
+        return false;
+    }
+}
 
 const findings = [];
 
@@ -132,6 +164,10 @@ function scan(label, text, checkHosts, blob) {
     if (!checkHosts) {
         return;
     }
+    // Built the same way scanFile() builds its own: this loop composes a
+    // `where` of its own, so it needs the same treatment and not a second
+    // convention.
+    const safeLabel = safeString(label, RULES);
     for (const [index, line] of text.split('\n').entries()) {
         hostExpression.lastIndex = 0;
         let host;
@@ -142,7 +178,7 @@ function scan(label, text, checkHosts, blob) {
                 // publication - and this line goes straight into a public CI
                 // log. Length and hash prefix; open the file at the line to see
                 // which host it is.
-                findings.push(`${label}:${index + 1} host not on the allow-list (${opaque(host[1], RULES)})`);
+                findings.push(`${safeLabel}:${index + 1} host not on the allow-list (${opaque(host[1], RULES)})`);
             }
         }
     }
@@ -168,9 +204,10 @@ log(`sweep: ${RULES.repositoryPatterns.length} generic patterns, ${RULES.tokenHa
 log('sweep: no file is skipped - the rules file holds hashes, not names, so it is scanned like any other');
 log(`sweep: host allow-list not applied to ${[...HOST_EXEMPT].join(', ')} (generated; every other check still is)`);
 log('sweep: reading each line as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals');
-log('sweep: a name is looked for across every separator and at camel-case boundaries, and in the file path as well as the contents');
+log('sweep: a name is looked for across every separator, at camel-case boundaries, inside an unbroken run of letters and digits, and in the file path as well as the contents');
 if (RESIDUE.size > 0) {
     log(`sweep: ${RESIDUE.size} historical blob(s) carry accepted numeric residue and are named by content address in rules.json - the number rule only, history only, never the working tree`);
+    log('sweep: those entries name blobs, so this repository is merged with a MERGE COMMIT and never squashed - a squash would drop every one of them (CONTRIBUTING.md, "Merging")');
 }
 log(`sweep: cannot see ${blindSpots(RULES).join('; ')}`);
 
@@ -279,23 +316,53 @@ if (withHistory) {
     // only change if the scanner's behaviour changed - which is precisely the
     // thing worth being told about.
     let suppressed = 0;
+    let obsolete = 0;
+    let unreachable = 0;
     for (const entry of RULES.historyNumberResidue) {
         if (!Number.isInteger(entry.findings) || entry.findings < 1) {
             refuse('a historyNumberResidue entry does not declare a whole number of findings of at least 1');
         }
         const seen = residueSeen.get(entry.blob);
         if (seen === undefined) {
-            refuse(`a historyNumberResidue entry names a blob that is not in this history - a stale exemption suppresses nothing and hides that it suppresses nothing (hash prefix ${entry.blob.slice(0, 12)}…)`);
+            // An entry that matched nothing is a FINDING, not a refusal, and
+            // getting that distinction wrong was a defect of its own. Exit 2
+            // in this file means "I could not look"; the run that reaches here
+            // looked at every blob in the history and read all of them. Worse,
+            // a suppression that stops applying makes the run LOUDER, never
+            // quieter - whatever it used to hide is reported now - so it
+            // cannot be the silent-skip class, which is what the old message
+            // claimed it was while saying "a check that read nothing".
+            //
+            // It is still wrong to leave one lying about, so it is reported,
+            // it is red, and the remedy is in the sentence.
+            obsolete += 1;
+            const present = blobExists(entry.blob);
+            if (present) {
+                unreachable += 1;
+            }
+            findings.push(
+                `scripts/rules.json historyNumberResidue entry ${entry.blob.slice(0, 12)}… matched no blob in this history - ` +
+                    (present
+                        ? 'the object is in this repository but is not reachable from any ref, which is what a squash or a rewritten history does to it'
+                        : 'the object is not in this repository at all, which is what a shallow or partial clone does to it') +
+                    '. It suppresses nothing, so nothing is hidden; remove the entry, or restore the history that contained it.'
+            );
+            continue;
         }
         if (seen.suppressed !== seen.scans * entry.findings) {
-            refuse(
-                `a historyNumberResidue blob was scanned ${seen.scans} time(s) and yielded ${seen.suppressed} number finding(s), not the ${seen.scans * entry.findings} it claims (hash prefix ${entry.blob.slice(0, 12)}…)`
+            findings.push(
+                `scripts/rules.json historyNumberResidue entry ${entry.blob.slice(0, 12)}… was scanned ${seen.scans} time(s) and yielded ${seen.suppressed} number finding(s), not the ${seen.scans * entry.findings} it claims - the entry and the blob disagree, and a blob cannot change, so the scanner did`
             );
         }
         suppressed += seen.suppressed;
     }
     if (RULES.historyNumberResidue.length > 0) {
-        log(`sweep: ${suppressed} number finding(s) suppressed as recorded historical residue, across ${RESIDUE.size} blob(s); every one accounted for`);
+        log(
+            `sweep: ${suppressed} number finding(s) suppressed as recorded historical residue, across ${RESIDUE.size - obsolete} of ${RESIDUE.size} blob(s)`
+        );
+        if (obsolete > 0) {
+            log(`sweep: ${obsolete} residue entry/entries matched nothing (${unreachable} unreachable here, ${obsolete - unreachable} absent) - reported below`);
+        }
     }
 }
 

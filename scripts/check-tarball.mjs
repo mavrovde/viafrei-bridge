@@ -50,7 +50,7 @@ import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync 
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { blindSpots, loadRules, opaque, safeString, scanFile, thresholds } from './rules.mjs';
+import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const RULES = loadRules(ROOT);
@@ -315,7 +315,7 @@ function main() {
             // until now, because the scanners read contents and not names.
             // safeString() withholds a path that does; scanFile() turns the
             // same condition into a finding of its own.
-            note(`  - ${safeString(file, RULES)}`);
+            note(`  - ${safeString(file, RULES, extraTokenHashes)}`);
         }
 
         // --- check 1: it is actually the package, and only the package -------
@@ -327,7 +327,7 @@ function main() {
         for (const file of files) {
             for (const rule of FORBIDDEN_NAMES) {
                 if (rule.test(file)) {
-                    fail('file name', `${safeString(file, RULES)} is a ${rule.label} and must not be published`);
+                    fail('file name', `${safeString(file, RULES, extraTokenHashes)} is a ${rule.label} and must not be published`);
                 }
             }
         }
@@ -345,7 +345,7 @@ function main() {
         note(
             `gate: scanning ${files.length} files as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals`
         );
-        note('gate: a name is looked for across every separator and at camel-case boundaries, and in the file path as well as the contents');
+        note('gate: a name is looked for across every separator, at camel-case boundaries, inside an unbroken run of letters and digits, and in the file path as well as the contents');
         note(`gate: cannot see ${blindSpots(RULES).join('; ')}`);
         for (const file of files) {
             const isProse = file.endsWith('.md');
@@ -377,7 +377,10 @@ function main() {
         note('gate: PASS - required files only, no lifecycle script, every dependency a registry range, no embedded sources, no platform content');
         return 0;
     } catch (error) {
-        note(`gate: could not run: ${error instanceof Error ? error.message : String(error)}`);
+        // Through the same door as every other uncontrolled string. This used
+        // to print the message raw while the sweep refused to print git's at
+        // all - two files, two rules, one of them wrong.
+        note(`gate: could not run: ${safeMessage(error, RULES, extraTokenHashes)}`);
         return 2;
     } finally {
         rmSync(workspace, { recursive: true, force: true });

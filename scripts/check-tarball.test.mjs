@@ -151,14 +151,36 @@ const b64 = text => Buffer.from(text).toString('base64');
  * encoded payloads have punctuation and separators in them; this is that.
  */
 const pad = count => '-'.repeat(count);
+/**
+ * Letters either side of the name, for the cases that test the tokeniser
+ * rather than a decoder. `GLUE_LEFT`/`GLUE_RIGHT` size a run to EXACTLY the
+ * longest name the rules cover, around the shortest one.
+ */
+const GLUE = 'Wxyz';
+const GLUE_LEFT = Math.floor((RULES.maxTokenLength - SHORTEST.length) / 2);
+const GLUE_RIGHT = RULES.maxTokenLength - SHORTEST.length - GLUE_LEFT;
+if (GLUE_LEFT < 1 || GLUE_RIGHT < 1) {
+    refuse('the shortest and the longest name are too close together to glue a name inside a run of exactly the longest length');
+}
 
 // ---------------------------------------------------------------------------
 // The plan, built from the gate's own rules.
 // ---------------------------------------------------------------------------
 
 const plan = [];
-const add = (kind, name, expectation, poison, env = process.env, codes = [1]) => {
-    plan.push({ kind, name, expectation, poison, env, codes });
+/**
+ * `token`, when given, is a string the run's output may NEVER contain.
+ *
+ * The expectation says what the gate must notice; this says what it must not
+ * say while noticing it. Round 6 found a finding that printed the path it was
+ * complaining about, in the branch that only runs when a name is really there,
+ * and no positive expectation would ever have caught that - a regex looking
+ * for "private name" matches a line that leaks just as happily as one that
+ * does not. So the invented stand-in is checked for directly, in every case
+ * that has one.
+ */
+const add = (kind, name, expectation, poison, env = process.env, codes = [1], token = undefined) => {
+    plan.push({ kind, name, expectation, poison, env, codes, token });
 };
 
 function editManifest(directory, edit) {
@@ -370,6 +392,34 @@ ENCODING_CASES.push(
         expectation: 'private name.*as plaintext',
         token: SECRET,
         build: token => `const my_${token}_backup = 1;`
+    },
+    // Glued: no separator, no case change, nothing for a tokeniser that cuts
+    // at boundaries to cut at. Round 6 measured this at 0 of 60 placements
+    // with lower-case filler and 20 of 60 with upper-case, and round 4 scored
+    // the same, so it had never worked. Both fillers are kept because they
+    // failed for different reasons, and a fix for one is not a fix for the
+    // other.
+    {
+        name: 'plaintext-glued-into-a-lower-case-run',
+        expectation: 'private name.*as plaintext',
+        token: SECRET,
+        build: token => `const blob = "${GLUE.toLowerCase()}${token}${GLUE.toLowerCase()}";`
+    },
+    {
+        name: 'plaintext-glued-into-an-upper-case-run',
+        expectation: 'private name.*as plaintext',
+        token: SECRET,
+        build: token => `const blob = "${GLUE.toUpperCase()}${token}${GLUE.toUpperCase()}";`
+    },
+    // The boundary the first attempt at that fix got wrong: it looked inside a
+    // run only when the run was LONGER than the longest name, and a run of
+    // exactly that length still holds a shorter name. Sized from the rules, so
+    // it stays the boundary when the rules move.
+    {
+        name: 'plaintext-glued-into-a-run-of-exactly-the-longest-name',
+        expectation: 'private name.*as plaintext',
+        token: SHORTEST,
+        build: token => `const blob = "${'w'.repeat(GLUE_LEFT)}${token}${'x'.repeat(GLUE_RIGHT)}";`
     }
 );
 if (ENCODING_CASES.length === 0) {
@@ -392,9 +442,29 @@ for (const entry of ENCODING_CASES) {
         directory => {
             appendFileSync(join(directory, 'dist/cli.js'), `\n${entry.build(entry.token)}\n`);
         },
-        envFor(entry.token)
+        envFor(entry.token),
+        [1],
+        entry.token
     );
 }
+
+// --- the path itself, not the contents -------------------------------------
+//
+// A name in a FILE NAME was invisible until round 5 and then printed in the
+// clear by the finding it raised until round 6. The file's contents are
+// innocent here, so only the path can raise this, and the run has to say so
+// without saying it.
+add(
+    'private name',
+    'a-private-name-in-a-path',
+    'private name.*is in this path',
+    directory => {
+        writeInto(directory, `dist/${SECRET}.js`, 'export const ok = 1;\n');
+    },
+    envFor(SECRET),
+    [1],
+    SECRET
+);
 
 // ---------------------------------------------------------------------------
 // Ruleset cases: a rule that cannot match anything is a REFUSAL, in BOTH legs.
@@ -468,9 +538,39 @@ const RULESET_CASES = [
         }
     },
     {
+        // The sweep's own path handling, end to end. The gate has a case for
+        // this in the tarball plan; the sweep has no VF_EXTRA_TOKEN_HASHES
+        // channel, so its stand-in goes in through the ruleset instead, and
+        // the file has to be TRACKED or the sweep would never look at it - an
+        // untracked file would have made this case pass by reading nothing.
+        name: 'a-private-name-in-a-tracked-path',
+        expectation: 'private name.*is in this path',
+        legs: ['sweep'],
+        codes: [1],
+        verdict: 'reported',
+        token: SECRET,
+        prepare: root => {
+            writeFileSync(join(root, 'src', `${SECRET}.md`), 'nothing in here.\n');
+            execFileSync('git', ['-C', root, 'add', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+        },
+        cleanup: root => {
+            execFileSync('git', ['-C', root, 'rm', '-q', '-f', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+        },
+        mutate: rules => {
+            rules.tokenHashes = [...rules.tokenHashes, hashToken(RULES.salt, SECRET)];
+        }
+    },
+    {
+        // A residue entry whose blob is gone is a FINDING, not a refusal, and
+        // the difference is the point. A suppression that stops applying makes
+        // the run louder, never quieter: everything it used to hide is now
+        // reported. Nothing went unread, so "could not run" would be a lie
+        // told by a run that had read every blob in the repository.
         name: 'a-history-residue-entry-for-a-blob-that-is-not-here',
-        expectation: 'not in this history',
+        expectation: 'matched no blob in this history',
         legs: ['sweep --history'],
+        codes: [1],
+        verdict: 'reported',
         mutate: rules => {
             // Replaced, not appended: the throwaway repository has its own
             // history, so this repository's real residue blobs are not in it.
@@ -619,8 +719,15 @@ try {
         ran += 1;
         const result = runGate(poisonedTarball(entry.name, entry.poison), entry.env);
         const caught = entry.codes.includes(result.code) && new RegExp(entry.expectation, 'u').test(result.stdout);
-        if (caught) {
+        const leaked = entry.token !== undefined && result.stdout.toLowerCase().includes(entry.token.toLowerCase());
+        if (caught && !leaked) {
             log(`  PASS  rejected "${entry.name}" (${entry.kind})`);
+        } else if (leaked) {
+            failures += 1;
+            // The output is deliberately NOT reprinted: it contains the thing
+            // that must not be printed, and a self-test that echoes the leak
+            // to prove there was one has published it as well.
+            log(`  FAIL  "${entry.name}" (${entry.kind}) printed the ${entry.token.length}-character stand-in name in its own output`);
         } else {
             failures += 1;
             log(`  FAIL  ACCEPTED "${entry.name}" (${entry.kind}, exit ${result.code}) - it would have shipped`);
@@ -676,13 +783,30 @@ try {
                 leg.control(rules);
                 entry.mutate(rules);
             });
+            if (entry.prepare !== undefined) {
+                entry.prepare(leg.root);
+            }
             const result = leg.run(leg.root);
-            const refused = result.code === 2 && new RegExp(entry.expectation, 'u').test(result.stdout);
-            if (refused) {
-                log(`  PASS  "${leg.label}" refused "${entry.name}" (exit 2)`);
+            if (entry.cleanup !== undefined) {
+                entry.cleanup(leg.root);
+            }
+            // Most of these are refusals (exit 2: the rule cannot match, so
+            // the leg has not checked anything). One is a finding (exit 1),
+            // and the case says which - a shared runner that assumed "2" would
+            // have had the residue case silently renamed into the wrong class
+            // to keep it passing.
+            const codes = entry.codes ?? [2];
+            const verdict = entry.verdict ?? 'refused';
+            const caught = codes.includes(result.code) && new RegExp(entry.expectation, 'u').test(result.stdout);
+            const leaked = entry.token !== undefined && result.stdout.toLowerCase().includes(entry.token.toLowerCase());
+            if (caught && !leaked) {
+                log(`  PASS  "${leg.label}" ${verdict} "${entry.name}" (exit ${result.code})`);
+            } else if (leaked) {
+                failures += 1;
+                log(`  FAIL  "${leg.label}" printed the ${entry.token.length}-character stand-in name while handling "${entry.name}"`);
             } else {
                 failures += 1;
-                log(`  FAIL  "${leg.label}" did NOT refuse "${entry.name}" (exit ${result.code}) - a rule that cannot match reported success`);
+                log(`  FAIL  "${leg.label}" did NOT ${verdict.replace(/ed$/u, '')} "${entry.name}" (exit ${result.code}, wanted ${codes.join(' or ')})`);
                 log(result.stdout);
             }
         }

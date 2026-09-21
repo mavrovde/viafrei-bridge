@@ -14,10 +14,14 @@
  *    check that quietly cannot see something is worse than one that says so -
  *    and a list printed on every run is READ as exhaustive, so anything known
  *    to be missing belongs in it rather than in a commit message.
- * 3. **A separator is not a disguise.** A two-word name written with a hyphen,
- *    a dot, a slash, a space or a capital letter is the same name as the
- *    underscore spelling, and those are the spellings that reach a README
- *    sentence or a URL path. `tokenCandidates()` cuts at all of them.
+ * 3. **A separator is not a disguise, and neither is the absence of one.** A
+ *    two-word name written with a hyphen, a dot, a slash, a space or a capital
+ *    letter is the same name as the underscore spelling, and those are the
+ *    spellings that reach a README sentence or a URL path. `tokenCandidates()`
+ *    cuts at all of them - and also reads every run of letters and digits as a
+ *    sliding window, so a name welded into a longer run with no separator and
+ *    no case change is seen too. That last one was the gap: it scored 0 out of
+ *    60 placements when the filler was lower case.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -85,15 +89,35 @@ export function hashToken(salt, token) {
  * it (`dist/<name>.js`), which nothing else in this code would ever have
  * caught, because the scanners read file contents and not file names. So the
  * path is printed unless it contains a private name, and withheld if it does.
+ *
+ * `extraTokenHashes` is honoured here as well as in the scan. It was not, so
+ * the one channel the self-test has for proving this path works - a hash
+ * handed in for a name invented at run time - could not reach it, and the
+ * withholding branch was therefore never executed by anything.
  */
 export function opaque(value, rules) {
     return `${value.length} characters, hash ${hashToken(rules.salt, value).slice(0, 12)}…`;
 }
 
-export function safeString(value, rules) {
+/**
+ * An error message, made safe to print, on one line.
+ *
+ * A thrown message is text this code did not write - it can carry a path, a
+ * command line, or whatever a child process put on stderr - so it goes through
+ * the same door as every other uncontrolled string instead of being printed
+ * raw in one file and refused outright in another. One rule, both legs.
+ */
+export function safeMessage(error, rules, extraTokenHashes = new Set(), limit = 300) {
+    const text = (error instanceof Error ? error.message : String(error)).replace(/\s+/gu, ' ').trim();
+    const clipped = text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+    return safeString(clipped, rules, extraTokenHashes);
+}
+
+export function safeString(value, rules, extraTokenHashes = new Set()) {
     const limits = thresholds(rules);
     for (const candidate of tokenCandidates(value, limits)) {
-        if (rules.tokenHashes.has(hashToken(rules.salt, candidate))) {
+        const digest = hashToken(rules.salt, candidate);
+        if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
             return `[withheld: ${opaque(value, rules)}, it contains a private name]`;
         }
     }
@@ -160,6 +184,36 @@ export function tokenCandidates(line, limits) {
     // because the piece windows normalise every separator to one underscore.
     for (const run of line.match(/[A-Za-z0-9_]+/gu) ?? []) {
         offer(run.toLowerCase());
+    }
+    // A run with no boundary in it at all.
+    //
+    // The window construction needs something to cut at - a separator or a
+    // change of case. Inside one long unbroken alphanumeric run there is
+    // neither, so a name glued between filler letters was invisible at every
+    // length and in every encoding: 0/30 on a probe with lower-case filler,
+    // 0/30 with upper-case, 30/30 as soon as any separator appeared. That is
+    // the shape a name takes inside decoded hex or a minified bundle, which is
+    // exactly where one would be hiding.
+    //
+    // So a run longer than the SHORTEST name is also read as a sliding window,
+    // which is the only construction that can find a boundary-free name. The
+    // threshold is the shortest and not the longest: a run of exactly
+    // `maxTokenLength` can still hold a shorter name glued inside it, and
+    // testing `> max` left precisely that case missing - 7-character names in
+    // a 15-character run, the three placements that still failed the probe.
+    // Runs no longer than the shortest name are skipped because the piece
+    // windows already offer them whole.
+    for (const chunk of line.match(/[A-Za-z0-9]+/gu) ?? []) {
+        if (chunk.length <= min) {
+            continue;
+        }
+        const lowered = chunk.toLowerCase();
+        for (let start = 0; start + min <= lowered.length; start += 1) {
+            const limit = Math.min(max, lowered.length - start);
+            for (let width = min; width <= limit; width += 1) {
+                candidates.add(lowered.slice(start, start + width));
+            }
+        }
     }
     const pieces = linePieces(line);
     for (let start = 0; start < pieces.length; start += 1) {
@@ -388,6 +442,8 @@ export function blindSpots(rules) {
         'a decoded run that contains even one byte outside printable ASCII - the run is discarded whole, so a name next to binary in the same run is not seen',
         'an encoding inside an encoding: each line is decoded exactly ONE level, so base64 of base64, or base64 of hex, is not seen',
         'a name written backwards, which is worth naming because this repository uses reversal as an encoding itself in scripts/rules.json',
+        'a listed name that is not spelled in letters, digits and underscores: every candidate is drawn from [a-z0-9_], so a hash of a name containing anything else matches nothing, and this file cannot detect that for you because it holds hashes rather than names',
+        'a near-miss rather than a spelling: a character inserted into, removed from or changed inside a name is a different string and is not matched - what IS matched is the same name written with any separator, with none at all, or buried inside a longer run',
         'UTF-16 or any other wide encoding - every decoder reads its bytes as UTF-8',
         'anything split across two lines, since every check reads one line at a time',
         'compressed (gzip/deflate) or encrypted payloads',
@@ -443,6 +499,20 @@ let ownRuleTexts;
 export function scanFile({ label, text, patterns, rules, extraTokenHashes = new Set(), onFinding }) {
     const limits = thresholds(rules);
 
+    /**
+     * Every `where` this function emits is built from here, once.
+     *
+     * The previous round taught the listing to withhold a path that carries a
+     * private name and left the FINDINGS printing `label` raw - so the one
+     * line that says "a private name is in this path" printed the path, and so
+     * did every content finding in such a file. The leak lived in the branch
+     * that only executes when a name is actually present, which is the branch
+     * that matters. Two printing sites to remember is one too many: there is
+     * one construction site now, and callers may print `finding.where`
+     * verbatim because it left here safe.
+     */
+    const safeLabel = safeString(label, rules, extraTokenHashes);
+
     // The NAME of the file, not only its contents. Nothing scanned the labels
     // before, so a private name in a path - `dist/<name>.js` - was invisible to
     // every rule here and was then printed verbatim by the caller's listing.
@@ -451,7 +521,7 @@ export function scanFile({ label, text, patterns, rules, extraTokenHashes = new 
         if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
             onFinding({
                 kind: 'private name',
-                where: label,
+                where: safeLabel,
                 detail: `a private name (hash ${digest.slice(0, 12)}…) is in this path, not only in what it contains`
             });
         }
@@ -459,7 +529,7 @@ export function scanFile({ label, text, patterns, rules, extraTokenHashes = new 
 
     const lines = text.split('\n');
     for (const [index, line] of lines.entries()) {
-        const where = `${label}:${index + 1}`;
+        const where = `${safeLabel}:${index + 1}`;
 
         const views = [{ encoding: 'plaintext', text: line }, ...decodings(line, limits)];
 

@@ -61,8 +61,26 @@ first real release is this one.
   are salted hashes rather than text, so the rules file carries no secret and
   needs no exemption - the previous arrangement published the list it was
   protecting and then skipped the file it was in. A name is looked for across
-  every separator and at camel-case boundaries, in the file path as well as in
-  the contents. Findings print a hash prefix, a length and a location, never the
-  value - a host, a dependency spec and a path included.
+  every separator, at camel-case boundaries, inside an unbroken run of letters
+  and digits, and in the file path as well as in the contents. Findings print a
+  hash prefix, a length and a location, never the value - a host, a dependency
+  spec and a path included, and in the findings themselves rather than only in
+  the listing above them: every location a finding carries is built in one
+  place, so there is no second printing site to remember. The self-test asserts
+  the absence as well as the presence - a case that catches what it was given
+  and prints it while doing so fails.
+- **One entry left the private-name list, and the reason is written down in
+  `scripts/rules.json`.** It was a proper substring of a published product name
+  that this repository's own README has to print, so it flagged the README the
+  moment the scanner learned to look inside an unbroken run. Deleting a rule
+  that has just started failing is normally the wrong answer; this one named a
+  public product rather than a private name, so it protected nothing, and the
+  file it pointed at is the sentence that says which database the service is
+  built on.
+- **Merged with a merge commit, never a squash**, and
+  [CONTRIBUTING.md](CONTRIBUTING.md) says why at length: the history sweep's
+  accepted residue is keyed by blob, those blobs live only in intermediate
+  commits, and a squash makes them unreachable from `main` - which would turn
+  the check red on `main` for everybody, for something no contributor did.
 
 [0.1.0]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.1.0

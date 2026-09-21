@@ -193,8 +193,59 @@ See [NOTICE](NOTICE).
   you ran and the real output, not "tests pass".
 - **Every pull request gets an independent review before it is merged.** Expect
   questions; they are about the code.
-- Keep the commit history readable. Squash your own noise; do not rewrite anyone
-  else's.
+- Keep the commit history readable. Squash your own noise *before you push*; do
+  not rewrite anyone else's. That is about your local commits, and it is not the
+  same thing as the button you press at the end — see below.
+
+## Merging: a merge commit, never a squash
+
+**This repository is merged with "Create a merge commit". Rebase and merge is
+acceptable. "Squash and merge" is forbidden, and here is why, because a rule
+without its reason gets reverted by the next person in a hurry.**
+
+`scripts/rules.json` carries `historyNumberResidue`: a short list of *blobs*,
+named by content address, whose number findings the history sweep accepts as
+already-published residue. It is keyed by blob because a blob cannot change, so
+an exemption cannot quietly widen, and because one entry then covers the same
+file at several revisions.
+
+Every one of those blobs lives only in an intermediate commit of a feature
+branch. A squash merge writes a single new commit whose tree does not contain
+them and leaves no parent that does, so `git rev-list --all` on `main` can no
+longer reach any of them. `npm run check:leaks -- --history` then reports every entry
+as matching no blob in this history — on `main`, for everyone who clones it,
+for a condition no contributor introduced. This is not hypothetical: it was
+measured in a fresh clone of a squash-merged branch before the rule was written
+down.
+
+Three things that look like alternatives and are not:
+
+- *Empty the residue list as part of the squash.* There is no ordering that
+  works. Empty it before the merge and the branch's own history leg goes red,
+  because on the branch those blobs are still reachable and their findings come
+  back. Empty it after and there is a red window on `main` in between. A
+  "tolerate a missing blob" setting would close the window, and it would also
+  be a bypass switch with better manners.
+- *Squash to unpublish the history.* It does not unpublish anything. GitHub
+  keeps every pushed tip under `refs/pull/<n>/head`, and those objects stay
+  fetchable from the public repository whatever `main` looks like. A squash
+  destroys an accurate record of how the code got here and buys nothing in
+  exchange.
+- *Widen the rule so the failure stops happening.* That is the move this whole
+  ruleset exists to refuse. A check that is relaxed until it stops complaining
+  is a check that reports success about what it no longer reads.
+
+The cost of the rule, stated plainly rather than glossed: the intermediate
+commits stay reachable from `main` for good, including the ones whose content
+the residue list exists to excuse. That content is already published — a merge
+commit changes *reachability*, not publication, and reachability is the only
+thing a sweep can check.
+
+The repository owner should also turn off "Allow squash merging" in
+Settings → General → Pull Requests. A rule that depends on which of three
+buttons somebody clicks will eventually lose to the default. That setting is not
+part of any diff, so it cannot be done in a pull request; until it is off, this
+section is the rule.
 
 ## Security
 
