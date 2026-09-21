@@ -10,8 +10,8 @@ npx viafrei
 ## What this is
 
 ViaFrei is a Germany-wide transport intelligence layer whose interface is the
-assistant rather than an app: open data → PostgreSQL/PostGIS → **MCP tools over
-Streamable HTTP** at `https://mcp.viafrei.de/mcp`.
+assistant rather than an app. It is a hosted **MCP server over Streamable HTTP**
+at `https://mcp.viafrei.de/mcp`.
 
 Most MCP clients speak Streamable HTTP and should connect to that URL directly —
 **they do not need this package.** Some clients still speak only stdio. This
@@ -41,8 +41,7 @@ reads:
 }
 ```
 
-**A different endpoint** — your own deployment, or a server running locally on
-port 3000:
+**A different endpoint** — for example a server running locally on port 3000:
 
 ```json
 {
@@ -133,11 +132,10 @@ See [NOTICE](NOTICE) and [LICENSE](LICENSE).
 
 ## The server itself
 
-The MCP server is offered as a **hosted service**, and its source is closed. The
-schema, the ingest workers, the provider connectors and the query layer are not
-in this repository and are not published. What is public is the part that is
-meant to be: the tool names, their descriptions, their input schemas, the shape
-of the results and the attribution lines — everything a client reads from
+The MCP server is offered as a **hosted service**, and its source is closed. It
+is not in this repository and is not published. What is public is the part that
+is meant to be: the tool names, their descriptions, their input schemas, the
+shape of the results and the attribution lines — everything a client reads from
 `tools/list`, which is the product surface.
 
 This is said plainly so nobody spends an evening looking for the server code.
