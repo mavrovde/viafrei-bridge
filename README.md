@@ -29,13 +29,15 @@ and it is meant to be shown to whoever reads the answer — see
 line the server sends you, not this one:** it has been shortened here, and the
 real one names each source's URL, which the licence requires you to keep.
 
-No account, no API key, no sign-up — ask and the answer comes back.
+**No account, no API key, no sign-up — ask and the answer comes back.**
 
-**ViaFrei is in its stabilisation and testing phase.** It is live, it is free,
-and it is being hardened in the open. Some sources are thinner than they will
-be, and a tool may occasionally answer slowly or not at all. When that happens
-we would rather hear it than not: [open an issue](../../issues) and say what
-you asked and what came back.
+ViaFrei is in its stabilisation and testing phase at the time of writing: live
+and free, with some sources thinner than they will be, and the occasional tool
+that answers slowly or not at all. **Tell us when that happens** —
+[open an issue](https://github.com/mavrovde/viafrei-bridge/issues) with what you
+asked and what came back. The server necessarily sees the question, and sees
+it fail; what it cannot see is that an answer was useless to you
+(see [What it does not do](#what-it-does-not-do)).
 
 Plain German or plain English, whichever you speak — the answers come back in
 the language you asked in, not translated from one house language:

@@ -45,15 +45,16 @@ Streamable-HTTP MCP server:
 node dist/cli.js --url http://127.0.0.1:3000/mcp
 ```
 
-Three more checks exist, and CI runs all three:
+Four more checks exist, and CI runs all four:
 
 ```bash
 npm run check:tarball   # what npm pack would publish, unpacked and read
 npm run test:gate       # poisons that tarball once per rule, and mutates the ruleset once per refusal
 npm run check:leaks     # the repository itself, working tree and history
+npm run test:leaks      # the sweep's own history scope, on a throwaway repository
 ```
 
-A fourth command prints rather than checks, and CI does not run it:
+A fifth command prints rather than checks, and CI does not run it:
 
 ```bash
 npm run rules:show      # print the rules both checks read, decoded
@@ -271,8 +272,10 @@ file at several revisions.
 
 Every one of those blobs lives only in an intermediate commit of a feature
 branch. A squash merge writes a single new commit whose tree does not contain
-them and leaves no parent that does, so `git rev-list --all` on `main` can no
-longer reach any of them. `npm run check:leaks -- --history` then reports every entry
+them and leaves no parent that does. Neither reaches them then: not
+`git rev-list HEAD` on `main`, which is what the sweep reads by default, and
+not `git rev-list --all`, which it reads under `--all-refs` in the
+publishing build. `npm run check:leaks -- --history` then reports every entry
 as matching no blob in this history — on `main`, for everyone who clones it,
 for a condition no contributor introduced. This is not hypothetical: it was
 measured in a fresh clone of a squash-merged branch before the rule was written
