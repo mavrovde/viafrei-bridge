@@ -15,11 +15,18 @@ particular:
     carrying a different licence.
   - MTS-K fuel prices (Tankerkönig) are consumer information only. No
     redistribution in any form, aggregates and derived tables included.
-  - Autobahn GmbH, BKG, DWD and the AFIR charging feeds each carry their own
-    licence and attribution string.
+  - Address results are derived from OpenStreetMap under the ODbL 1.0. The
+    share-alike is on the database rather than on the sentence, and our offer
+    under section 4.6 stands: ask and you get the extract and our alterations
+    to it under the same licence.
+  - Autobahn GmbH, BKG, DWD, Deutsche Bahn, GeoNames and the AFIR charging
+    feeds each carry their own licence and attribution string.
 
 Every tool result from the server carries its own attribution line, and the
 server exposes the full register at the resource `viafrei://attribution`. Show
 the attribution line to the person reading the answer. If you are building on
 top of this bridge, read that resource before you decide what you may do with
 what comes back.
+
+SOURCES.md in this package lists every source, its publisher, its licence and
+the attribution line it requires, in full.

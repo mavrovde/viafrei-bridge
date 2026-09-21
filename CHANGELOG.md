@@ -19,6 +19,23 @@ for it, so the number is free; the bridge will use it when the platform does.
 
 ### Fixed
 
+- **The publish pipeline no longer depends on the calendar.** It installed
+  `npm@latest` before publishing, so the version of npm that built and uploaded
+  a release was whichever one npm had shipped most recently. npm 12 became
+  `latest`, changed `npm pack --json` from an array to an object keyed by
+  package name — a deliberate change, announced in npm's own source before it
+  landed — and the job broke with no commit here. The npm is pinned now
+  (`NPM_VERSION` in the publish workflow), the install is asserted rather than
+  assumed, and both shapes are read by one file, `scripts/npm-pack-json.mjs`,
+  which every caller goes through: the gate, its self-test, and the workflow
+  step that packs the tarball all used to parse that output by hand, three
+  copies of an assumption about a format none of them owns. A shape the reader
+  does not know is one sentence naming the npm version and pointing at the pin
+  — not a `TypeError` with a stack trace of absolute paths in a public log,
+  which is what the self-test did, and not the wrong exit code, which the gate
+  contract already forbids. The reader's cases are fixtures, so they hold under
+  an npm nobody has installed yet.
+
 - **`npx viafrei` started nothing.** The check for "was this file the program,
   or was it imported" compared `process.argv[1]` with `import.meta.url` without
   resolving symlinks. npm installs a `bin` as a symlink and every client starts
@@ -163,6 +180,47 @@ for it, so the number is free; the bridge will use it when the platform does.
 - **The endpoint check in CI fails when it reads nothing.** It grepped `test/`
   and passed on no hits, so an empty or renamed directory reported success; it
   now asserts that the one legitimate occurrence is there before judging it.
+- **[SOURCES.md](SOURCES.md) - where every answer comes from**, and it ships in
+  the tarball beside NOTICE rather than living only on the web page. One entry
+  per source: who publishes it, what it covers, the publisher's own rhythm, the
+  licence with the operative sentence quoted and the date it was read, and the
+  **exact attribution line** a recipient has to reproduce. Two obligations that
+  bind the *reader* are stated before the catalogue rather than linked from it:
+  MTS-K fuel prices are consumer information only and may not be redistributed
+  in any form, aggregates included, and DELFI public-transport realtime is
+  CC BY-SA 4.0, so anything derived from it stays share-alike. The page says
+  which sources do **not** answer today - fuel coverage is a watch list and not
+  the country, station lift and escalator status is not available on the public
+  service yet - and it names the three cases where a publisher's terms are
+  unknown or unreadable instead of rounding them up to "open data".
+- **The leak sweep now distinguishes a data provider from the platform, in
+  writing.** It did not before, and the distinction was carried by the
+  private-name list rather than by a rule: the sweep refused the page above,
+  in eleven places in it and one in the rules file itself. **Two entries were
+  removed under the first list rule** (10 and 12 characters), and **the two had
+  different reasons**, which is worth separating because the stronger one does
+  not cover both. The 12-character spelling is **compelled**: a licence
+  requires that source to be named by a link, and the link's host contains it.
+  The 10-character one is not compelled by any licence - the attribution
+  conditions require the creator, the notices and a supplied URI, and none of
+  them requires naming an intermediary - it is simply a spelling **our own
+  server already broadcasts** in the attribution line it hands to every user
+  who receives such an answer, so a page that quotes that line cannot avoid it
+  and the rule could be satisfied only by never writing the page. The
+  alternative was real and was not taken: the server's own line could have been
+  narrowed so it never named the intermediary. It was not, because that line is
+  the server's to decide rather than a lint rule's, and because naming the route
+  data reached us by is provenance a reader checking a claim uses. That is a
+  product decision, and it is recorded as one rather than as law. Rule 2 was
+  applied to both before they went - neither is a credential, an identifier or a
+  host that grants access. What replaces them is a boundary between a **name**
+  and a **route**: a publisher or an intermediary may be named wherever the
+  server's own public attribution names it, while a fetch endpoint, an API path,
+  a per-offer deep link or a subscription identifier may not appear at all -
+  which is why the access point is named in words and its host is on no
+  allow-list. The host allow-list gains a second group on the same test: the
+  page that publishes a source's terms, the licence text it invokes, or a URL a
+  licence compels us to print, and nothing that merely looks relevant.
 - **Merged with a merge commit, never a squash**, and
   [CONTRIBUTING.md](CONTRIBUTING.md) says why at length: the history sweep's
   accepted residue is keyed by blob, those blobs live only in intermediate

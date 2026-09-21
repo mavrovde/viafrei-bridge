@@ -142,7 +142,9 @@ somewhere you did not choose. Same-origin redirects are followed normally.
 ## Using the data you get back
 
 Every result carries an attribution line. **Show it to the person reading the
-answer.** The full register lives at the resource `viafrei://attribution`.
+answer.** The full register lives at the resource `viafrei://attribution`, and
+**[SOURCES.md](SOURCES.md)** is the readable version of it: every publisher,
+what they cover, the licence, and the exact attribution line to reproduce.
 
 Two constraints matter more than the rest, because getting them wrong is a
 licence breach rather than a style problem:
@@ -154,7 +156,9 @@ licence breach rather than a style problem:
   anything derived from it, and it must not be blended into a result under a
   different licence.
 
-See [NOTICE](NOTICE) and [LICENSE](LICENSE).
+Everything else — where each answer comes from, and what each licence asks of
+you — is in [SOURCES.md](SOURCES.md). See also [NOTICE](NOTICE) and
+[LICENSE](LICENSE).
 
 ## The server itself
 

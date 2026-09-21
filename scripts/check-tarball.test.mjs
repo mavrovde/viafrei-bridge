@@ -39,11 +39,12 @@
  * which is also a failure.
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
+import { PackJsonError, soleTarballFilename } from './npm-pack-json.mjs';
 import { hashToken, loadRules } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -747,8 +748,25 @@ function writeRuleset(root, mutate) {
 function buildGateRoot(workspace) {
     const root = join(workspace, 'ruleset-gate');
     mkdirSync(join(root, 'scripts'), { recursive: true });
-    for (const file of ['rules.mjs', 'check-tarball.mjs', 'check-leaks.mjs', 'rules.json']) {
+    for (const file of ['rules.mjs', 'check-tarball.mjs', 'check-leaks.mjs', 'npm-pack-json.mjs', 'rules.json']) {
         cpSync(join(ROOT, 'scripts', file), join(root, 'scripts', file));
+    }
+    // The list above is written out by hand, so it can fall behind an import.
+    // When it does, every case in this section fails with ERR_MODULE_NOT_FOUND
+    // and a stack trace - which reads as "the gate did not refuse" and sends
+    // the next reader after the ruleset instead of after a missing file. The
+    // copy is therefore CHECKED against what the copied files import.
+    const missing = [];
+    for (const file of readdirSync(join(root, 'scripts')).filter(name => name.endsWith('.mjs'))) {
+        const source = readFileSync(join(root, 'scripts', file), 'utf8');
+        for (const match of source.matchAll(/from\s+'\.\/([\w.-]+)'/gu)) {
+            if (!existsSync(join(root, 'scripts', match[1]))) {
+                missing.push(`${file} imports ./${match[1]}`);
+            }
+        }
+    }
+    if (missing.length > 0) {
+        refuse(`the throwaway gate root is incomplete - ${missing.join(', ')}; add the file to buildGateRoot()`);
     }
     return root;
 }
@@ -810,14 +828,25 @@ function pack() {
     // Built here, because the published manifest may not carry a `prepack` to
     // do it - that is one of the things being tested.
     execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-    const out = JSON.parse(
-        execFileSync('npm', ['pack', '--json', '--pack-destination', workspace], {
-            cwd: ROOT,
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'inherit']
-        })
-    );
-    return join(workspace, out[0].filename);
+    const out = execFileSync('npm', ['pack', '--json', '--pack-destination', workspace], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit']
+    });
+    // Through the shared reader, and a refusal rather than a crash if it
+    // cannot. This line was `JSON.parse(out)[0].filename`, which was true of
+    // every npm that existed when it was written and became a `TypeError` with
+    // a stack trace of absolute paths the day a runner installed npm 12. The
+    // suite's own header gives that condition exit 2, and it is a refusal, not
+    // a case failing.
+    try {
+        return join(workspace, soleTarballFilename(out));
+    } catch (error) {
+        if (error instanceof PackJsonError) {
+            refuse(error.message);
+        }
+        throw error;
+    }
 }
 
 function poisonedTarball(name, poison) {
@@ -829,14 +858,102 @@ function poisonedTarball(name, poison) {
     return tarball;
 }
 
+// ---------------------------------------------------------------------------
+// The reader for `npm pack --json`, proved against BOTH shapes from fixtures.
+//
+// It has to be fixtures. Whichever npm is installed prints one shape, so a
+// suite that only packs proves the pipeline against the npm it happens to be
+// standing next to - which is exactly how npm 12 reached the publish job
+// unannounced. These cases hold under any npm, including one that does not
+// exist yet.
+//
+// The fixtures are trimmed records of what the two majors actually print. The
+// fields no caller reads are left out on purpose; adding them would suggest
+// the reader depends on them.
+// ---------------------------------------------------------------------------
+
+const ARRAY_SHAPE = JSON.stringify([
+    { id: 'viafrei@0.0.0', name: 'viafrei', filename: 'viafrei-0.0.0.tgz', size: 1, entryCount: 1 }
+]);
+const OBJECT_SHAPE = JSON.stringify({
+    viafrei: { id: 'viafrei@0.0.0', name: 'viafrei', filename: 'viafrei-0.0.0.tgz', size: 1, entryCount: 1 }
+});
+const FIXTURE_NPM = '0.0.0-fixture';
+
+const PACK_JSON_CASES = [
+    {
+        name: 'an array (npm <= 11)',
+        input: ARRAY_SHAPE,
+        filename: 'viafrei-0.0.0.tgz'
+    },
+    {
+        name: 'an object keyed by package name (npm >= 12)',
+        input: OBJECT_SHAPE,
+        filename: 'viafrei-0.0.0.tgz'
+    },
+    {
+        // The crash that started this: `JSON.parse(out)[0].filename` on the
+        // npm 12 shape. It must be a sentence, not a TypeError.
+        name: 'an empty array refuses and names the npm version',
+        input: '[]',
+        expectation: `npm pack --json \\(npm ${FIXTURE_NPM}\\).*0 tarballs`
+    },
+    {
+        name: 'an empty object refuses',
+        input: '{}',
+        expectation: 'names no tarball'
+    },
+    {
+        name: 'two tarballs refuse rather than pick one',
+        input: JSON.stringify([
+            { filename: 'a-0.0.0.tgz' },
+            { filename: 'b-0.0.0.tgz' }
+        ]),
+        expectation: '2 tarballs and exactly one was expected'
+    },
+    {
+        name: "npm's error object refuses by code, without its paths",
+        // `summary` is prose with an absolute path in it; the refusal may
+        // report the code and must not echo the rest.
+        input: JSON.stringify({
+            error: { code: 'ENOENT', summary: "open '/home/runner/work/secret/path.tgz'", detail: 'x' }
+        }),
+        expectation: 'npm error object \\(code ENOENT\\)',
+        forbidden: '/home/runner'
+    },
+    {
+        name: 'output that is not JSON at all refuses',
+        input: 'npm error code E404\n',
+        expectation: 'not JSON'
+    },
+    {
+        name: 'a shape with no filename in it refuses',
+        input: JSON.stringify([{ id: 'viafrei@0.0.0', name: 'viafrei' }]),
+        expectation: 'not every entry names a filename'
+    },
+    {
+        name: 'the refusal points at the pin, so the next shape change has one place to go',
+        input: '[]',
+        expectation: 'publish\\.yml \\(NPM_VERSION\\)'
+    }
+];
+
+if (PACK_JSON_CASES.length === 0) {
+    refuse('no `npm pack --json` cases, so nothing proves the pipeline can read what npm prints');
+}
+if (!PACK_JSON_CASES.some(entry => entry.filename !== undefined)) {
+    refuse('every `npm pack --json` case is a refusal, so nothing proves a shape is still READ');
+}
+
 const RULESET_RUNS = RULESET_CASES.reduce((total, entry) => total + (entry.legs ?? DEFAULT_LEGS).length, 0);
 const LEG_COUNT = LEG_LABELS.length;
-const PLANNED = plan.length + 1 + RULESET_RUNS + LEG_COUNT;
+const PLANNED = plan.length + 1 + RULESET_RUNS + LEG_COUNT + PACK_JSON_CASES.length;
 
 try {
     log('gate self-test');
     log(`  ${plan.length} poisoned tarballs, every one of them derived from a rule the gate reads`);
     log(`  ${RULESET_CASES.length} ruleset mutations over ${RULESET_RUNS} runs across ${LEG_COUNT} legs, plus one clean control per leg`);
+    log(`  ${PACK_JSON_CASES.length} pack --json cases, both shapes, from fixtures rather than from whichever npm is installed`);
     log(`  private-name cases use invented tokens of ${SHORTEST.length} and ${SECRET.length} characters, new every run`);
     log(`  (the rules are ${RULES.minTokenLength}-${RULES.maxTokenLength} characters, so a longer stand-in would prove nothing)`);
     log(`  the number case uses an invented ${RULES.numbers.minDigits}-digit value that is not on the allow-list, new every run`);
@@ -873,6 +990,44 @@ try {
             failures += 1;
             log(`  FAIL  ACCEPTED "${entry.name}" (${entry.kind}, exit ${result.code}) - it would have shipped`);
             log(result.stdout);
+        }
+    }
+
+    // --- the reader for `npm pack --json`, both shapes ----------------------
+    for (const entry of PACK_JSON_CASES) {
+        ran += 1;
+        let got;
+        let refusal;
+        try {
+            got = soleTarballFilename(entry.input, { npm: FIXTURE_NPM });
+        } catch (error) {
+            if (!(error instanceof PackJsonError)) {
+                failures += 1;
+                log(`  FAIL  pack --json: "${entry.name}" threw ${error?.constructor?.name ?? 'something'} instead of refusing`);
+                continue;
+            }
+            refusal = error.message;
+        }
+        if (entry.filename !== undefined) {
+            if (got === entry.filename) {
+                log(`  PASS  pack --json: read ${entry.name}`);
+            } else {
+                failures += 1;
+                log(`  FAIL  pack --json: ${entry.name} was not read (got ${refusal ?? String(got)})`);
+            }
+            continue;
+        }
+        const said = refusal !== undefined && new RegExp(entry.expectation, 'u').test(refusal);
+        const leaked = entry.forbidden !== undefined && refusal !== undefined && refusal.includes(entry.forbidden);
+        if (said && !leaked) {
+            log(`  PASS  pack --json: ${entry.name}`);
+        } else if (leaked) {
+            failures += 1;
+            // Not reprinted, for the reason the tarball cases give above.
+            log(`  FAIL  pack --json: "${entry.name}" echoed the part of npm's output it was not asked about`);
+        } else {
+            failures += 1;
+            log(`  FAIL  pack --json: "${entry.name}" did not refuse as promised (${refusal ?? `it returned ${String(got)}`})`);
         }
     }
 
@@ -962,7 +1117,7 @@ try {
     }
     if (failures === 0) {
         log(
-            `gate self-test: PASS - ${ran} cases (${plan.length} poisoned tarballs, 1 clean tarball, ${RULESET_RUNS} ruleset-mutation runs, ${LEG_COUNT} controls)`
+            `gate self-test: PASS - ${ran} cases (${plan.length} poisoned tarballs, 1 clean tarball, ${RULESET_RUNS} ruleset-mutation runs, ${LEG_COUNT} controls, ${PACK_JSON_CASES.length} pack --json shapes)`
         );
     } else {
         log(`gate self-test: FAIL - ${failures} of ${ran} case(s)`);

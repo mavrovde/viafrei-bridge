@@ -3,9 +3,32 @@
  * Repository leak sweep.
  *
  * This repository is public and the platform it talks to is not. Nothing that
- * describes the platform - a table, a role, a provider portal, an internal
- * port - may appear here, in any file, including a workflow, a test fixture or
- * a comment.
+ * describes the platform - a table, a role, an internal port, a host we deploy
+ * to, the route a feed is collected by - may appear here, in any file,
+ * including a workflow, a test fixture or a comment.
+ *
+ * A DATA PROVIDER IS NOT THAT, and since SOURCES.md the difference is written
+ * down rather than left to the list. The boundary is between a NAME and a
+ * ROUTE, and it is deliberately not between "us" and "them":
+ *
+ *   A publisher OR AN INTERMEDIARY - a catalogue, an access point, a
+ *   marketplace - may be NAMED here wherever the server's own public
+ *   attribution for that source names it. SOURCES.md names one such
+ *   intermediary, in words, several times, because the attribution line the
+ *   server hands to every user contains it and that page quotes the line.
+ *
+ *   The ROUTE may not appear: a fetch endpoint, an API path, a per-offer deep
+ *   link, a subscription, contract or certificate identifier, credentials -
+ *   anything saying HOW a feed is obtained rather than WHO publishes it.
+ *   Naming a catalogue is not naming a route; a URL into it is, which is why
+ *   that host is absent from `allowedHosts` while the name is written out.
+ *
+ * Two names came off the hash list for this, and one of the two reasons is
+ * weaker than the other: one spelling is compelled by a licence that requires
+ * a link, the other is merely one OUR OWN SERVER already broadcasts in every
+ * relevant answer - a product decision that could be reversed, not a legal
+ * fact. `_tokenHashes` in scripts/rules.json records both, separately, and
+ * `_allowedHosts` records what may be admitted and what may not.
  *
  * **Nothing is skipped.** The previous version skipped exactly one file, the
  * one that listed the forbidden names in the clear - which is where the leak

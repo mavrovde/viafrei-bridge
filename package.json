@@ -37,6 +37,7 @@
     "README.md",
     "LICENSE",
     "NOTICE",
+    "SOURCES.md",
     "CHANGELOG.md"
   ],
   "engines": {

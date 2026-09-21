@@ -59,6 +59,28 @@ A fourth command prints rather than checks, and CI does not run it:
 npm run rules:show      # print the rules both checks read, decoded
 ```
 
+### The npm the release is published with is pinned
+
+`.github/workflows/publish.yml` sets `NPM_VERSION` and installs exactly that npm,
+then asserts it got it. It used to install `npm@latest`, which meant the result
+of a release depended on the day it ran: npm 12 changed `npm pack --json` from
+an array to an object keyed by package name — a deliberate major-version change
+— and the publish job broke with no commit in this repository.
+
+So there is one reader for that output, `scripts/npm-pack-json.mjs`. It knows
+both shapes, every caller goes through it, and a shape it does not know is one
+sentence naming the npm version, not a stack trace. Its cases are fixtures
+rather than whatever npm is installed, because a suite that only packs proves
+the pipeline against the npm it happens to be standing next to.
+
+To bump the pin, install the candidate into a temporary prefix instead of
+changing your machine's npm, and run the gate against it:
+
+```bash
+npm install --prefix /tmp/npm-candidate npm@<version> --ignore-scripts
+PATH=/tmp/npm-candidate/node_modules/.bin:$PATH npm run test:gate
+```
+
 `scripts/rules.json` is the single list both checks read, and it is worth
 knowing why it looks the way it does:
 
