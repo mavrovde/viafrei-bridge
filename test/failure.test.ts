@@ -23,6 +23,19 @@ describe('honest failure', () => {
         assert.equal(lines.length, 1, `expected exactly one line, got:\n${bridge.stderr()}`);
         assert.ok(lines[0]?.includes(url), `the line does not name the URL: ${lines[0]}`);
         assert.match(lines[0] ?? '', /connection refused|ECONNREFUSED/u);
+        // The advice half of the line is load-bearing and nothing else pinned it:
+        // it used to say "pass --url for a different endpoint", which reads as
+        // though another ViaFrei could be reached at another address. There is
+        // one, it is hosted, and --url is for a proxy in front of it.
+        assert.match(
+            lines[0] ?? '',
+            /check your network connection; --url only if you relay through a proxy$/u,
+            `the advice half of the line has drifted: ${lines[0]}`
+        );
+        assert.ok(
+            !/for a different endpoint/u.test(lines[0] ?? ''),
+            `the line offers an endpoint that does not exist: ${lines[0]}`
+        );
         assert.ok(!looksLikeAStackTrace(bridge.stderr()), 'a stack trace reached the user');
     });
 

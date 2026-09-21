@@ -50,6 +50,12 @@ for it, so the number is free; the bridge will use it when the platform does.
   it, so 50 passing tests said nothing about the only invocation that exists.
   The regression test spawns through a symlink and fails against the old check.
 
+- **The unreachable-endpoint line advised something that does not exist.** It
+  ended "check the URL, or pass `--url` for a different endpoint", which reads
+  as though another ViaFrei could be reached at another address. There is one,
+  it is hosted, and `--url` is for a proxy in front of it. The line now says to
+  check the network connection, and names `--url` only for the proxy case.
+
 ### Added
 
 - **The bridge.** `npx viafrei` opens an MCP server on stdio and relays every
@@ -57,8 +63,9 @@ for it, so the number is free; the bridge will use it when the platform does.
   notifications and progress, in both directions, unchanged. It is a message
   relay rather than a client/server pair, so a tool added on the server works
   through it the same day without a release here.
-- **Configuration.** `--url` / `VIAFREI_MCP_URL` for the endpoint (self-hosters,
-  a local server), `--header` for a future API key, `--timeout` /
+- **Configuration.** `--url` / `VIAFREI_MCP_URL` for the endpoint (a proxy in
+  front of the service, or the test suite's stub - the server itself is hosted
+  and cannot be run yourself), `--header` for a future API key, `--timeout` /
   `VIAFREI_MCP_TIMEOUT_MS`, `--version`, `--help`. No telemetry, no analytics,
   and no file written outside the OS temp directory.
 - **Honest failure.** An unreachable or refusing endpoint prints one line naming

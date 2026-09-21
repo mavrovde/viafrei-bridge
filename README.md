@@ -1,34 +1,72 @@
 # viafrei
 
-A stdio↔Streamable-HTTP bridge for the **ViaFrei MCP server** — German road,
-parking, charging, rail and fuel data, answered by your AI assistant.
+**German road, rail, parking, charging and fuel data — live, inside your AI
+assistant.**
 
 ```
 npx viafrei
 ```
 
-## What this is
+## Ask your assistant things like
 
-ViaFrei is a Germany-wide transport intelligence layer whose interface is the
-assistant rather than an app. It is a hosted **MCP server over Streamable HTTP**
-at `https://mcp.viafrei.de/mcp`.
+**Welche Züge fahren als Nächstes ab Hamburg Hbf?**
 
-Most MCP clients speak Streamable HTTP and should connect to that URL directly —
-**they do not need this package.** Some clients still speak only stdio. This
-bridge is for those: it runs locally, exposes a stdio MCP server, and relays
-every request to the public endpoint.
+```
+Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
+09:45 ICE 519 → München Hbf, Gleis 14, +3 min (ca. 09:48)
+09:51 IC 306 → Stockholm Central, Gleis 12, pünktlich
+09:51 ICE 707 → Berlin Hbf, Gleis 8A-F, +1 min (ca. 09:52)
+… seven more
 
-So the bridge is a transport shim. It holds no data, no database and no
-credentials, and it makes no decision about an answer.
+Stand 09:43 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace,
+CC BY 4.0, bearbeitet (…) · Bahnhofsdaten: Deutsche Bahn AG,
+DB API Marketplace, CC BY 4.0, bearbeitet (…)
+```
 
-## Using it
+Every answer ends with a line like that last one. It is the licence talking,
+and it is meant to be shown to whoever reads the answer — see
+[Using the data you get back](#using-the-data-you-get-back). **Reproduce the
+line the server sends you, not this one:** it has been shortened here, and the
+real one names each source's URL, which the licence requires you to keep.
 
-Node 22 or newer. There is nothing to install: `npx` fetches it when the client
-starts it.
+No account, no API key, no sign-up — ask and the answer comes back.
 
-**Claude Desktop** (`claude_desktop_config.json`) — and the same three lines fit
-any client that takes an stdio MCP server, including the `.mcp.json` an IDE
-reads:
+**ViaFrei is in its stabilisation and testing phase.** It is live, it is free,
+and it is being hardened in the open. Some sources are thinner than they will
+be, and a tool may occasionally answer slowly or not at all. When that happens
+we would rather hear it than not: [open an issue](../../issues) and say what
+you asked and what came back.
+
+Plain German or plain English, whichever you speak — the answers come back in
+the language you asked in, not translated from one house language:
+
+- *Gibt es gerade Stau auf der A8?*
+- *Find a rest area with lorry parking on the A9*
+- *Sind auf der A8 Baustellen geplant, wenn ich nächste Woche fahre?*
+- *Wo kann ich in Leipzig mit Typ 2 laden?*
+- *Gibt es eine Unwetterwarnung für Freiburg?*
+- *Brauche ich in Deutschland eine Umweltplakette?*
+- *Tell me when the A8 reopens* — the server can watch a situation and tell
+  your assistant when it changes, so you need not keep asking. The watch lives
+  in the conversation that opened it: it reaches no inbox and no phone, and
+  it ends with the session. Three hours by default; 24 is the longest one can
+  be asked to run
+
+Thirteen tools at the time of writing, and no list of them on this page. A
+pasted catalogue goes stale the first time a description changes on the server,
+and this page is frozen inside a published tarball — it cannot be corrected
+without a release. So there is one source of truth and it is the running
+server: connect any MCP client and call `tools/list` for the catalogue as it
+is today. (<https://viafrei.de> is the live national traffic digest, not a
+catalogue.)
+
+## Quick start
+
+Node 22 or newer. Nothing to install — `npx` fetches the bridge when your
+client starts it.
+
+**Claude Desktop** (`claude_desktop_config.json`). The same three lines fit any
+client that takes an stdio MCP server, including the `.mcp.json` an IDE reads:
 
 ```json
 {
@@ -41,41 +79,46 @@ reads:
 }
 ```
 
-**A different endpoint** — for example a server running locally on port 3000:
+Restart the client and ask it one of the questions above. There is no account,
+no API key and no sign-up.
 
-```json
-{
-  "mcpServers": {
-    "viafrei": {
-      "command": "npx",
-      "args": ["-y", "viafrei", "--url", "http://127.0.0.1:3000/mcp"]
-    }
-  }
-}
-```
+## Do you actually need this package?
 
-`VIAFREI_MCP_URL` does the same thing for clients that pass environment
-variables rather than arguments. A flag wins over the variable; the variable
-wins over the built-in default.
+Probably not — and that is deliberate.
 
-### Options
+Most MCP clients speak Streamable HTTP and should connect straight to
+`https://mcp.viafrei.de/mcp`. **They do not need this package at all.**
+
+Some clients still speak only stdio. This bridge is for those: it runs locally,
+exposes a stdio MCP server, and relays every request to the public endpoint. It
+is a transport shim — it holds no data and no credentials, and it makes no
+decision about any answer.
+
+## Configuration
 
 | option | what it does |
 |---|---|
-| `--url <url>` | endpoint to relay to. Default `https://mcp.viafrei.de/mcp` |
+| `--url <url>` | endpoint to relay to. Default `https://mcp.viafrei.de/mcp` — see the note below |
 | `--header "Name: value"` | extra HTTP header on every request, repeatable. For an API key, when there is one |
 | `--timeout <ms>` | per-request timeout, default 30000. The event stream is never timed out |
 | `--version`, `--help` | print and exit |
 
-Environment: `VIAFREI_MCP_URL`, `VIAFREI_MCP_TIMEOUT_MS`.
+`VIAFREI_MCP_URL` and `VIAFREI_MCP_TIMEOUT_MS` do the same for clients that
+pass environment variables rather than arguments. A flag wins over the
+variable; the variable wins over the built-in default.
 
-### When something is wrong
+**There is no self-hosted ViaFrei.** The server is a hosted service, so `--url`
+is not a way to run your own — it is there for a proxy or gateway in front of
+the service, and for the stub server this repository's test suite starts.
+Leave it unset and the bridge goes to the hosted endpoint, which is what you
+want.
 
-The bridge prints one line to stderr and exits with a code that says what
-happened. No stack traces:
+## When something is wrong
+
+One line to stderr and an exit code that says what happened. No stack traces:
 
 ```
-viafrei: cannot reach https://mcp.viafrei.de/mcp: connection refused (ECONNREFUSED) - check the URL, or pass --url for a different endpoint
+viafrei: cannot reach https://mcp.viafrei.de/mcp: DNS lookup failed (EAI_AGAIN) - check your network connection; --url only if you relay through a proxy
 ```
 
 | exit | meaning |
@@ -88,30 +131,20 @@ viafrei: cannot reach https://mcp.viafrei.de/mcp: connection refused (ECONNREFUS
 | `5` | protocol version mismatch; the line names the version the server speaks |
 
 An established session is allowed to wobble — a dropped event stream is a
-warning, not an exit, and the bridge reconnects. It is not allowed to be dead in
-silence: several failures in a row with nothing succeeding in between end the
-process with the code above, so the client that started it finds out.
+warning, not an exit, and the bridge reconnects. It is not allowed to be dead
+in silence: several failures in a row with nothing succeeding in between end
+the process with the code above, so the client that started it finds out.
 
-### What it does not do
+## What it does not do
 
-No telemetry, no analytics, no usage counter, no update check. It writes no file
-outside the OS temp directory, and it stores no credential — `--header` is
+No telemetry, no analytics, no usage counter, no update check. It writes no
+file outside the OS temp directory, and it stores no credential — `--header` is
 passed through to the endpoint and never persisted or logged.
 
 It also does not follow a redirect off the origin you pointed it at. Your
 headers go to that origin and nowhere else: a cross-origin redirect is refused
 with one line naming both ends, so a server cannot forward your API key
 somewhere you did not choose. Same-origin redirects are followed normally.
-
-## What the server can answer
-
-The tool catalogue is **not duplicated here**, deliberately. A pasted list goes
-out of date the first time a description changes on the server, and then this
-page describes a server that no longer exists. There is one source of truth and
-it is the running server:
-
-- point any MCP client at `https://mcp.viafrei.de/mcp` and call `tools/list`;
-- or read <https://viafrei.de> for the catalogue rendered from that same list.
 
 ## Using the data you get back
 
@@ -146,9 +179,9 @@ This is said plainly so nobody spends an evening looking for the server code.
 
 ## Contributing
 
-Yes, please — see [CONTRIBUTING.md](CONTRIBUTING.md). Issues and discussions are
-open. The bridge is small and self-contained, which is exactly what makes it a
-reasonable thing to send a first patch to.
+Yes, please — see [CONTRIBUTING.md](CONTRIBUTING.md). Issues and discussions
+are open. The bridge is small and self-contained, which is exactly what makes
+it a reasonable thing to send a first patch to.
 
 ## Security
 
