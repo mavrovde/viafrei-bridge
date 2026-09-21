@@ -58,18 +58,23 @@ env:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # Pinned, unlike ci.yml: this is the job that mints a published
+    # artefact, so the runner image it is built on is part of what is
+    # being released. ubuntu-latest moves under us on GitHub's schedule.
+    runs-on: ubuntu-24.04
     # A deployment environment gives the owner a place to hang an approval on,
     # and npm can be told to require it. If the trusted publisher on npm is
     # configured WITHOUT an environment, delete this line - the two must agree,
     # or the OIDC claim will not match and the publish will be refused.
     environment: npm
     steps:
-      - uses: actions/checkout@v4
+      # Pinned to a commit, not a tag: a tag is mutable and this workflow
+      # publishes. v4 as of 2026-09-21.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'

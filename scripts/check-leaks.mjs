@@ -305,7 +305,15 @@ if (scanned === 0) {
 }
 
 if (withHistory) {
-    const revisions = git(['rev-list', '--all']).split('\n').filter(line => line !== '');
+    // Scoped to the ref being built, not --all. CI checks out with
+    // fetch-depth: 0, so every remote branch is present in every job's clone:
+    // with --all, one unmerged branch carrying a residue blob turned EVERY
+    // other branch's run red, and a branch-local suppression entry could only
+    // ever rescue the branch that declared it. The working-tree leg above
+    // still scans everything tracked; what narrows here is only which history
+    // this ref is answerable for. A branch cut from main still reaches main's
+    // blobs, so nothing that was scanned before stops being scanned.
+    const revisions = git(['rev-list', 'HEAD']).split('\n').filter(line => line !== '');
     let blobs = 0;
     for (const revision of revisions) {
         const entries = git(['ls-tree', '-r', '-z', revision]).split('\0').filter(entry => entry !== '');
