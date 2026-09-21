@@ -69,7 +69,8 @@ jobs:
     environment: npm
     steps:
       # Pinned to a commit, not a tag: a tag is mutable and this workflow
-      # publishes. v4 as of 2026-09-21.
+      # publishes. Both are v4.4.0, which is where each action's `v4` tag
+      # pointed on 2026-09-21; v4 is deliberately not the newest major.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
@@ -118,10 +119,16 @@ jobs:
       - name: Offline tests
         run: npm test
 
-      # --all-refs, unlike ci.yml: a branch build is answerable for its own
-      # history, but the build that publishes is answerable for the whole
-      # repository -- this is the one place where paying for every ref is
-      # obviously worth it.
+      # --all-refs, unlike ci.yml: a branch build answers for its own history,
+      # but the build that publishes answers for every ref -- this is the one
+      # place where paying for that is obviously worth it.
+      #
+      # The cost is real and belongs here where somebody will meet it: an
+      # unrelated branch carrying a finding CAN redden a tag push, and the
+      # finding names a commit rather than a branch. `git branch -a --contains
+      # <sha>` says which branch it is; delete or fix that branch and re-run.
+      # Do not reach for removing --all-refs as the remedy -- for a published
+      # artefact, a finding anywhere is worth stopping for.
       - name: Repository leak sweep
         run: node scripts/check-leaks.mjs --history --all-refs
 

@@ -24,7 +24,14 @@ const cases = [];
 let failed = 0;
 
 function git(cwd, args) {
-    execFileSync('git', ['-c', 'color.ui=false', ...args], { cwd, stdio: 'pipe' });
+    // The fixture must not inherit a contributor's global configuration: a
+    // signing key it cannot reach turns every case in this file into a
+    // failure about something the file is not testing.
+    execFileSync(
+        'git',
+        ['-c', 'color.ui=false', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args],
+        { cwd, stdio: 'pipe' }
+    );
 }
 
 // Runs the sweep in `cwd` and reports how it exited. Never throws on a
@@ -65,6 +72,12 @@ function check(name, fn) {
 // instead, which the sweep says plainly it cannot see -- that gap is stated
 // in its own limits, and using it for a fixture is not the same as using it
 // for a secret.
+//
+// The bound, so nobody reads this as a licence: it is for a value that is
+// INVENTED, in a test, whose whole purpose is to be found by the sweep in the
+// next breath. Never assemble a real one. A value that must not be in this
+// repository is not made acceptable by being spelled at run time -- the sweep
+// would simply stop seeing it, which is worse than being told.
 const STRAY = '9'.repeat(5);
 
 // A repository with the sweep in it, a clean `main`, and a `side` branch that
@@ -109,8 +122,12 @@ function buildRepo() {
     return root;
 }
 
-const repo = buildRepo();
+// Built inside the try, not before it: a throw in buildRepo() used to leave
+// the temporary directory behind, because the finally that removes it had not
+// been entered yet. `repo` is assigned first thing so the cleanup can find it.
+let repo;
 try {
+    repo = buildRepo();
     // The defect, stated as a test: standing on `main`, whose own history and
     // whose own working tree are clean, another branch must not redden it.
     check('the default scope does not report a finding that lives only on another branch', () => {
@@ -177,7 +194,9 @@ try {
         assert.equal(all.code, 0, `expected the entry to apply under --all-refs, got ${all.code}:\n${all.out}`);
     });
 } finally {
-    rmSync(repo, { recursive: true, force: true });
+    if (repo !== undefined) {
+        rmSync(repo, { recursive: true, force: true });
+    }
 }
 
 console.log(cases.join('\n'));

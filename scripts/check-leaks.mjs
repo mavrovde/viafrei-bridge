@@ -214,7 +214,8 @@ function isProbablyText(buffer) {
 const withHistory = process.argv.includes('--history');
 // Scope of the history leg. Default: the ref being built. --all-refs asks
 // for every ref, which is what the publishing build wants -- see the
-// comment on the rev-list call for why the default is not that.
+// comment on the rev-list call for why the default is not that, and for what
+// "every ref" does and does not cover.
 const allRefs = process.argv.includes('--all-refs');
 
 if (RULES.tokenHashes.size === 0) {
@@ -321,9 +322,15 @@ if (withHistory) {
     // wrong by claiming there was none: a blob reachable ONLY from some other
     // ref -- an abandoned branch, a tag off the main line -- is swept when
     // that ref is pushed and is not swept again afterwards. That is why
-    // --all-refs exists and why the publishing build passes it: a published
-    // artefact should be answerable for the whole repository, and it is the
-    // one build where paying for every ref is obviously worth it.
+    // --all-refs exists and why the publishing build passes it: the build
+    // that mints a published artefact should answer for every ref, not only
+    // for its own ancestry, and it is the one build where paying for that is
+    // obviously worth it.
+    //
+    // Every ref is still not "the whole repository", and this comment will not
+    // claim it is: an object dropped from every ref by a force-push is out of
+    // this leg's reach while remaining retrievable from the hosting side.
+    // Reachability is what a sweep can check; it is not the same as absence.
     const revisions = git(['rev-list', ...(allRefs ? ['--all'] : ['HEAD'])])
         .split('\n')
         .filter(line => line !== '');
@@ -342,7 +349,7 @@ if (withHistory) {
         }
     }
     log(
-        `sweep: ${blobs} blobs across ${revisions.length} commits scanned` + ` (${allRefs ? 'every ref' : 'this ref only'})`
+        `sweep: ${blobs} blobs across ${revisions.length} commits scanned (${allRefs ? 'every ref' : 'this ref only'})`
     );
     if (revisions.length === 0) {
         // Reachable through --all-refs, which lists nothing in a repository

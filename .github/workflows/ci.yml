@@ -1,7 +1,9 @@
 name: CI
 
-# Build, offline tests, and the two checks that keep this repository and the
-# published tarball free of anything belonging to the closed platform.
+# Build, offline tests, and the checks that keep this repository and the
+# published tarball free of anything belonging to the closed platform --
+# including the self-tests of those checks, which are the only thing standing
+# between a gate and a gate that has quietly stopped reading anything.
 #
 # Nothing here contacts the public MCP endpoint or any data provider. The tests
 # start their own stub server; the network is not part of the contract.
