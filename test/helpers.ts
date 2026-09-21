@@ -38,8 +38,14 @@ export interface Cleanup {
  * protocol-mismatch cases, where the point is what the *process* prints and
  * what it exits with.
  */
-export function spawnBridge(args: readonly string[], env: NodeJS.ProcessEnv = {}, cleanup?: Cleanup): RawBridge {
-    const child = spawn(process.execPath, [CLI_PATH, ...args], {
+export function spawnBridge(
+    args: readonly string[],
+    env: NodeJS.ProcessEnv = {},
+    cleanup?: Cleanup,
+    /** The path to start it by. Defaults to the built file; pass a symlink to it to test how npm installs it. */
+    entryPoint: string = CLI_PATH
+): RawBridge {
+    const child = spawn(process.execPath, [entryPoint, ...args], {
         env: { ...process.env, ...env },
         stdio: ['pipe', 'pipe', 'pipe']
     }) as ChildProcessWithoutNullStreams;

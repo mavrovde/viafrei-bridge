@@ -219,7 +219,7 @@
       "sample": "b3RuaSB0cmVzbmk="
     },
     {
-      "label": "the PostgreSQL driver",
+      "label": "a database driver import",
       "regex": "KV0tJF85LTB6LWFaLUFbIT8oZ3ApXS0kXzktMHotYVotQVshPD8o",
       "sample": "KSJncCIoZXJpdXFlcg=="
     }

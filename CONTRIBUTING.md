@@ -8,11 +8,10 @@ to send a first patch.
 This repository holds **only the bridge** — a stdio↔Streamable-HTTP relay to
 `https://mcp.viafrei.de/mcp`.
 
-The ViaFrei MCP server is a **hosted service and its source is closed**. The
-database schema, the ingest workers, the provider connectors and the query layer
-are not here and are not published. That is a deliberate decision, not an
-oversight, and it is written down so you do not spend an evening looking for
-code that was never pushed.
+The ViaFrei MCP server is a **hosted service and its source is closed**. It is
+not here and is not published. That is a deliberate decision, not an oversight,
+and it is written down so you do not spend an evening looking for code that was
+never pushed.
 
 What *is* public is the part that is meant to be read: tool names, descriptions,
 input schemas, result shapes and attribution lines. Any MCP client gets all of
