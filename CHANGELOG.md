@@ -19,6 +19,23 @@ for it, so the number is free; the bridge will use it when the platform does.
 
 ### Fixed
 
+- **The publish pipeline no longer depends on the calendar.** It installed
+  `npm@latest` before publishing, so the version of npm that built and uploaded
+  a release was whichever one npm had shipped most recently. npm 12 became
+  `latest`, changed `npm pack --json` from an array to an object keyed by
+  package name — a deliberate change, announced in npm's own source before it
+  landed — and the job broke with no commit here. The npm is pinned now
+  (`NPM_VERSION` in the publish workflow), the install is asserted rather than
+  assumed, and both shapes are read by one file, `scripts/npm-pack-json.mjs`,
+  which every caller goes through: the gate, its self-test, and the workflow
+  step that packs the tarball all used to parse that output by hand, three
+  copies of an assumption about a format none of them owns. A shape the reader
+  does not know is one sentence naming the npm version and pointing at the pin
+  — not a `TypeError` with a stack trace of absolute paths in a public log,
+  which is what the self-test did, and not the wrong exit code, which the gate
+  contract already forbids. The reader's cases are fixtures, so they hold under
+  an npm nobody has installed yet.
+
 - **`npx viafrei` started nothing.** The check for "was this file the program,
   or was it imported" compared `process.argv[1]` with `import.meta.url` without
   resolving symlinks. npm installs a `bin` as a symlink and every client starts

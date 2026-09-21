@@ -50,6 +50,7 @@ import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync 
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { PackJsonError, soleTarball } from './npm-pack-json.mjs';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -323,13 +324,24 @@ function main() {
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'inherit']
             });
-            const parsed = JSON.parse(packed);
-            if (!Array.isArray(parsed) || parsed.length !== 1 || typeof parsed[0].filename !== 'string') {
-                note('gate: npm pack did not report exactly one tarball - refusing to guess');
-                return 2;
+            // Through the shared reader. This used to insist on an array,
+            // which was every npm that existed when it was written; npm 12
+            // prints an object keyed by package name instead, so the gate
+            // would have refused to run - honestly, but for a shape that is
+            // not actually wrong. Refusing to GUESS is the rule; refusing to
+            // READ is not.
+            let entry;
+            try {
+                entry = soleTarball(packed);
+            } catch (error) {
+                if (error instanceof PackJsonError) {
+                    note(`gate: ${safeString(error.message, RULES, extraTokenHashes)}`);
+                    return 2;
+                }
+                throw error;
             }
-            tarball = join(workspace, parsed[0].filename);
-            note(`gate: packed ${parsed[0].filename} (${parsed[0].size} bytes, ${parsed[0].entryCount} entries)`);
+            tarball = join(workspace, entry.filename);
+            note(`gate: packed ${entry.filename} (${entry.size} bytes, ${entry.entryCount} entries)`);
         }
 
         statSync(tarball);
