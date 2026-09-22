@@ -91,10 +91,15 @@ Probably not — and that is deliberate.
 Most MCP clients speak Streamable HTTP and should connect straight to
 `https://mcp.viafrei.de/mcp`. **They do not need this package at all.**
 
-Some clients still speak only stdio. This bridge is for those: it runs locally,
-exposes a stdio MCP server, and relays every request to the public endpoint. It
-is a transport shim — it holds no data and no credentials, and it makes no
-decision about any answer.
+Clients that speak only the older HTTP+SSE transport do not need it either: the
+server answers that transport too, at `https://mcp.viafrei.de/sse`
+(`claude mcp add --transport sse`). It is deprecated in the specification and
+carried so that nobody meets a locked door; prefer the address above.
+
+Some clients still speak only stdio. **This bridge is for those** — and only
+those: it runs locally, exposes a stdio MCP server, and relays every request to
+the public endpoint. It is a transport shim: it holds no data and no
+credentials, and it makes no decision about any answer.
 
 ## Configuration
 
