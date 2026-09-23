@@ -1,6 +1,6 @@
 {
   "name": "viafrei",
-  "version": "1.3.10",
+  "version": "1.3.12",
   "description": "stdio<->Streamable-HTTP bridge for the ViaFrei MCP server - German road, rail, parking, charging and fuel data for stdio-only MCP clients",
   "keywords": [
     "mcp",
