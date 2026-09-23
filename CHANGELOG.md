@@ -3,7 +3,26 @@
 All notable changes to this package are documented here. The format follows Keep
 a Changelog and the versions follow Semantic Versioning.
 
-## [1.3.10] - 2026-09-23
+## [1.3.12] - 2026-09-23
+
+The bridge's code is unchanged since 0.0.9. This release replaces 1.3.10,
+which was published and then withdrawn from npm.
+
+**Why 1.3.12.** npm never lets a version number be used twice, even after an
+unpublish, so 1.3.10 cannot come back. This release is numbered 1.3.12, and
+1.3.11 is not used by this package. Everything 1.3.10 described below still
+applies to this release: the same code, the same README.
+
+**If you pinned 1.3.10,** move the pin to 1.3.12. Anyone who used `npx -y viafrei`
+without a version got 0.0.9 while 1.3.10 was withdrawn, and gets 1.3.12 from now
+on. Nothing about the connection changes: all three versions relay to the same
+endpoint in the same way.
+
+### Changed
+
+- **The version is 1.3.12.** No other change to the published files.
+
+## [1.3.10] - 2026-09-23 [YANKED]
 
 The bridge's code is unchanged since 0.0.9; this release exists so that its
 number matches the endpoint it connects to again.
@@ -247,5 +266,6 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.3.12]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.12
 [1.3.10]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.10
 [0.0.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.0.9
