@@ -3,6 +3,26 @@
 All notable changes to this package are documented here. The format follows Keep
 a Changelog and the versions follow Semantic Versioning.
 
+## [1.3.10] - 2026-09-23
+
+The bridge's code is unchanged since 0.0.9; this release exists so that its
+number matches the endpoint it connects to again.
+
+**Why 1.3.10, straight from 0.0.9.** The bridge tracks the platform, and the
+hosted endpoint now reports `serverInfo.version` 1.3.10. The platform moved
+through 0.1.x and 1.x without the bridge needing to change, so no bridge was
+published for those numbers, and none will be: a version is only cut when
+there is something to install. The versions in between are not skipped
+releases of this package; they never existed here.
+
+### Changed
+
+- **The README says which clients need this package, and which do not.** The
+  server now also answers the older HTTP+SSE transport at
+  `https://mcp.viafrei.de/sse`, so a client that speaks only HTTP+SSE can connect
+  directly. The bridge is for stdio-only clients and nobody else, and the page
+  now says so instead of "most clients".
+
 ## [0.0.9] - 2026-09-21
 
 The first release with code in it.
@@ -227,4 +247,5 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.3.10]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.10
 [0.0.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.0.9
