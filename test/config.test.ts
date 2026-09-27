@@ -114,4 +114,119 @@ describe('describeFailure', () => {
         assert.equal(isRetryable(Object.assign(new Error('x'), { cause: { code: 'ECONNREFUSED' } })), false);
         assert.equal(isRetryable(new RequestTimeoutError(10)), false);
     });
+
+    // The asymmetry is deliberate and easy to "fix" wrongly, so it is pinned
+    // here: `src/fetch.ts` retries a 429 RESPONSE because it can read the
+    // `Retry-After` that came with it, while this function holds only a thrown
+    // error and would retry after the fixed delay — which for a rate limit is
+    // the thing that makes it worse rather than better. See the docblock on
+    // `isRetryable`; if you add 429 below, the retry test in
+    // `retry-after.test.ts` will still pass and this is the only place that says
+    // why you should not.
+    it('does not treat a thrown 429 as retryable, unlike a 429 response', () => {
+        assert.equal(isRetryable(new StreamableHTTPError(429, '')), false);
+    });
+
+    // #4: a hint, never a rewrite. Appending `/mcp` to what somebody typed would
+    // hide the case where the server really is at `/`.
+    it('hints at /mcp when a pathless URL gets a 404', () => {
+        for (const pathless of ['http://127.0.0.1:3000', 'http://127.0.0.1:3000/']) {
+            const failure = describeFailure(new StreamableHTTPError(404, ''), pathless);
+            assert.ok(failure.line.includes('the URL has no path'), `no hint for ${pathless}`);
+            assert.ok(failure.line.includes('/mcp'), `the hint for ${pathless} does not name the path`);
+            assert.ok(failure.line.includes('404'), 'the hint replaced the status');
+            assert.ok(failure.line.includes(pathless), 'the hint replaced the URL');
+            assert.ok(!failure.line.includes('\n'), 'the hint added a second line');
+        }
+    });
+
+    it('does not hint when the URL already has a path', () => {
+        for (const withPath of ['http://127.0.0.1:3000/mcp', 'http://127.0.0.1:3000/api/mcp']) {
+            const failure = describeFailure(new StreamableHTTPError(404, ''), withPath);
+            assert.ok(!failure.line.includes('the URL has no path'), `hinted for ${withPath}`);
+        }
+    });
+
+    it('never hints on a status that is not 404, whatever the path', () => {
+        for (const status of [403, 500, 502]) {
+            const failure = describeFailure(new StreamableHTTPError(status, ''), 'http://127.0.0.1:3000');
+            assert.ok(!failure.line.includes('the URL has no path'), `hinted on HTTP ${status}`);
+        }
+    });
+
+    it('skips the hint rather than throwing when the URL will not parse', () => {
+        // A failure message that itself throws is the worst version of this bug.
+        const failure = describeFailure(new StreamableHTTPError(404, ''), 'not a url at all');
+        assert.ok(!failure.line.includes('the URL has no path'));
+        assert.ok(!failure.line.includes('\n'));
+    });
+});
+
+describe('VIAFREI_MCP_HEADER', () => {
+    it('sets a header from the environment', () => {
+        const options = parseOptions([], { VIAFREI_MCP_HEADER: 'Authorization: Bearer abc' });
+        assert.deepEqual(options.headers, { Authorization: 'Bearer abc' });
+    });
+
+    it('takes several headers separated by a newline', () => {
+        const options = parseOptions([], { VIAFREI_MCP_HEADER: 'X-One: 1\nX-Two: 2' });
+        assert.deepEqual(options.headers, { 'X-One': '1', 'X-Two': '2' });
+    });
+
+    it('ignores blank lines, so a trailing newline is not an error', () => {
+        const options = parseOptions([], { VIAFREI_MCP_HEADER: 'X-One: 1\n\n  \nX-Two: 2\n' });
+        assert.deepEqual(options.headers, { 'X-One': '1', 'X-Two': '2' });
+    });
+
+    it('lets --header of the same name win over the variable', () => {
+        const options = parseOptions(['--header', 'Authorization: Bearer flag'], {
+            VIAFREI_MCP_HEADER: 'Authorization: Bearer env'
+        });
+        assert.deepEqual(options.headers, { Authorization: 'Bearer flag' });
+    });
+
+    it('adds a --header of a different name alongside the variable', () => {
+        const options = parseOptions(['--header', 'X-Flag: f'], { VIAFREI_MCP_HEADER: 'X-Env: e' });
+        assert.deepEqual(options.headers, { 'X-Env': 'e', 'X-Flag': 'f' });
+    });
+
+    it('names the variable in the error, not the flag the reader did not type', () => {
+        // Sending somebody to --header when they set an environment variable
+        // sends them to the wrong place to fix it.
+        assert.throws(
+            () => parseOptions([], { VIAFREI_MCP_HEADER: 'no colon here' }),
+            (error: unknown) => {
+                assert.ok(error instanceof UsageError);
+                assert.ok(error.message.includes('VIAFREI_MCP_HEADER'), error.message);
+                assert.ok(!error.message.includes('--header'), error.message);
+                return true;
+            }
+        );
+    });
+
+    it('refuses a transport-owned header name from the variable too', () => {
+        for (const reserved of ['Mcp-Session-Id: x', 'content-type: text/plain', 'Host: elsewhere']) {
+            assert.throws(
+                () => parseOptions([], { VIAFREI_MCP_HEADER: reserved }),
+                (error: unknown) => {
+                    assert.ok(error instanceof UsageError);
+                    assert.ok(error.message.includes('VIAFREI_MCP_HEADER'), error.message);
+                    assert.ok(error.message.includes('cannot be overridden'), error.message);
+                    return true;
+                },
+                reserved
+            );
+        }
+    });
+
+    it('is ignored when empty, like the other two variables', () => {
+        assert.deepEqual(parseOptions([], { VIAFREI_MCP_HEADER: '' }).headers, {});
+        assert.deepEqual(parseOptions([], { VIAFREI_MCP_HEADER: '   ' }).headers, {});
+    });
+
+    it('is documented in the help text', () => {
+        const text = helpText('1.0.0');
+        assert.ok(text.includes('VIAFREI_MCP_HEADER'));
+        assert.ok(text.includes('newline'), 'the help text does not say how to separate several headers');
+    });
 });

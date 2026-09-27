@@ -1,11 +1,58 @@
 import type { FetchLike } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { MAX_REDIRECTS, RedirectRefusedError, RequestTimeoutError, isRetryable } from './failure.js';
 
-/** Statuses that mean "the hop in front of the server had a moment". */
-const RETRY_STATUS = new Set([502, 503, 504]);
+/**
+ * Statuses worth exactly one more attempt.
+ *
+ * `429` is here only because we now read `Retry-After` (see `retryAfterMs`), and
+ * only when that header gives us a usable delay — see the 429 branch below. A
+ * rate limit retried after a fixed 250 ms is worse than not retrying at all: it
+ * costs the server another rejection and the user another wait, and it arrives
+ * before the server said to come back. The two changes belong together and
+ * neither is correct alone, which is why membership of this set is not on its own
+ * enough to retry a 429.
+ */
+const RETRY_STATUS = new Set([429, 502, 503, 504]);
 
-/** How long to wait before the single retry. */
+/** How long to wait before the single retry when the server does not say. */
 const RETRY_DELAY_MS = 250;
+
+/**
+ * How long the server asked us to wait, in milliseconds, or `undefined` for
+ * "it did not say anything we can use".
+ *
+ * `Retry-After` has two legal forms (RFC 9110 § 10.2.3) and both occur in the
+ * wild: a number of seconds, and an HTTP-date. Anything else — and there is
+ * plenty of anything else behind proxies — is ignored rather than thrown on,
+ * because this is the failure path and an unparseable header must not become a
+ * second failure.
+ *
+ * A date in the past yields `undefined` too, not a negative wait: a server
+ * whose clock is behind ours is asking us to retry immediately, and the fixed
+ * delay is the more honest reading of that than zero.
+ *
+ * Exported for its own tests. The two legal forms and the several illegal ones
+ * are where the bugs live, and reaching each of them through a stub server
+ * would mean a stub per case and a suite that sleeps.
+ */
+export function retryAfterMs(header: string | null): number | undefined {
+    if (header === null) {
+        return undefined;
+    }
+    const raw = header.trim();
+    if (raw === '') {
+        return undefined;
+    }
+    if (/^\d+$/u.test(raw)) {
+        return Number(raw) * 1_000;
+    }
+    const when = Date.parse(raw);
+    if (Number.isNaN(when)) {
+        return undefined;
+    }
+    const wait = when - Date.now();
+    return wait > 0 ? wait : undefined;
+}
 
 const REDIRECT_STATUS = new Set([301, 302, 303, 307, 308]);
 
@@ -126,8 +173,35 @@ export function createFetch(timeoutMs: number): FetchLike {
         }
 
         if (canRetry() && RETRY_STATUS.has(response.status)) {
+            // Read the header BEFORE cancelling anything: if we decide not to
+            // retry, this response is the one the caller gets, and its body is
+            // where the SDK finds the detail our one-line message quotes.
+            const asked = retryAfterMs(response.headers.get('retry-after'));
+            if (response.status === 429 && asked === undefined) {
+                // A 429 with nothing usable in `Retry-After` is not retried at
+                // all. `RETRY_STATUS` admits 429 on the strength of being able
+                // to read the delay the server asked for; when there is no such
+                // delay, the only thing left is the fixed 250 ms, and that is
+                // exactly what the docblock on `RETRY_STATUS` calls worse than
+                // not retrying. Keeping the retry here would leave this file
+                // arguing against its own behaviour — and `isRetryable` refuses a
+                // *thrown* 429 for precisely this reason, so the two paths now
+                // agree wherever they hold the same information.
+                return response;
+            }
+            if (asked !== undefined && asked > timeoutMs) {
+                // The cap, and why it is the per-request timeout rather than a
+                // number of its own: the user already told us how long they are
+                // willing to wait for one request. A server answering
+                // `Retry-After: 3600` must not make `npx viafrei` sit silently
+                // for an hour, and a wait longer than the deadline they set is
+                // not a retry they asked for. So we do not retry at all and let
+                // the ordinary failure line say what came back — it already
+                // names the URL and the status, which is what they need.
+                return response;
+            }
             await response.body?.cancel().catch(() => undefined);
-            await sleep(RETRY_DELAY_MS);
+            await sleep(asked ?? RETRY_DELAY_MS);
             return attempt();
         }
 

@@ -14,7 +14,11 @@ can be breached without noticing. Those two are first, before the catalogue.
 The authoritative, always-current register is the resource
 **`viafrei://attribution`** on the server itself. Any MCP client can read it. If
 this page and that resource ever disagree, the resource is right and this page is
-stale: tell us and we will fix it.
+stale: tell us and we will fix it. One row we re-measured on 2026-09-27 disagrees
+the other way round — it is named in the catalogue below, at the BKG row, and the
+fix belongs to the server rather than to this page. Whatever the surfaces say,
+the answer you hold is the thing to read: `_meta.sources` and the attribution
+lines on it are produced from the same result you are looking at.
 
 ---
 
@@ -57,42 +61,75 @@ Realtime public-transport data comes from **DELFI e.V.** under
 If that is not what you want for your product, ask for the same answer from a
 source that is not BY-SA, or keep the two apart.
 
-### And one that applies only if you get an address back
+### And one that applies if you get an OpenStreetMap-derived result back
 
-Address lookups, **where a deployment has imported the data**, are answered from
-**OpenStreetMap** under the **ODbL 1.0**. The public service has not imported it
-and answers no house numbers today, so this binds nobody using that service
-right now — it is stated because the moment it does, it binds everybody.
+Some answers are built from **OpenStreetMap**, under the **ODbL 1.0**. Address
+and point-of-interest lookups always are; so is any other answer whose place our
+own gazetteer could not resolve, because place resolution falls through to the
+OSM tables. The public service gives such answers, measured on 2026-09-27, so
+**this binds you** as soon as one of those tables answered you — not at some
+later date, today. An earlier version of this page said the opposite, on the
+strength of a measurement taken before the extract was loaded; if you read that
+version, re-read this section.
+
+You can tell which answers are affected without guessing, and the test is the
+answer rather than the question: the result carries
+`OSM-Standortdaten: © OpenStreetMap-Mitwirkende, ODbL 1.0` and names `osm` in
+`_meta.sources`. What decides it is **which table answered**, not which tool you
+called and not what your input looked like. A place the server resolved from its
+own gazetteer does not carry the line, and neither does a station or a motorway;
+a place it resolved from OpenStreetMap does — and place resolution falls through
+the gazetteer to the OSM tables, so **any** tool that takes a `place` can come
+back with an OSM-derived answer. Measured on 2026-09-27: a weather warning asked
+for `Zeiss-Großplanetarium` named `["dwd","osm"]` and carried the ODbL line. So
+"did I ask for an address?" is the wrong question, and so is "is this a
+geocoding tool?" — **read `_meta.sources` and the attribution line on the answer
+you actually got.**
 
 ODbL's share-alike is on the *database*, not on the sentence: if you build your
-own database out of address results and use it publicly, you owe your recipients
-the same offer we make. **Our side of that offer stands** — ODbL § 4.6 — and the
-server states it in `viafrei://attribution`: ask, and you get our address extract
-and our alterations to it under ODbL 1.0. An issue on this repository reaches
-us, and the server's own register names the contact route as well.
+own database out of address or point-of-interest results and use it publicly, you
+owe your recipients the same offer we make. **Our side of that offer stands** —
+ODbL § 4.6 — and the server states it in `viafrei://attribution`: ask, and you get
+**both** our extracts — addresses and points of interest, one file each — and our
+alterations to them, under ODbL 1.0 with a single licence notice covering the two.
+Both, because a recipient who derived from POI results is entitled to the POI
+database and this sentence named only the addresses until 2026-09-27. An issue on
+this repository reaches us, and the server's own register names the contact route
+as well.
 
 ---
 
 ## The catalogue
 
-**Status is not a promise, it is a measurement.** Every "live" below was checked
-by calling the public endpoint on **2026-09-21** and reading which source the
-answer named. A source can be licensed, cleared and loaded and still not answer
+**Status is not a promise, it is a measurement.** Every "live" below **except the
+one labelled `not re-measured`** was checked by calling the public endpoint on
+**2026-09-27** and reading which source the answer named. A source can be licensed, cleared and loaded and still not answer
 a question today; where that is so, this page says it.
+
+The measurement was taken by calling **fifteen of the server's sixteen read-only
+tools — every one except `find_cheapest_fuel`** — once each, and reading
+`_meta.sources` out of the result: not by reading the code, and not by asking
+whether a feed was running. Thirteen sources were named by at least one answer.
+The tool not called is the one whose row is deliberately not re-measured, and
+the count above says so rather than absorbing it: a status this page cannot stand behind is
+worse than an honest gap.
 
 - **live** — an answer came back naming it when this page was checked;
 - **in the service** — licensed and loaded, and the spot check produced no
   answer that named it, so it is reported as unconfirmed rather than as live;
-- **not on the public service today** — cleared and built, and it does not
-  answer right now. Do not design around it yet;
 - **read** — the licence is read and cleared, and nothing uses it yet.
+
+There used to be a fourth value, **not on the public service today**, and no row
+carries it any more: the three rows that did now answer. It is removed from this
+legend rather than left standing, because a legend entry nothing uses reads as a
+status somebody could still be relying on.
 
 | Source | Publisher | Covers | Publisher's rhythm | Licence | Status |
 |---|---|---|---|---|---|
 | Motorway traffic | Die Autobahn GmbH des Bundes | Roadworks, warnings, closures, webcams, lorry parking, charging points on the Bundesautobahnen | continuous | open, no licence text published — see below | live |
 | Roadworks (DATEX II) | Bundesanstalt für Straßen- und Verkehrswesen (BASt), via the national access point | Arbeitsstellen on the Bundesautobahnen | a few times a day | CC BY 4.0 | live |
 | Lorry parking, static | Lkw-Parken BAB Deutschland / BMV, via the national access point | Nationwide lorry parking sites on the Bundesautobahnen | a few releases a year | GeoNutzV | live |
-| Fuel prices (MTS-K) | Tankerkönig / Markttransparenzstelle für Kraftstoffe | Prices and station details for German filling stations | continuous, in the publisher's own cycle | CC BY 4.0 **plus the MTS-K purpose limit** | live, **limited coverage** |
+| Fuel prices (MTS-K) | Tankerkönig / Markttransparenzstelle für Kraftstoffe | Prices and station details for German filling stations | continuous, in the publisher's own cycle | CC BY 4.0 **plus the MTS-K purpose limit** | live, **limited coverage**, **not re-measured** — see below |
 | Timetables | Deutsche Bahn AG (DB API Marketplace) | Planned and changed rail departures per station | continuous | CC BY 4.0 | live |
 | StaDa — Station Data | Deutsche Bahn AG (DB API Marketplace) | Station master data: name, number, address, coordinates, facilities | static master data | CC BY 4.0 | live |
 | Official weather warnings | Deutscher Wetterdienst (DWD) | Amtliche Wetterwarnungen per municipality | as issued | CC BY 4.0, with a source note fixed by law | live |
@@ -101,36 +138,71 @@ a question today; where that is so, this page says it.
 | Charging point master data | EnBW AG, via the national access point | AFIR charge-point master data for EnBW mobility+ | static releases | CC BY 4.0 | in the service |
 | Charging point availability | Tesla Germany GmbH and Volkswagen Group Charging GmbH, via the national access point | AFIR dynamic status for their own networks | live status | **CC0 1.0** | in the service |
 | German road rules | ViaFrei, compiled from official sources | Environmental zones, tolls, equipment duties, charging rules | reviewed at least twice a year | our own text | live |
-| Public-transport realtime (GTFS-RT Trip Updates) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide departure and arrival forecasts | real time | **CC BY-SA 4.0** | **not dependable today** — see below |
-| FaSta — Facility Status | Deutsche Bahn AG (DB API Marketplace) | Live state of lifts and escalators at stations | live status | CC BY 4.0 | **not on the public service today** |
-| Geocoding (addresses) | OpenStreetMap contributors | Street and house-number points in Germany | refreshed from the OSM extract | **ODbL 1.0** | **not on the public service today** |
+| Public-transport realtime (GTFS-RT Trip Updates) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide departure and arrival forecasts | real time | **CC BY-SA 4.0** | live |
+| FaSta — Facility Status | Deutsche Bahn AG (DB API Marketplace) | Live state of lifts and escalators at stations | live status | CC BY 4.0 | live |
+| Geocoding (addresses and points of interest) | OpenStreetMap contributors | Street and house-number points and mapped points of interest in Germany | refreshed from the OSM extract | **ODbL 1.0** | live |
 | Timetable data (static GTFS) | DELFI e.V. | Germany-wide scheduled public transport | weekly release | CC BY 4.0 | read |
 | Stop directory (zHV) | DELFI e.V. | Every public-transport stop in Germany with its identifier and coordinates | weekly release | CC BY 4.0 | read |
-| Administrative units and place names | Bundesamt für Kartographie und Geodäsie (BKG), product GN250 | Länder, Regierungsbezirke, Kreise, Gemeinden with their official keys and names | yearly release | **dl-de/by-2-0** | read |
-| Police traffic events | Landesbetrieb Straßenbau NRW (VIZ.NRW), via the national access point | Police traffic reports, Germany-wide | continuous | **Datenlizenz Deutschland – Zero – 2.0** | read |
+| Disruption reports (Störungsmeldungen) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide public-transport disruption messages | real time | **CC BY-SA 4.0** | read |
+| Station car parks (DB BahnPark) | Deutsche Bahn AG (DB API Marketplace) | Car parks at railway stations, with their operator and access details | continuous | **dl-de/by-2-0** | read |
+| Administrative units and place names | Bundesamt für Kartographie und Geodäsie (BKG), product GN250 | Länder, Regierungsbezirke, Kreise, Gemeinden with their official keys and names | yearly release | **dl-de/by-2-0** | live |
+| Police traffic events | Landesbetrieb Straßenbau NRW (VIZ.NRW), via the national access point | Police traffic reports, Germany-wide | continuous | **Datenlizenz Deutschland – Zero – 2.0** | in the service — see below |
 
-Four of those rows need saying out loud rather than in a cell. All four are
-places where it would have been easier to write "live" and leave it.
+Two of those rows need saying out loud rather than in a cell, because a cell
+cannot carry a reason — fuel takes two bullets, because the coverage limit and
+the decision not to re-measure are different facts.
 
 - **Fuel coverage is not nationwide.** We watch a limited set of stations, on
   the terms the publisher sets, and we ask for a station's details only when
   somebody actually asks a question. Outside that set you may get nothing back.
   That is a consequence of the MTS-K rules, not a gap we are hiding.
-- **Public-transport realtime is not dependable yet.** The licence is cleared
-  and the feed is in the service, but the tool that exposes it was answering
-  with an internal error when this page was checked on 2026-09-21. Do not build
-  on it until this row says otherwise.
-- **Lift and escalator status does not answer today, and the reason is one step
-  earlier than the feed.** The licence is read and the tool exists; what is
-  missing is the station directory that turns a name like "Köln Hbf" into the
-  station number this feed is keyed by. Without it the lookup cannot even be
-  attempted, so the tool refuses — naming the missing directory and stating that
-  this is not an all-clear — instead of returning an empty list that would read
-  as "nothing is broken".
-- **Address lookup is not available on the public service.** Address data is
-  imported per deployment and the public one has none, so the service answers
-  places, stations and motorways but not house numbers. Where it *is* imported,
-  the ODbL obligations below apply in full.
+- **Fuel is the one row not re-measured on 2026-09-27, and that was deliberate.**
+  MTS-K sets a minimum interval per station and its terms make needless querying
+  a real risk to the access itself, so this page does not spend a request on
+  proving a status it already knew. The cell is carried forward from the previous
+  check and labelled `not re-measured` rather than dressed up as today's
+  measurement. Everything else in the table was called.
+- **Police traffic events are stored, and on 2026-09-27 no answer named them.**
+  It is polled and its rows are kept. The status is a statement about the
+  answers, not about the code: `check_road_status` was called on the A40, A3,
+  A1, A57 and A46 — VIZ.NRW's own Land — and named only the motorway interface
+  and the BASt roadworks feed. So by the rule at the top of this section the
+  row reads `in the service` and not `live`. What it does **not** say is that no
+  tool can reach the feed: whether a source is named is decided by a live
+  catalogue row rather than by code, so this row could begin carrying its
+  attribution line with no release at all. Do not design around it yet — and
+  read `_meta.sources`, not this page, on the day you do.
+
+**What changed on 2026-09-27, stated plainly because this page said the
+opposite until today.** Address lookup, lift and escalator status, and
+public-transport realtime were all listed as not answering. All three now
+answer, and each was confirmed by a call whose result named the source: OSM for
+addresses and points of interest, FaSta for lifts and escalators, DELFI for
+realtime. The BKG administrative gazetteer was listed as merely `read` and is
+in fact named by answers from five different tools. If you read an earlier
+version of this page and concluded something was unavailable, re-check it here.
+
+**And one row where this page is newer than the register.** BKG is `live` here, on
+five measured answers, while `viafrei://attribution` carries it as planned —
+"licence read, data not ingested yet". The answers decide it, and one part of an
+answer decides it: `bkg_gvisys` appeared in `_meta.sources`, and only a row that
+answered can put an id there. The attribution line came with it, which is
+corroboration and not proof — that line is rendered from whichever ids a result
+carries and knows nothing about whether the data is loaded. The flag is a server-side change and the server is
+where it will be fixed.
+
+**Do not read that as "one" being measured across the table.** It is the only
+disagreement among the rows this page re-measured on 2026-09-27, which is not the
+same statement. The nearest other candidate is the DELFI stop directory (zHV),
+flagged the same way on the same day: we asked for a stop by name and the station
+directory answered instead (`db_stada`, with BKG and GeoNames), which is consistent
+with the flag and a long way from proof — stops and stations live in the same table
+and the resolver ranks them, so a station hit can hide a stop row completely.
+Asking a question is not reading the server's table, and this is reported as the
+weaker thing it is. **What settles any of
+these for you is the answer in your hand**: read `_meta.sources` and the
+attribution lines on the result, never a status cell on a page that was printed
+before you asked.
 
 ## The sources in detail
 
@@ -187,18 +259,30 @@ Share-alike. See [the obligation above](#public-transport-realtime-is-share-alik
 what you derive from this stays CC BY-SA 4.0, and it may not be blended into a
 result you publish under another licence.
 
-**It is not dependable yet.** Asked twice on 2026-09-21, the tool that exposes
-this feed answered with an internal error. The licence work is done and the data
-is there; the answer is not, so plan for it rather than on it.
+**It answers.** Asked for Hamburg on 2026-09-27, `check_transit_disruption`
+returned a region-wide punctuality answer naming this feed. Until 2026-09-21 the
+same call produced an internal error and this page said so; that is fixed, and
+the paragraph is left here rather than deleted so a reader who saw the old one
+knows which of the two is current.
+
+What it answers is a **region**, not a line: see the scope note in the
+README — no tool here answers "is the S1 on time".
 
 Licence: <https://creativecommons.org/licenses/by-sa/4.0/> ·
 publisher: <https://www.opendata-oepnv.de>
 
-Two more DELFI datasets are cleared and not yet in use: the Germany-wide static
-timetable (`Fahrplandaten: DELFI e.V., CC BY 4.0, bearbeitet`) and the central
-stop directory
-(`Haltestellendaten: DELFI e.V. (zentrales Haltestellenverzeichnis), CC BY 4.0, bearbeitet`).
-Both are **CC BY 4.0**, not BY-SA — the share-alike is on the realtime feed.
+**Three** more DELFI datasets are cleared and not yet in use, and they do not
+share one licence:
+
+- the Germany-wide static timetable — `Fahrplandaten: DELFI e.V., CC BY 4.0, bearbeitet` — **CC BY 4.0**;
+- the central stop directory — `Haltestellendaten: DELFI e.V. (zentrales Haltestellenverzeichnis), CC BY 4.0, bearbeitet` — **CC BY 4.0**;
+- the disruption reports — `Störungsmeldungen: DELFI e.V. via Mobilithek, CC BY-SA 4.0` — **CC BY-SA 4.0, share-alike**.
+
+This page said "two, both CC BY 4.0 — the share-alike is on the realtime feed"
+until 2026-09-27, and both halves were wrong: there are three, and the
+share-alike is on **two** DELFI feeds, the trip updates we serve today and the
+disruption reports we do not serve yet. If you are planning for the day the
+disruption feed appears, plan for share-alike, not for CC BY.
 
 ### Tankerkönig / MTS-K — fuel prices · CC BY 4.0 **plus a purpose limit**
 
@@ -226,15 +310,30 @@ The historical price archive published beside the API is licensed
 **CC BY-NC-SA** — non-commercial. It is not a source for any answer this
 service gives, and it never will be while that licence stands.
 
-### Deutsche Bahn AG — timetables, stations, facilities · CC BY 4.0
+### Deutsche Bahn AG — timetables, stations, facilities, station car parks
 
-Three products on the DB API Marketplace, each read at its own product page.
+**Four** products on the DB API Marketplace, each read at its own product page,
+and they do **not** share one licence. The three we serve are CC BY 4.0:
 
 ```
 Fahrplandaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
 Bahnhofsdaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
 Aufzüge und Fahrtreppen: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
 ```
+
+The fourth is read and not yet held — station car parks, under **Datenlizenz
+Deutschland – Namensnennung – Version 2.0**, which is a different licence with a
+different attribution line:
+
+```
+Parking Information Daten der DB BahnPark – API über den DB API Marketplace
+```
+
+It is in the table because this page is the register and a row is how we say a
+licence has been read. It is `read`, so no answer carries that line today; the
+line is here so that nobody has to go and find it on the day one does. Do not
+assume the CC BY 4.0 line above covers it — one publisher, four products, two
+licences.
 
 The product pages say it in one sentence: *"Dieser Datensatz wird bereitgestellt
 unter der Lizenz Creative Commons Attribution 4.0 International (CC BY 4.0)."*
@@ -243,10 +342,16 @@ contributed to OpenStreetMap, a mention of Deutsche Bahn AG in the contributor
 list is enough. That is a relaxation **for OSM**, not permission to drop the
 line from your own results.
 
-Facility status — the live state of lifts and escalators — **does not answer on
-the public service today**, and not because of this feed: the station directory
-that resolves a station name to the number the feed is keyed by is not loaded
-there, so the lookup stops before it starts. Do not build on it yet.
+Facility status — the live state of lifts and escalators — **answers on the
+public service**: asked for Köln Messe/Deutz on 2026-09-27 it returned ten
+facilities with their states, naming this feed and the station directory that
+resolves the name to the number the feed is keyed by. Until the directory was
+loaded the lookup stopped before it started, and this page said not to build on
+it; that is no longer the case.
+
+The station directory is still what the lookup depends on, so a station missing
+from it produces "I cannot resolve that station" rather than an empty facility
+list — the distinction matters if you are deciding whether to retry.
 
 Publisher: <https://developers.deutschebahn.com>
 
@@ -308,26 +413,82 @@ nothing else.
 
 Master data — where the posts are, which plug, how many kW — answers today.
 **Live availability does not exist for most of Germany**, because only some
-operators publish it; a result says how many nearby sites had no status rather
-than quietly leaving them out or calling them free.
+operators publish it. A result marks every such site `keine Statusdaten` and
+closes with a sentence saying that this means unknown and not free — measured on
+2026-09-27, asking for Leipzig. It does not count them for you, and this page
+said it did until today; what it does is refuse to leave them out or to call them
+free, which is the part that matters when you act on the answer.
 
-### OpenStreetMap — geocoding · ODbL 1.0
+### OpenStreetMap — addresses and points of interest · ODbL 1.0
 
 ```
-Geokodierung: © OpenStreetMap-Mitwirkende, ODbL 1.0
+OSM-Standortdaten: © OpenStreetMap-Mitwirkende, ODbL 1.0
 ```
 
-Carried on every answer whose input was an address, and on no other answer: a
-result about a station or a place is not OSM-derived and does not pretend to be.
+**Reproduce that line, not a shorter one.** This page printed
+`Geokodierung: …` until 2026-09-27 and no answer has carried that prefix since the
+release in which `find_poi` and `find_address` began returning an OSM row **as**
+the answer — a name, a brand, a door — rather than only a coordinate resolved from
+one. `Geokodierung` describes the narrower thing and would have been a false
+statement about what the data was used for. If you copied the old string, change it.
 
-Address data is imported **per deployment**, and the public service has none —
-asked for a house number on 2026-09-21 it answers that it can find places,
+**Which answers carry it**, in the platform's own words — verbatim, with the
+qualifier emphasised here because it is the part two earlier versions of this
+page dropped: *"Only results whose
+input resolved through one of these two OSM tables carry this line. A result about
+a place **from our own gazetteer**, a station or a motorway is not built from
+OpenStreetMap and carries neither the ODbL attribution nor the obligation."*
+
+Read the qualifier. The predicate is **which table answered**, and it is not a
+list of tools. Place resolution falls through the gazetteer to the OSM tables, so
+a tool that takes a `place` — a weather warning, a road status, a charging
+station, a car park, `find_nearby` — returns an OSM-derived answer whenever the
+gazetteer did not know the name. Measured on 2026-09-27: a weather warning for
+`Zeiss-Großplanetarium` named `["dwd","osm"]` and carried this line; one for
+`Allianz Arena` named `["osm"]` alone.
+
+Two wrong versions of this sentence have now been caught, and both erred the same
+way, towards telling a reader an obligation did not apply. **One of them shipped.**
+1.3.12 said the line was carried "on every answer whose input was an address, and
+on no other answer" — false for `find_poi`, and published. The second never
+shipped: it was written while fixing the first and caught in review. It said "an
+answer about a place, a station or a motorway does not", which drops the four
+words that make it true and is false for every place the gazetteer could not
+resolve. Two rounds of correcting one sentence is the reason the paragraph above
+now states a predicate instead of listing tools or input shapes.
+
+The positive test is the one to rely on: **read `_meta.sources` and the attribution
+line on the answer you actually got.** Do not infer either from the shape of your
+question.
+
+Address data is imported **per deployment**, and the public service has it:
+asked for a house number on 2026-09-27 it answered with the address and this
+line. **So the line and the obligation apply to what you get from the public
+service today.** How complete that import is was measured the same day from the
+service's own per-Land verdict — which reads both tables, names any missing Land and exits
+non-zero on one — rather than extrapolated from a single lookup: **all sixteen
+Länder are imported, and every row is scoped to the Land it came from.** Two
+address lookups in the two Länder least likely to have been staged —
+Mecklenburg-Vorpommern and Saarland, asked in Rostock and Saarbrücken — both
+answered through the public endpoint with `osm` in `_meta.sources`, over OSM data
+dated 2026-09-22. No row count is written here on
+purpose: it would be true the day it was typed and stale at the next import, and
+reporting it is the verdict's job rather than this page's. One caveat, because it
+nearly misled this very measurement — **a single address that does not resolve
+says nothing about its Land**: a market-square house number in Erfurt came back
+unfound from a Land that is fully imported, because that address is not in
+OpenStreetMap under the spelling it was asked for. (The postcode is left out on
+purpose - the leak sweep refuses a bare five-digit number in this repository, and
+an allow-list entry added to carry an example would be a caption pointing at a
+value.) Until the extract was loaded they did not, and this page said
+so — the correction is the substantive one in this release.
+
+A deployment that has not imported the extract answers that it can find places,
 stations and motorways but not house numbers, which is the right answer rather
-than a guessed coordinate. So nothing you get from the public service today
-carries this line or this obligation. Where an operator has imported the
-extract, both apply in full.
+than a guessed coordinate. There, neither this line nor the obligation arises,
+because no OSM-derived answer is produced.
 
-Our ODbL § 4.6 offer is [above](#and-one-that-applies-only-if-you-get-an-address-back).
+Our ODbL § 4.6 offer is [above](#and-one-that-applies-if-you-get-an-openstreetmap-derived-result-back).
 
 Licence: <https://opendatacommons.org/licenses/odbl/1-0/> ·
 copyright: <https://www.openstreetmap.org/copyright>
@@ -440,10 +601,15 @@ Leaving a dataset out is as much a part of "we use all legal ways" as using one:
 - The dates in this page are the dates the relevant page was read, not the dates
   it was written.
 - **The statuses are measured, not declared.** Each one was checked on
-  2026-09-21 by asking the public endpoint a question and reading which source
-  the answer named. That is why four rows say a source does not answer today
-  where the register says the licence is cleared: cleared is not live, and a
-  page that blurred the two would be the one thing this page exists not to be.
+  2026-09-27 by asking the public endpoint a question and reading which source
+  the answer named — except the fuel row, which says `not re-measured` for the
+  reason given above. That is why **three** rows say a source is loaded but not
+  confirmed by an answer where the register says the licence is cleared — EnBW
+  static, the Tesla/VW availability feeds, and the police traffic events, which
+  moved into that state in this release: cleared is not live, and a page that
+  blurred the two would be the one thing this page exists not to be. The number is
+  written here because it is small enough to count; if it stops matching the table,
+  the table is right.
 - Where a source's terms are unknown or unreadable, this page says so instead of
   rounding it up to "open data" — the motorway interface above is named on every
   answer for exactly that reason, and the datasets in the section before this
