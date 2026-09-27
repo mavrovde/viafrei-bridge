@@ -48,15 +48,43 @@ What that means for you, in plain words:
 
 ### Public-transport realtime is share-alike
 
-Realtime public-transport data comes from **DELFI e.V.** under
-**CC BY-SA 4.0**. Share-alike means the obligation travels:
+Realtime public-transport data comes from **DELFI e.V.** under a Creative
+Commons **Attribution-ShareAlike** licence. **The version is an open question and
+this page does not invent one** — see the section on this feed below for what the
+catalogue and the access point actually state. Treat the share-alike as applying;
+do not rely on a particular version for a derivative. Share-alike means the
+obligation travels:
 
 - anything you derive from it — a table of delays, a punctuality figure, a
-  screen that reuses the numbers — has to be offered under CC BY-SA 4.0 too;
-- you may not blend it into a work you publish under a different licence, which
-  in practice means **do not merge a DELFI delay with data you hold under a
-  non-compatible licence and ship the mixture**;
-- the attribution line stays with it.
+  screen that reuses the numbers — has to be offered under BY-SA too;
+- **share-alike reaches adaptations, not aggregations.** If you *modify* the
+  data — recompute it, reshape it, **rearrange** it, build a delay table or a
+  punctuality series out of it — what you made is Adapted Material under
+  art. 1(a), which names material "translated, altered, **arranged**,
+  transformed, or otherwise modified", and you must license it under BY-SA
+  (art. 3(b)(1)) and pass the licence URI on (art. 3(b)(2)). An arrangement is
+  therefore inside the obligation, not outside it. If you merely **show** it
+  next to data from another source, that is an aggregation and no ShareAlike
+  obligation touches the other source.
+
+  The words quoted above come from the **4.0** text, because 4.0 is the
+  text we read. **Which version applies is the open question set out below**,
+  and this page does not guess what another version's definition says: the
+  vocabulary the catalogue draws on offers three terms — unversioned, 3.0 DE
+  and 4.0 — and the middle one is a German port whose definitions are in
+  German. "It holds whichever version applies" would have been a claim about
+  texts nobody here has opened, which is the same shape as the error corrected
+  above.
+
+  Creative Commons' own position: the condition "applies only for works
+  considered adaptations under copyright law, not simply in collections with
+  other works". An earlier version of this page said you may not blend it into a
+  work under a different licence. That was wrong in the direction that matters —
+  it told you a licence forbids something it permits, which art. 3(b)(3) is
+  itself about not doing to a recipient, and it would have condemned our own
+  service, since a weather answer can name `["dwd","osm"]` and a transit answer
+  is built on a place resolved from the gazetteer;
+- the attribution line stays with it, either way.
 
 If that is not what you want for your product, ask for the same answer from a
 source that is not BY-SA, or keep the two apart.
@@ -138,7 +166,7 @@ status somebody could still be relying on.
 | Charging point master data | EnBW AG, via the national access point | AFIR charge-point master data for EnBW mobility+ | static releases | CC BY 4.0 | in the service |
 | Charging point availability | Tesla Germany GmbH and Volkswagen Group Charging GmbH, via the national access point | AFIR dynamic status for their own networks | live status | **CC0 1.0** | in the service |
 | German road rules | ViaFrei, compiled from official sources | Environmental zones, tolls, equipment duties, charging rules | reviewed at least twice a year | our own text | live |
-| Public-transport realtime (GTFS-RT Trip Updates) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide departure and arrival forecasts | real time | **CC BY-SA 4.0** | live |
+| Public-transport realtime (GTFS-RT Trip Updates) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide departure and arrival forecasts | real time | **CC BY-SA (version unstated)** | live |
 | FaSta — Facility Status | Deutsche Bahn AG (DB API Marketplace) | Live state of lifts and escalators at stations | live status | CC BY 4.0 | live |
 | Geocoding (addresses and points of interest) | OpenStreetMap contributors | Street and house-number points and mapped points of interest in Germany | refreshed from the OSM extract | **ODbL 1.0** | live |
 | Timetable data (static GTFS) | DELFI e.V. | Germany-wide scheduled public transport | weekly release | CC BY 4.0 | read |
@@ -245,19 +273,57 @@ absence of a licence permits. If you intend to republish it, ask them.
 
 Publisher: <https://www.autobahn.de>
 
-### DELFI e.V. — public-transport realtime · CC BY-SA 4.0
+### DELFI e.V. — public-transport realtime · CC BY-SA (version unstated)
 
 Germany-wide GTFS-RT Trip Updates — the live forecast behind a departure board
 — published by DELFI e.V. through the national access point (Mobilithek), and
-listed on GovData with the licence **CC-BY-SA 4.0** (checked 2026-09-21).
+listed on GovData under a Creative Commons **Attribution-ShareAlike** licence.
+
+**The version is an open question, and this page will not invent one.** The
+GovData catalogue record for this feed carries the *unversioned* licence URI
+`http://dcat-ap.de/def/licenses/cc-by-sa` on its only resource (read 2026-09-27).
+The dataset-level licence field is empty, which is **not** evidence of anything —
+in DCAT-AP.de the licence lives on the distribution, and every record sampled from
+this catalogue has it empty at dataset level, the versioned siblings included. The
+resource field is the one that speaks. Per the dcat-ap.de vocabulary that is
+a distinct term from `…/cc-by-sa/4.0`. It is not a habit of the publisher's
+either: DELFI's sibling records in the same catalogue *are* versioned — the
+GTFS-RT Service Alerts feed carries `cc-by-sa/4.0` and the static timetable
+`cc-by/4.0` — so DELFI states a version when it means one, and on this feed it
+did not. An earlier version of this page said GovData listed the feed as
+CC-BY-SA 4.0; that reading could not be reproduced and the claim is withdrawn.
+
+Why it is not pedantry: art. 3(b)(1) sets the Adapter's Licence to "the same
+License Elements, this version or later, or a BY-SA Compatible License", so the
+version decides what a recipient may put on a derivative — and 3.0 unported has
+no express sui-generis-database-rights clause where 4.0 art. 4 does, which is
+exactly the derived-delay-table case. **Treat it as CC BY-SA and assume the
+share-alike applies; do not rely on a specific version for a derivative.**
+
+The authoritative field says the same thing. The national access point's own
+metadata for this feed, read 2026-09-27, carries:
+
+```
+standardLicense         : http://dcat-ap.de/def/licenses/cc-by-sa
+customLicenseAsResource : null
+sourceNote              : null
+```
+
+So GovData's harvest is faithful and there is no versioned statement anywhere in
+the chain. The attribution string the server emits today still names 4.0; that is
+a defect at the source, tracked there, and it will be corrected in the server
+rather than by rewording this page — what this page documents is what the server
+actually sends.
 
 ```
 Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA 4.0
 ```
 
 Share-alike. See [the obligation above](#public-transport-realtime-is-share-alike):
-what you derive from this stays CC BY-SA 4.0, and it may not be blended into a
-result you publish under another licence.
+what you *derive* from this stays BY-SA — an adaptation, including a
+rearrangement — while merely showing it beside another source's data is an
+aggregation and constrains that other source not at all. The licence **version**
+is the open question set out below; treat the share-alike as applying regardless.
 
 **It answers.** Asked for Hamburg on 2026-09-27, `check_transit_disruption`
 returned a region-wide punctuality answer naming this feed. Until 2026-09-21 the
@@ -268,7 +334,10 @@ knows which of the two is current.
 What it answers is a **region**, not a line: see the scope note in the
 README — no tool here answers "is the S1 on time".
 
-Licence: <https://creativecommons.org/licenses/by-sa/4.0/> ·
+Licence family: Creative Commons Attribution-ShareAlike — the catalogue and the
+access point both state the term without a version, so no version URL is given
+here on purpose. The 4.0 text, for reference only:
+<https://creativecommons.org/licenses/by-sa/4.0/> ·
 publisher: <https://www.opendata-oepnv.de>
 
 **Three** more DELFI datasets are cleared and not yet in use, and they do not
@@ -367,9 +436,19 @@ festgelegten Leistungen des DWD dürfen unter den Bedingungen der Lizenz Creativ
 Commons BY 4.0 (CC BY 4.0) unter Beigabe eines Quellenvermerks weiterverwendet
 werden."*
 
-The wording of that source note is **prescribed by law** (§ 7 DWD-Gesetz), which
-is why it is three words and why they may not be reworded, translated or
-abbreviated. It also has to sit immediately next to the DWD information it
+§ 7 DWD-Gesetz — headed *Quellenschutz* — makes the source note a legal **duty**:
+distribution of DWD data, products and special services, warnings in particular,
+"ist nur unter Angabe der Quelle zulässig". Its second sentence adds that fuller
+protection under the Urheberrechtsgesetz "bleibt davon unberührt", so attribution
+is the statute's minimum and not necessarily the whole of what is owed. It
+prescribes no wording at all — an earlier version of this
+page said the statute fixed the three words, which it does not. The **wording**
+is set by the DWD itself, in *Vorgaben für die Gestaltung des
+DWD-Quellenvermerks*: either the text form `Quelle: Deutscher Wetterdienst` or
+the DWD logo, placed "unmittelbar an der verwendeten DWD-Information".
+Reproduce the text form as it stands — it is the publisher's prescribed form and
+shortening it defeats its purpose — but the constraint is the DWD's guidance, not
+the statute's characters. It also has to sit immediately next to the DWD information it
 belongs to.
 
 There is a second line, and the difference matters:

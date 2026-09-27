@@ -240,8 +240,10 @@ If you write an example, a fixture or a README snippet that shows a result:
 - **MTS-K fuel prices are consumer information only** — no redistribution in any
   form, aggregates and comparisons included. Do not build an example that shows
   a price table.
-- **DELFI public-transport data is CC BY-SA 4.0** — share-alike travels with
-  anything derived from it.
+- **DELFI public-transport data is Creative Commons Attribution-ShareAlike** —
+  share-alike travels with anything you *derive* from it, a rearrangement
+  included. The realtime feed's catalogue entry states no licence version, so do
+  not write one into an example; `SOURCES.md` has the evidence.
 - Every result carries an attribution line, and an example that drops it teaches
   the wrong thing.
 
