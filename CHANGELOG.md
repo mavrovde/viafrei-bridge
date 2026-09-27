@@ -50,7 +50,7 @@ right.
   root-owned and not group- or other-writable (the property the module relies on,
   rather than the list that is supposed to have it), that its contents cannot be
   extended at runtime, that an `npm_execpath` which is absolute, real and readable
-  but not npm is refused, and then a sweep of all thirty-one source files,
+  but not npm is refused, and then a sweep of all thirty-two source files,
   walked recursively, for a spawn whose program is a bare quoted name.
 
   It carries three preconditions, because a gate whose input is absent reports
@@ -302,8 +302,8 @@ right.
   duplicate. Three links, and every one of them was found by something other than
   the test suite, which was green at each step. The file count in this entry moved
   from twenty-eight to twenty-nine because of it, then to thirty when this release
-  added a source file of its own, and then to **thirty-one** when it added the generator's
-  self-test. The first two were re-derived from `npm run test:tools` rather than
+  added a source file of its own, and then to **thirty-two** as it added the generator's
+  self-test and the module they share. The first two were re-derived from `npm run test:tools` rather than
   incremented by hand. The third was not, and the review round found it stale. The
   fourth was not typed either: it was read out of `npm run test:tools`'s own output
   and the edit refused to write a number the command did not report. That was a

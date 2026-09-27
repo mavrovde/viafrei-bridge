@@ -39,6 +39,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { missingFixtureImports } from './fixture-root.mjs';
+import { flatten } from './flatten.mjs';
 import { nodePath } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -83,6 +84,12 @@ try {
 } catch (error) {
     refuse(`cannot read the generator or API.md — ${error.message}`);
 }
+// The imported function must BE one. An import that silently resolves to `undefined`
+// - a rename, a dropped `export` - is how case 1 would stop testing anything, and it
+// replaces the old "cannot find the expression in the source" refusal.
+if (typeof flatten !== 'function') {
+    refuse('the generator does not export `flatten`, so case 1 would test nothing');
+}
 
 /**
  * Run the generator in a throwaway copy of the repository root, so no case can
@@ -110,6 +117,7 @@ function buildRoot() {
     const root = mkdtempSync(join(tmpdir(), 'gen-api-doc-test-'));
     mkdirSync(join(root, 'scripts'), { recursive: true });
     copyFileSync(GENERATOR, join(root, 'scripts', 'gen-api-doc.mjs'));
+    copyFileSync(join(HERE, 'flatten.mjs'), join(root, 'scripts', 'flatten.mjs'));
     copyFileSync(SNAPSHOT, join(root, 'catalogue.json'));
     copyFileSync(TARGET, join(root, 'API.md'));
     // The copy list above is written by hand, and a hand-written list falls behind an
@@ -134,7 +142,7 @@ function freshRoot() {
     return root;
 }
 
-// --- Case 1: the flattening expression, against the one it replaced ----------
+// --- Case 1: the flattening function, against the expression it replaced -----
 //
 // This is the only case that can speak about inputs the snapshot does not contain,
 // and the defect it exists for was invisible to every other check in the repository.
@@ -144,19 +152,13 @@ function freshRoot() {
     // whole problem: an invisible character is invisible to the next maintainer, and
     // to the editor or copy-paste that silently drops it.
     const ALPHABET = [' ', '\t', '\n', 'a', '\r', '\u00a0', '\f', '\v', '\u2028'];
-    const source = readFileSync(GENERATOR, 'utf8');
     const flattenWith = (regex, value) => String(value).replace(regex, ' ').trim();
-    // The expression under test is read OUT OF the generator, so this test cannot
-    // drift from it by holding a copy. Body and flags are captured as two groups and
-    // handed to `new RegExp`: the first draft ran `eval` on the matched text, which
-    // executes whatever that line happens to say and is a finding of its own
-    // (`javascript:S1523`) in the commit whose purpose is to add no new findings.
-    const declared = /const FLATTENED = \/(.*)\/([a-z]*);/u.exec(source);
-    if (!declared) {
-        refuse('cannot find the FLATTENED expression in the generator — this case would test nothing');
-    }
-    const [, body, flags] = declared;
-    const usingDeclared = value => flattenWith(new RegExp(body, flags), value);
+    // The function under test is IMPORTED, not scraped. Two earlier drafts read the
+    // generator's source and rebuilt its regular expression — one with `eval`, one with
+    // a two-group match — and both were fragile for the same reason: the thing tested
+    // was a reconstruction of the thing that runs. It is also moot now, because the
+    // generator no longer uses a regular expression here at all.
+    const usingDeclared = value => flatten(value);
     const usingOriginal = value => flattenWith(/\s*\n\s*/gu, value);
     // The bug that SHIPPED, and its nearest wrong neighbour. Both are here so the
     // alphabet can be proved capable of separating them, rather than assumed to be:

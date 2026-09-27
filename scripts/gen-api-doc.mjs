@@ -22,6 +22,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { flatten } from './flatten.mjs';
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SNAPSHOT = join(ROOT, 'catalogue.json');
 const TARGET = join(ROOT, 'API.md');
@@ -48,26 +50,6 @@ const TYPE_UNION = ' | ';
 
 /** A backtick, so nothing below has to escape one inside a template literal. */
 const BACKTICK = '`';
-
-/**
- * Collapse a newline, and the whitespace around it, into ONE space.
- *
- * Not the obvious `\s*\n\s*`, because `\s` matches a newline too: that form is
- * ambiguous about which newline the middle atom took, and backtracks super-linearly
- * across a run of them. Here the leading class is every whitespace character EXCEPT
- * a newline, so the anchor is unambiguous and there is nothing to backtrack over.
- *
- * The first attempt at this wrote `[ \t]*` for that class, and it was wrong in a way
- * no output comparison here could show: it leaves any other whitespace next to the
- * newline in place, so a `\r\n` line ending flattens to `"a\r a"` where the original
- * gives `"a a"`. This snapshot happens to contain no CRLF, so API.md was
- * byte-identical and the defect invisible. `scripts/gen-api-doc.test.mjs` is what
- * caught it and is what keeps this honest: it compares this expression against the
- * `\s`-based original over every string up to length four drawn from a
- * whitespace-heavy alphabet, plus random longer ones.
- */
-const FLATTENED = /[^\S\n]*\n\s*/gu;
-const flatten = value => String(value).replaceAll(FLATTENED, ' ').trim();
 
 /** A table cell: no unescaped pipe, no newline. */
 const cell = value => flatten(String(value).replaceAll('|', ESCAPED_PIPE));
