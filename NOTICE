@@ -10,15 +10,27 @@ keeps its provider's own terms. Those terms travel with the answer, not with
 this package, and several of them are share-alike or purpose-limited. In
 particular:
 
-  - DELFI public-transport data is CC BY-SA 4.0. Share-alike: anything derived
-    from it inherits the obligation, and it must not be blended into a result
-    carrying a different licence.
+  - DELFI public-transport data is Creative Commons Attribution-ShareAlike. The
+    catalogue record for the realtime feed names no version (see SOURCES.md), so
+    treat the share-alike as applying and do not rely on a version for a
+    derivative. Share-alike reaches ADAPTATIONS, not arrangements: if you
+    recompute or reshape the data you must license that under BY-SA, but showing
+    it beside another source's data is an aggregation and puts no obligation on
+    the other source.
   - MTS-K fuel prices (Tankerkönig) are consumer information only. No
     redistribution in any form, aggregates and derived tables included.
-  - Address results are derived from OpenStreetMap under the ODbL 1.0. The
-    share-alike is on the database rather than on the sentence, and our offer
-    under section 4.6 stands: ask and you get the extract and our alterations
-    to it under the same licence.
+  - Address, point-of-interest and place results can be derived from
+    OpenStreetMap under the ODbL 1.0. What decides it is which TABLE answered,
+    not which tool you called: place resolution falls through our own gazetteer
+    to the OSM tables, so any answer about a place may be OSM-derived. Read
+    `_meta.sources` and the attribution line on the answer you actually got — an
+    OSM-derived result names `osm`. The share-alike is on the database (ODbL 4.4)
+    and not on the answer (ODbL 4.5(b)); the answer carries a notice instead
+    (ODbL 4.3). Our offer under ODbL 4.6 stands and covers BOTH extracts —
+    addresses and points of interest, one file each — plus our alterations to
+    them, under ODbL 1.0 and free of charge. Ask by opening an issue on this
+    repository, or by the e-mail address in the Impressum at
+    https://viafrei.de/impressum if you have no GitHub account.
   - Autobahn GmbH, BKG, DWD, Deutsche Bahn, GeoNames and the AFIR charging
     feeds each carry their own licence and attribution string.
 

@@ -286,9 +286,15 @@ licence breach rather than a style problem:
 - **MTS-K fuel prices are consumer information only.** No redistribution in any
   form — that includes aggregates, comparisons, price tables and anything
   derived. Answer the person who asked; do not build a product out of it.
-- **DELFI public-transport data is CC BY-SA 4.0.** Share-alike travels with
-  anything derived from it, and it must not be blended into a result under a
-  different licence.
+- **DELFI public-transport data is Creative Commons
+  Attribution-ShareAlike.** Share-alike travels with anything you *derive* from
+  it — recompute it, reshape it, build a delay table out of it, and that is
+  Adapted Material you must license under BY-SA. Merely **showing** it beside
+  another source's data is an aggregation, and puts no obligation on the other
+  source; an earlier version of this page said otherwise, which told you a
+  licence forbids something it permits. The catalogue record for the realtime
+  feed names no licence version, so do not rely on one for a derivative —
+  [SOURCES.md](SOURCES.md) has the detail and the open question.
 
 Everything else — where each answer comes from, and what each licence asks of
 you — is in [SOURCES.md](SOURCES.md). See also [NOTICE](NOTICE) and
