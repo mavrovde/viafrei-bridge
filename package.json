@@ -68,6 +68,7 @@
     "test:gate": "node scripts/check-tarball.test.mjs",
     "test:leaks": "node scripts/check-leaks.test.mjs",
     "test:tools": "node scripts/tools.test.mjs",
+    "test:docs": "node scripts/gen-api-doc.test.mjs",
     "check:tarball": "node scripts/check-tarball.mjs",
     "check:leaks": "node scripts/check-leaks.mjs",
     "docs:api": "node scripts/gen-api-doc.mjs",

@@ -185,14 +185,16 @@ check('npmCliPath() ignores an npm_execpath of the wrong shape', () => {
     }
 });
 
-// --- fixture-root.mjs: the precondition both self-tests now share ----------
+// --- fixture-root.mjs: the precondition the self-tests share ---------------
 
 // WHY THESE TWO CASES EXIST. `missingFixtureImports()` was extracted because the
-// same eleven lines lived in both self-tests and SonarCloud failed the pull
-// request on it. Extracting it was right, and it doubled the blast radius: one
-// silent `return []` now disarms BOTH self-tests at once and restores the
-// wrong-reason pass that started the whole thread — a sweep that cannot start
-// reporting no findings. On every ordinary run both self-tests exercise only the
+// same eleven lines lived in two self-tests and SonarCloud failed the pull
+// request on it. Extracting it was right, and it widened the blast radius: one
+// silent `return []` now disarms EVERY self-test that relies on it at once and
+// restores the wrong-reason pass that started the whole thread — a sweep that
+// cannot start reporting no findings. No count of those callers is written here,
+// because there was one more of them within the week and the sentence that said
+// "both" went stale unnoticed. On every ordinary run they exercise only the
 // COMPLETE-fixture path, so without these the "missing" branch had no automated
 // proof at all; it was checked by hand-mutating a file list, which is not a thing
 // that happens again.

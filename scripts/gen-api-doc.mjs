@@ -29,21 +29,113 @@ const TARGET = join(ROOT, 'API.md');
 const HTTP_URL = 'https://mcp.viafrei.de/mcp';
 const SSE_URL = 'https://mcp.viafrei.de/sse';
 
+/**
+ * An escaped pipe: a bare one would end the table cell it sits in. Written with
+ * `String.raw` rather than `'\\|'` so the text in this source is the text that
+ * reaches the document, with no reader having to unescape it in their head.
+ *
+ * Escaping happens in `cell()` and NOWHERE ELSE. Until the self-test went looking, a
+ * union type was escaped twice — `typeOf` joined with an already-escaped pipe and
+ * `cell` then escaped that pipe again, producing `string \\| null`: a literal
+ * backslash in the document and a bare pipe left to end the row early. In a bullet,
+ * which is not a table, it produced a stray backslash instead. No tool in this
+ * snapshot declares a union type, so neither was reachable and no output comparison
+ * could have found it. One escape, applied by the function that knows it is writing a
+ * table cell, is right in both places.
+ */
+const ESCAPED_PIPE = String.raw`\|`;
+const TYPE_UNION = ' | ';
+
+/** A backtick, so nothing below has to escape one inside a template literal. */
+const BACKTICK = '`';
+
+/**
+ * Collapse a newline, and the whitespace around it, into ONE space.
+ *
+ * Not the obvious `\s*\n\s*`, because `\s` matches a newline too: that form is
+ * ambiguous about which newline the middle atom took, and backtracks super-linearly
+ * across a run of them. Here the leading class is every whitespace character EXCEPT
+ * a newline, so the anchor is unambiguous and there is nothing to backtrack over.
+ *
+ * The first attempt at this wrote `[ \t]*` for that class, and it was wrong in a way
+ * no output comparison here could show: it leaves any other whitespace next to the
+ * newline in place, so a `\r\n` line ending flattens to `"a\r a"` where the original
+ * gives `"a a"`. This snapshot happens to contain no CRLF, so API.md was
+ * byte-identical and the defect invisible. `scripts/gen-api-doc.test.mjs` is what
+ * caught it and is what keeps this honest: it compares this expression against the
+ * `\s`-based original over every string up to length four drawn from a
+ * whitespace-heavy alphabet, plus random longer ones.
+ */
+const FLATTENED = /[^\S\n]*\n\s*/gu;
+const flatten = value => String(value).replaceAll(FLATTENED, ' ').trim();
+
 /** A table cell: no unescaped pipe, no newline. */
-const cell = value => String(value).replace(/\|/gu, '\\|').replace(/\s*\n\s*/gu, ' ').trim();
+const cell = value => flatten(String(value).replaceAll('|', ESCAPED_PIPE));
+
+/** One value as a code span. A named helper, so no template literal nests another. */
+const code = value => BACKTICK + value + BACKTICK;
 
 /** `1`, `"de"`, `["a","b"]` — a default, written as JSON so it is unambiguous. */
-const literal = value => `\`${JSON.stringify(value)}\``;
+const literal = value => code(JSON.stringify(value));
+
+/** A union of types, or the one type, carrying a pipe the table survives. */
+const typeNames = type => (Array.isArray(type) ? type.join(TYPE_UNION) : (type ?? ''));
 
 function typeOf(schema) {
     if (!schema || typeof schema !== 'object') return '';
-    const { type, items } = schema;
-    const base = Array.isArray(type) ? type.join(' \\| ') : (type ?? '');
-    if (base === 'array' && items && typeof items === 'object') {
-        const inner = Array.isArray(items.type) ? items.type.join(' \\| ') : (items.type ?? '');
-        return inner ? `array of ${inner}` : 'array';
+    const base = typeNames(schema.type);
+    if (base !== 'array') return base;
+    const { items } = schema;
+    if (!items || typeof items !== 'object') return 'array';
+    const inner = typeNames(items.type);
+    return inner ? `array of ${inner}` : 'array';
+}
+
+/**
+ * The pattern constraint: reproduced when a person can read it, SUMMARISED when
+ * they cannot, and `null` when the schema states none.
+ *
+ * Two of these schemas carry a 288-character leap-year-validating ISO-8601 regex.
+ * Reproducing it fills a table cell with something no reader will parse, while the
+ * `format` and the description's worked example are what a caller actually needs.
+ * The threshold is about legibility, and the length is still reported so nobody
+ * thinks the constraint is absent.
+ *
+ * A long regex is also unscannable, and that decides where it may be STORED. Such a
+ * pattern spells its date arithmetic as character classes of selected digits, and a
+ * digit-run leak scanner cannot tell a class of five digits from a five-digit VALUE.
+ * On the sweep's side both remedies are falsehoods: narrowing the scanner weakens it
+ * for every file, and an allow-list entry would claim a character class is a number
+ * this project publishes. So the text that cannot be scanned is not kept —
+ * `catalogue.json` stores `patternLength` where the pattern is long, which is what
+ * this function renders from it anyway, and the `$comment` there records the
+ * substitution. Both shapes are accepted, because a future snapshot may carry either
+ * and a reader may hold an older one.
+ */
+function patternConstraint(schema) {
+    const chars = schema.patternLength
+        ?? (typeof schema.pattern === 'string' ? schema.pattern.length : undefined);
+    if (chars === undefined) return null;
+    if (typeof schema.pattern === 'string' && schema.pattern.length <= 60) {
+        return `pattern ${code(schema.pattern)}`;
     }
-    return base;
+    return `pattern (${chars} characters — see the description; the ${code('format')} above is the short answer)`;
+}
+
+/**
+ * The keys of a parameter whose constraints live one level down.
+ *
+ * `properties` is among the keywords `constraintsOf` treats as handled, so without
+ * this the cell said "—" for the parameter that has the most to say — and the
+ * unknown-keyword safety net could not catch it either, because the key IS known and
+ * was simply never rendered. The keys are named here and described under the table,
+ * where there is room for each one's own bounds.
+ */
+function nestedKeysConstraint(schema) {
+    if (!schema.properties || typeof schema.properties !== 'object') return null;
+    const keys = Object.keys(schema.properties);
+    if (keys.length === 0) return null;
+    return `keys: ${keys.map(code).join(', ')} (each described below)`;
 }
 
 /**
@@ -58,7 +150,12 @@ function typeOf(schema) {
 function constraintsOf(schema) {
     if (!schema || typeof schema !== 'object') return '';
     const parts = [];
-    const seen = new Set(['type', 'description', 'default', 'items', 'properties']);
+    // `pattern` and `patternLength` are handled by patternConstraint below, and
+    // `properties` by nestedKeysConstraint, so all three are seeded as handled here
+    // rather than marked handled at the point of use.
+    const seen = new Set([
+        'type', 'description', 'default', 'items', 'properties', 'pattern', 'patternLength'
+    ]);
     const push = (key, text) => { seen.add(key); if (schema[key] !== undefined) parts.push(text()); };
 
     push('enum', () => `one of ${schema.enum.map(literal).join(', ')}`);
@@ -68,112 +165,173 @@ function constraintsOf(schema) {
     push('maxLength', () => `max length ${schema.maxLength}`);
     push('minItems', () => `min ${schema.minItems} item(s)`);
     push('maxItems', () => `max ${schema.maxItems} item(s)`);
-    push('format', () => `format \`${schema.format}\``);
-    // A pattern is reproduced when a person can read it, and SUMMARISED when they
-    // cannot. Two of these schemas carry a 288-character leap-year-validating
-    // ISO-8601 regex: reproducing it fills a table cell with something no reader
-    // will parse, while the `format` and the description's worked example are what
-    // a caller actually needs. The threshold is about legibility, and the length is
-    // still reported so nobody thinks the constraint is absent.
-    //
-    // A long regex is also unscannable, and that decides where it may be STORED.
-    // Such a pattern spells its date arithmetic as character classes of selected
-    // digits, and a digit-run leak scanner cannot tell a class of five digits from a
-    // five-digit VALUE. On the sweep's side both remedies are falsehoods: narrowing
-    // the scanner weakens it for every file, and an allow-list entry would claim a
-    // character class is a number this project publishes. So the text that cannot be
-    // scanned is not kept — `catalogue.json` stores `patternLength` where the
-    // pattern is long, which is what this function renders from it anyway, and the
-    // `$comment` there records the substitution. Both shapes are accepted, because a
-    // future snapshot may carry either and a reader may hold an older one.
-    const patternChars = schema.patternLength ?? (typeof schema.pattern === 'string' ? schema.pattern.length : undefined);
-    seen.add('pattern');
-    seen.add('patternLength');
-    if (patternChars !== undefined) {
-        parts.push(typeof schema.pattern === 'string' && schema.pattern.length <= 60
-            ? `pattern \`${schema.pattern}\``
-            : `pattern (${patternChars} characters — see the description; the \`format\` above is the short answer)`);
+    push('format', () => `format ${code(schema.format)}`);
+    for (const extra of [patternConstraint(schema), nestedKeysConstraint(schema)]) {
+        if (extra) parts.push(extra);
     }
-
-    // A parameter whose constraints live one level down. `properties` is in `seen`,
-    // so without this the cell said "—" for the parameter that has the most to say,
-    // and the unknown-keyword safety net could not catch it either: the key IS
-    // known, it was simply never rendered. The keys are named here and described
-    // under the table, where there is room for each one's own bounds.
-    if (schema.properties && typeof schema.properties === 'object') {
-        const nested = Object.keys(schema.properties);
-        if (nested.length > 0) {
-            parts.push(`keys: ${nested.map(key => `\`${key}\``).join(', ')} (each described below)`);
-        }
-    }
-
     if (schema.items && typeof schema.items === 'object') {
         const inner = constraintsOf(schema.items);
         if (inner) parts.push(`each item: ${inner}`);
     }
     for (const key of Object.keys(schema)) {
-        if (!seen.has(key) && !key.startsWith('$')) parts.push(`\`${key}\``);
+        if (!seen.has(key) && !key.startsWith('$')) parts.push(code(key));
     }
     return parts.join('; ');
 }
 
+/** One row of the parameter table. */
+function parameterRow(name, property, isRequired) {
+    const fallback = property.default === undefined ? '—' : cell(literal(property.default));
+    const constraints = cell(constraintsOf(property)) || '—';
+    return `| ${code(name)} | ${cell(typeOf(property))} | ${isRequired ? '**yes**' : 'no'} | ${fallback} | ${constraints} |`;
+}
+
+/** One nested key, indented under its parent's bullet. */
+function nestedKeyLine(key, inner, isRequired) {
+    const facts = [
+        typeOf(inner),
+        isRequired ? '**required**' : null,
+        // Included although no nested key carries one in today's snapshot: that is
+        // the same shape as the bug this renderer exists to fix, and a default lost
+        // silently is worse than one printed needlessly.
+        inner.default === undefined ? null : `default ${literal(inner.default)}`,
+        constraintsOf(inner)
+    ]
+        .filter(Boolean)
+        .join(', ');
+    const parenthesised = facts ? ` (${facts})` : '';
+    const said = inner.description ? ` — ${flatten(inner.description)}` : '';
+    return `  - ${code(key)}${parenthesised}${said}`;
+}
+
+/**
+ * The prose under the table: one bullet per described parameter, and a nested
+ * object's own keys indented beneath it.
+ *
+ * Those nested lines are emitted whether or not the parent carried a description,
+ * because the reason to print them is that they are constraints a caller can
+ * violate — not that the parent had something to say.
+ */
+function parameterProse(properties, names) {
+    const lines = [];
+    for (const name of names) {
+        const property = properties[name];
+        const { description } = property;
+        if (description) lines.push(`- **${code(name)}** — ${flatten(description)}`);
+        const nested = property.properties;
+        if (!nested || typeof nested !== 'object') continue;
+        if (!description) lines.push(`- **${code(name)}**`);
+        const required = new Set(Array.isArray(property.required) ? property.required : []);
+        for (const key of Object.keys(nested)) {
+            lines.push(nestedKeyLine(key, nested[key], required.has(key)));
+        }
+    }
+    return lines;
+}
+
 function parameterTable(schema) {
-    const properties = (schema && schema.properties) || {};
+    const properties = schema?.properties ?? {};
     const names = Object.keys(properties);
     if (names.length === 0) return ['_No parameters._', ''];
-    const required = new Set((schema && schema.required) || []);
+    // `Array.isArray` rather than `?? []`: a malformed `required` (a boolean, say)
+    // is not nullish, so `??` passes it to `new Set` and a TypeError comes out of a
+    // renderer that promises named refusals. Unreachable from a real capture, and
+    // exactly the shape of the precondition bug this branch already fixed once.
+    const required = new Set(Array.isArray(schema?.required) ? schema.required : []);
     // Required first, then alphabetical: the reader's question is almost always
     // "what is the least I have to send".
     names.sort((a, b) => (required.has(b) ? 1 : 0) - (required.has(a) ? 1 : 0) || a.localeCompare(b));
 
-    const lines = [
+    return [
         '| parameter | type | required | default | constraints |',
-        '| --- | --- | --- | --- | --- |'
+        '| --- | --- | --- | --- | --- |',
+        ...names.map(name => parameterRow(name, properties[name], required.has(name))),
+        '',
+        ...parameterProse(properties, names),
+        ''
     ];
-    for (const name of names) {
-        const property = properties[name];
-        lines.push(`| \`${name}\` | ${cell(typeOf(property))} | ${required.has(name) ? '**yes**' : 'no'} | ${
-            property.default === undefined ? '—' : cell(literal(property.default))
-        } | ${cell(constraintsOf(property)) || '—'} |`);
-    }
-    lines.push('');
-    const prose = text => text.replace(/\s*\n\s*/gu, ' ').trim();
-    for (const name of names) {
-        const property = properties[name];
-        const description = property.description;
-        if (description) lines.push(`- **\`${name}\`** — ${prose(description)}`);
-        // A nested object's own keys, each with its type, its bounds and its text.
-        // Emitted whether or not the parent carried a description, because the
-        // reason to print them is that they are constraints a caller can violate.
-        const nested = property.properties;
-        if (!nested || typeof nested !== 'object') continue;
-        if (!description) lines.push(`- **\`${name}\`**`);
-        const innerRequired = new Set(property.required ?? []);
-        for (const key of Object.keys(nested)) {
-            const inner = nested[key];
-            const facts = [
-                typeOf(inner),
-                innerRequired.has(key) ? '**required**' : null,
-                // Included although no nested key carries one in today's snapshot:
-                // that is the same shape as the bug this renderer exists to fix, and
-                // a default lost silently is worse than one printed needlessly.
-                inner.default === undefined ? null : `default ${literal(inner.default)}`,
-                constraintsOf(inner)
-            ]
-                .filter(Boolean)
-                .join(', ');
-            const said = inner.description ? ` — ${prose(inner.description)}` : '';
-            lines.push(`  - \`${key}\`${facts ? ` (${facts})` : ''}${said}`);
-        }
-    }
-    lines.push('');
-    return lines;
+}
+
+/** The server's own instructions to a connecting client, quoted line by line. */
+function instructionLines(catalogue) {
+    return String(catalogue.instructions ?? '')
+        .trim()
+        .split('\n')
+        .map(line => `> ${line}`.trimEnd());
+}
+
+/** The behaviour flags a tool's annotations state, in the order a caller cares about. */
+function annotationFlags(annotations) {
+    const flags = [];
+    if (annotations.readOnlyHint === true) flags.push('**Read-only** — it changes nothing.');
+    if (annotations.readOnlyHint === false) flags.push('**Not read-only** — it creates or removes state.');
+    if (annotations.openWorldHint === true) flags.push('Reaches a third-party source (open world).');
+    if (annotations.openWorldHint === false) flags.push('Answers from data this service already holds (closed world).');
+    if (annotations.idempotentHint !== undefined) flags.push(`Idempotent: ${annotations.idempotentHint}.`);
+    if (annotations.destructiveHint !== undefined) flags.push(`Destructive: ${annotations.destructiveHint}.`);
+    return flags;
+}
+
+/** One tool: heading, behaviour flags, the server's own description, the parameters. */
+function toolLines(tool) {
+    const annotations = tool.annotations ?? {};
+    const title = annotations.title ?? tool.title;
+    const heading = title ? `### ${code(tool.name)} — ${title}` : `### ${code(tool.name)}`;
+    const flags = annotationFlags(annotations);
+    return [
+        heading,
+        '',
+        ...(flags.length > 0 ? [flags.join(' '), ''] : []),
+        '> ' + flatten(tool.description),
+        '',
+        ...parameterTable(tool.inputSchema)
+    ];
+}
+
+/**
+ * A URI table, then one bullet per described entry.
+ *
+ * Resources and resource templates differ only in which field carries the URI and
+ * what that column is called, so they share this rather than carrying two copies of
+ * the same six lines — which is how the two drifted apart in the first draft.
+ */
+function uriSection(heading, columnLabel, entries, uriOf) {
+    return [
+        heading,
+        '',
+        `| ${columnLabel} | name | type |`,
+        '| --- | --- | --- |',
+        ...entries.map(entry => `| ${code(uriOf(entry))} | ${cell(entry.name ?? '')} | ${code(entry.mimeType ?? '')} |`),
+        '',
+        ...entries
+            .filter(entry => entry.description)
+            .map(entry => `- **${code(uriOf(entry))}** — ${cell(entry.description)}`),
+        ''
+    ];
+}
+
+/** One prompt: name, title, description, and its arguments. */
+function promptLines(prompt) {
+    const lines = [`### ${code(prompt.name)}`, ''];
+    if (prompt.title) lines.push(`*${prompt.title}*`, '');
+    if (prompt.description) lines.push('> ' + cell(prompt.description), '');
+    const args = prompt.arguments ?? [];
+    if (args.length === 0) return [...lines, '_No arguments._', ''];
+    return [
+        ...lines,
+        '| argument | required | description |',
+        '| --- | --- | --- |',
+        ...args.map(argument =>
+            `| ${code(argument.name)} | ${argument.required ? '**yes**' : 'no'} | ${cell(argument.description ?? '')} |`),
+        ''
+    ];
 }
 
 function render(catalogue) {
     const { tools, resources, resourceTemplates, prompts, serverInfo, protocolVersion, capabilities } = catalogue;
     const out = [];
     const w = (...lines) => out.push(...lines);
+    const capabilityNames = Object.keys(capabilities ?? {}).map(code).join(', ') || '—';
 
     w(
         '# API reference',
@@ -202,7 +360,7 @@ function render(catalogue) {
         `| Captured from | \`${catalogue.source}\` on ${catalogue.capturedAt} |`,
         `| Surface | ${tools.length} tools, ${resources.length} resources, ${resourceTemplates.length} resource templates, ${prompts.length} prompts |`,
         '| Parameter schemas | JSON Schema draft-07 |',
-        `| Capabilities | ${Object.keys(capabilities ?? {}).map(name => `\`${name}\``).join(', ') || '—'} |`,
+        `| Capabilities | ${capabilityNames} |`,
         '',
         'No API key. No account. No sign-up.',
         '',
@@ -237,48 +395,13 @@ function render(catalogue) {
         "The server's own instructions to a connecting client, verbatim:",
         ''
     );
-    for (const line of String(catalogue.instructions ?? '').trim().split('\n')) {
-        w(`> ${line}`.trimEnd());
-    }
+    w(...instructionLines(catalogue));
 
     w('', '## Tools', '');
-    for (const tool of tools) {
-        const annotations = tool.annotations ?? {};
-        const title = annotations.title ?? tool.title;
-        w(`### \`${tool.name}\`${title ? ` — ${title}` : ''}`, '');
-        const flags = [];
-        if (annotations.readOnlyHint === true) flags.push('**Read-only** — it changes nothing.');
-        if (annotations.readOnlyHint === false) flags.push('**Not read-only** — it creates or removes state.');
-        if (annotations.openWorldHint === true) flags.push('Reaches a third-party source (open world).');
-        if (annotations.openWorldHint === false) flags.push('Answers from data this service already holds (closed world).');
-        if (annotations.idempotentHint !== undefined) flags.push(`Idempotent: ${annotations.idempotentHint}.`);
-        if (annotations.destructiveHint !== undefined) flags.push(`Destructive: ${annotations.destructiveHint}.`);
-        if (flags.length > 0) w(flags.join(' '), '');
-        w('> ' + String(tool.description).replace(/\s*\n\s*/gu, ' ').trim(), '');
-        w(...parameterTable(tool.inputSchema));
-    }
+    for (const tool of tools) w(...toolLines(tool));
 
-    w('## Resources', '');
-    w('| URI | name | type |', '| --- | --- | --- |');
-    for (const resource of resources) {
-        w(`| \`${resource.uri}\` | ${cell(resource.name ?? '')} | \`${resource.mimeType ?? ''}\` |`);
-    }
-    w('');
-    for (const resource of resources) {
-        if (resource.description) w(`- **\`${resource.uri}\`** — ${cell(resource.description)}`);
-    }
-    w('');
-
-    w('## Resource templates', '');
-    w('| URI template | name | type |', '| --- | --- | --- |');
-    for (const template of resourceTemplates) {
-        w(`| \`${template.uriTemplate}\` | ${cell(template.name ?? '')} | \`${template.mimeType ?? ''}\` |`);
-    }
-    w('');
-    for (const template of resourceTemplates) {
-        if (template.description) w(`- **\`${template.uriTemplate}\`** — ${cell(template.description)}`);
-    }
-    w('');
+    w(...uriSection('## Resources', 'URI', resources, resource => resource.uri));
+    w(...uriSection('## Resource templates', 'URI template', resourceTemplates, template => template.uriTemplate));
 
     w(
         '## Prompts',
@@ -288,21 +411,7 @@ function render(catalogue) {
         'single call.',
         ''
     );
-    for (const prompt of prompts) {
-        w(`### \`${prompt.name}\``, '');
-        if (prompt.title) w(`*${prompt.title}*`, '');
-        if (prompt.description) w('> ' + cell(prompt.description), '');
-        const args = prompt.arguments ?? [];
-        if (args.length === 0) {
-            w('_No arguments._', '');
-            continue;
-        }
-        w('| argument | required | description |', '| --- | --- | --- |');
-        for (const argument of args) {
-            w(`| \`${argument.name}\` | ${argument.required ? '**yes**' : 'no'} | ${cell(argument.description ?? '')} |`);
-        }
-        w('');
-    }
+    for (const prompt of prompts) w(...promptLines(prompt));
 
     w(
         '---',

@@ -70,6 +70,12 @@ jobs:
       - name: API reference matches the catalogue snapshot
         run: npm run check:docs
 
+      # The drift check above compares the document to the snapshot. This one checks
+      # the GENERATOR's own claims against inputs the snapshot does not contain -
+      # which is where its whitespace bug lived, invisible to a byte comparison.
+      - name: API-reference generator self-test
+        run: npm run test:docs
+
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that
       # connects. Any occurrence outside an assertion fails the build.

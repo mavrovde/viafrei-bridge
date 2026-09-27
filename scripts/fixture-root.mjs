@@ -1,10 +1,10 @@
 /**
- * The one check both self-tests owe their throwaway fixtures.
+ * The one check every self-test here owes its throwaway fixture.
  *
  * WHY THIS EXISTS, in two steps, because the second one is the interesting half.
  *
- * `check-tarball.test.mjs` and `check-leaks.test.mjs` each build a throwaway
- * repository by copying a hand-written list of files into it. A list written by
+ * Several self-tests build a throwaway repository by copying a hand-written list of
+ * files into it. A list written by
  * hand falls behind an import, and when it does the copied script dies of
  * `ERR_MODULE_NOT_FOUND` — which does not read as "a file is missing". It reads as
  * whatever the suite was measuring: measured on `check-leaks.test.mjs`, three of
@@ -19,13 +19,15 @@
  * Two files holding two copies of one precondition is also the defect on its own
  * terms: the next change to it updates one of them.
  *
- * So the logic lives here once, and each caller keeps its own wording — the two
- * refusals name different builders (`buildRepo()` and `buildGateRoot()`) and exit
- * by different routes, and that difference is real rather than incidental.
+ * So the logic lives here once, and each caller keeps its own wording — the refusals
+ * name different builders (`buildRepo()`, `buildGateRoot()`, `buildRoot()`) and exit
+ * by different routes, and that difference is real rather than incidental. No count
+ * of callers is written here: this file gained a third one and the sentence that
+ * said "both" went stale unnoticed, which is the same failure it exists to prevent.
  *
- * This module is NOT copied into either fixture root, and must not be: the check
- * runs in the host process, against the copied directory, and none of the copied
- * scripts import it.
+ * This module is NOT copied into any fixture root, and must not be: the check runs in
+ * the host process, against the copied directory, and none of the copied scripts
+ * import it.
  */
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
