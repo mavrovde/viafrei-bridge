@@ -42,6 +42,43 @@ published package" would have been the neater sentence and the false one.)
   turns the sweep red, one source root removed turns precondition 1 red, and the
   files were restored byte-identical afterwards.
 
+### Changed
+
+- **Four statements about other people's licences were wrong, and they are the kind
+  a reader acts on.** Every one was verified against its own source before it was
+  changed, and each correction says that an earlier version had it wrong rather than
+  quietly reading better.
+  - **Share-alike reaches adaptations, not arrangements.** `SOURCES.md`, `NOTICE`
+    and `README.md` all said DELFI data must not be blended into a result under a
+    different licence. CC BY-SA 4.0 art. 3(b) is expressed only over Adapted
+    Material (art. 1(a)); showing licensed data beside another source's data is an
+    aggregation, and Creative Commons states in terms that the condition "applies
+    only for works considered adaptations under copyright law, not simply in
+    collections with other works". Worse than generous in two ways: art. 3(b)(3)
+    forbids imposing terms that restrict rights the licence grants, which is what
+    telling you an aggregation is forbidden does — and the rule as written condemned
+    this service, since a weather answer can name `["dwd","osm"]`.
+  - **The DELFI licence version was sourced to nothing.** Measured at both levels
+    on 2026-09-27: the GovData record for the realtime feed carries the unversioned
+    licence URI and an empty dataset-level licence, and the national access point's
+    own metadata reports the same unversioned term. The publisher's sibling feeds in
+    the same catalogue *are* versioned, so it states a version when it means one.
+    The page now names the family, shows the evidence, and says to treat the
+    share-alike as applying regardless — because the version decides what a
+    recipient may put on a derivative (art. 3(b)(1)), and 3.0 unported has no
+    express database-rights clause where 4.0 art. 4 does.
+  - **§ 7 DWD-Gesetz prescribes a duty, not a wording.** Fetched verbatim: it
+    requires distribution to be "nur unter Angabe der Quelle zulässig" and sets no
+    text. The three words come from the DWD's own guidance, which also permits the
+    logo form — so a reader told the statute fixes the characters might refuse a
+    form the publisher expressly allows.
+  - **`NOTICE` understated the ODbL duty, and it is the file that republishes
+    itself** (Apache-2.0 § 4(d) makes every downstream redistributor carry it). It
+    said "address results" where the predicate is which *table* answered — place
+    resolution falls through the gazetteer to the OSM tables, so any answer about a
+    place may be OSM-derived — and offered one extract where the § 4.6 offer covers
+    both addresses and points of interest.
+
 ### Fixed
 
 - **Every external program these scripts run is now resolved to an absolute path
