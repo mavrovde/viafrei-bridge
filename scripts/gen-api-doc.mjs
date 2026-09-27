@@ -346,7 +346,14 @@ function main(argv) {
         return 2;
     }
 
+    // ONE string, used for the comparison AND for the write. These were two until
+    // review round 2: `--check` compared `render()`'s output while the write path
+    // wrote a newline-normalised copy of it. `render()` ends in a newline today, so
+    // nothing showed - and the failure it was storing up is the worst shape a gate
+    // has, `--check` going red on the file `docs:api` had just written, blaming a
+    // hand edit, and not fixable by running the generator again.
     const rendered = render(catalogue);
+    const document = rendered.endsWith('\n') ? rendered : `${rendered}\n`;
     if (argv.includes('--check')) {
         let current;
         try {
@@ -355,7 +362,7 @@ function main(argv) {
             console.error('gen-api-doc: API.md does not exist — run `npm run docs:api`');
             return 1;
         }
-        if (current !== rendered) {
+        if (current !== document) {
             console.error(
                 'gen-api-doc: API.md is not what catalogue.json renders to. Either it was ' +
                 'edited by hand, or the snapshot changed and the file was not regenerated. ' +
@@ -373,9 +380,8 @@ function main(argv) {
     // Counted the way `wc -l` counts, deliberately. `split('\n').length` is one
     // higher, because the trailing newline yields a final empty string, and that
     // number was copied out of this line into a commit message where it was wrong.
-    const written = rendered.endsWith('\n') ? rendered : `${rendered}\n`;
-    writeFileSync(TARGET, written);
-    console.log(`gen-api-doc: wrote API.md — ${written.split('\n').length - 1} lines from ${catalogue.tools.length} tool(s)`);
+    writeFileSync(TARGET, document);
+    console.log(`gen-api-doc: wrote API.md — ${document.split('\n').length - 1} lines from ${catalogue.tools.length} tool(s)`);
     return 0;
 }
 

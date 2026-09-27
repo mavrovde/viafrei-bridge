@@ -92,9 +92,11 @@ right.
   snapshot is now impossible to keep — CI regenerates and compares. Drift between
   the snapshot and the live server is not fixed by anything, because a capture is a
   point in time. So API.md's own header says it is a dated snapshot, carries the
-  date, and names the running server as the source of truth — in that file rather
-  than only in README.md, because API.md is the one that ships frozen in the
-  tarball and a reader holding it is not holding the other.
+  date, and names the running server as the source of truth — in that file and not
+  only in README.md. Both of them ship in the tarball, so that is not the reason;
+  the reason is that a qualification has to travel with the document it qualifies,
+  because somebody who opens the catalogue to look up a parameter has no occasion
+  to read the page beside it.
 
   Two substitutions in the snapshot, both recorded in its own `$comment` rather
   than left as silent differences from what the server sent: the 18 per-tool
@@ -265,10 +267,10 @@ right.
   duplicate. Three links, and every one of them was found by something other than
   the test suite, which was green at each step. The file count in this entry moved
   from twenty-eight to twenty-nine because of it, and then to **thirty** at the cut,
-  when this release added a source file of its own. Every one of those numbers was
-  re-derived from `npm run test:tools` rather than incremented by hand — and the
-  review round found that the last of them had not been, which is how a paragraph
-  about re-deriving counts came to carry a stale one.
+  when this release added a source file of its own. The first two were re-derived
+  from `npm run test:tools` rather than incremented by hand. The third was not, and
+  the review round found it stale — which is how a paragraph about re-deriving
+  counts came to carry one.
 
 - **The leak sweep's own self-test had no precondition on the fixture it builds,
   and reported a scope regression instead.** Both self-tests copy a named list of
