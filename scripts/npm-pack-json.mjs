@@ -41,6 +41,7 @@
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { nodePath, npmCliPath } from './tools.mjs';
 
 /** Where a reader should look when npm changes shape a third time. */
 export const PIN_LOCATION = '.github/workflows/publish.yml (NPM_VERSION)';
@@ -62,7 +63,11 @@ export class PackJsonError extends Error {
  */
 export function npmVersion() {
     try {
-        const out = execFileSync('npm', ['--version'], {
+        // npm is run as the JavaScript file it is, by the node that is
+        // already running, rather than as a program looked up on $PATH — see
+        // scripts/tools.mjs. Both calls can throw; the catch below is what
+        // keeps a diagnostic from failing while it explains a failure.
+        const out = execFileSync(nodePath(), [npmCliPath(), '--version'], {
             encoding: 'utf8',
             stdio: ['ignore', 'pipe', 'ignore']
         });

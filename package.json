@@ -66,6 +66,7 @@
     "test": "npm run build && tsc -p tsconfig.test.json && node --test --test-timeout=30000 .test-build/test/*.test.js",
     "test:gate": "node scripts/check-tarball.test.mjs",
     "test:leaks": "node scripts/check-leaks.test.mjs",
+    "test:tools": "node scripts/tools.test.mjs",
     "check:tarball": "node scripts/check-tarball.mjs",
     "check:leaks": "node scripts/check-leaks.mjs",
     "rules:show": "node scripts/show-rules.mjs"

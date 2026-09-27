@@ -3,6 +3,172 @@
 All notable changes to this package are documented here. The format follows Keep
 a Changelog and the versions follow Semantic Versioning.
 
+## [Unreleased]
+
+Nothing here changes what the published package **does**: no file in `dist/` is
+affected, no flag, default or exit code moves, and the version is deliberately
+**not** bumped. These are the repository's own development scripts. (The next
+tarball will differ in two files all the same — `CHANGELOG.md` ships, and the
+published manifest lists one more `scripts` entry. Saying "nothing changes the
+published package" would have been the neater sentence and the false one.)
+
+### Added
+
+- **A sweep that keeps the twenty-first call site from being written by accident**
+  (`scripts/tools.test.mjs`, `npm run test:tools`, and a step in CI). Eighteen
+  cases: what `resolveTool` accepts and refuses, that its directory list is
+  root-owned and not group- or other-writable (the property the module relies on,
+  rather than the list that is supposed to have it), that its contents cannot be
+  extended at runtime, that an `npm_execpath` which is absolute, real and readable
+  but not npm is refused, and then a sweep of all twenty-nine source files,
+  walked recursively, for a spawn whose program is a bare quoted name.
+
+  It carries three preconditions, because a gate whose input is absent reports
+  success about what it never read: **every** source root must have contributed a
+  file and an unreadable root is a failure rather than an absence; the expression
+  must locate a program argument in a real file of this repository, proved by
+  putting a real call's program back to a literal in memory and requiring it to be
+  found; and it must go red on a planted bad call, with the fixtures assembled at
+  runtime so no literal in this file can satisfy its own sweep.
+
+  Both of the last two exist because the first drafts did not do what their own
+  comments claimed. The floor was a floor on the *sum*, and `scripts` and `test`
+  clear it between them — so `src/` could be deleted entirely and the run still
+  printed ok at 21 files. And the "it can see a call" precondition evaluated the
+  real expression only on the negative case; the positive half used a different,
+  simpler pattern and never asked the real one to read a file.
+
+  Proved the way a gate has to be: one real call site reverted to a bare name
+  turns the sweep red, one source root removed turns precondition 1 red, and the
+  files were restored byte-identical afterwards.
+
+### Fixed
+
+- **Every external program these scripts run is now resolved to an absolute path
+  instead of being looked up on `$PATH`** (`scripts/tools.mjs`). `git`, `tar`,
+  `npm` and a `mkdir` were spawned by bare name, which means the environment — not
+  this repository — decided which program actually ran. That matters more here
+  than it would elsewhere: one of these scripts is the leak sweep that decides
+  whether a commit may be published, and another is the hygiene gate that reads
+  the tarball about to be uploaded to the registry. A gate whose implementation
+  the caller can substitute is not a gate. SonarCloud reported seven of the call
+  sites as `javascript:S4036` and the project's Security Rating on new code stood
+  at B because of them.
+  - `git` and `tar` now come from `/usr/bin` or `/bin` only. `/usr/local/bin` and
+    `/opt/homebrew/bin` are deliberately not searched: they are writable by the
+    logged-in user on a normal developer machine, so admitting them would
+    reinstate the substitution this change removes. A tool that is genuinely
+    elsewhere makes the scripts refuse and say where they looked, which is a
+    better failure than quietly running something else.
+  - `npm` is no longer treated as a program at all. It is a JavaScript file, so it
+    is run as `<absolute node> <absolute npm-cli.js>`; node's own path is
+    `process.execPath`, which nothing can substitute. `mkdir` was replaced by
+    `fs.mkdirSync` — no subprocess at all.
+  - **Twenty call sites changed, not the seven that were reported.** The other
+    thirteen are in the two self-tests, which SonarCloud does not analyse. Leaving
+    them would have left the rule true of the code and false of the repository,
+    and a rule with a quiet exemption is the one nobody remembers when adding the
+    next call. (Counted per file in the finished tree: `check-leaks.mjs` 2,
+    `check-tarball.mjs` 4, `npm-pack-json.mjs` 1 — Sonar's seven — then
+    `check-leaks.test.mjs` 3 and `check-tarball.test.mjs` 10. The first version of
+    this entry said nineteen, because it was counted with a single-line grep that
+    cannot see the one call whose program argument sits on its own line. A count
+    taken with the wrong instrument, in a release whose own subject is exactly
+    that.)
+
+- **And the repair for that duplicated it, which the quality gate caught before
+  the merge.** The precondition was *copied* from one self-test into the other —
+  eleven lines — and SonarCloud failed the pull request on **3.1% duplication on
+  new code** against a 3% limit, over exactly that block. Copying was the wrong
+  half of the right idea: the answer was always one implementation used twice.
+  It now lives in `scripts/fixture-root.mjs` as `missingFixtureImports()`, and each
+  self-test keeps its own refusal wording, because the two name different builders
+  and exit by different routes — a difference that is real rather than incidental.
+  Re-proved in both: dropping `tools.mjs` from either file list makes that file
+  refuse by name, and each names its own builder.
+
+  **Concentrating the guarantee doubled its blast radius, so it got the assertion
+  it never had.** One function now stands behind both self-tests, which means a
+  silent `return []` disarms both at once and restores the wrong-reason pass that
+  started this thread — a sweep that cannot start, reporting no findings. On an
+  ordinary run both self-tests only ever exercise the complete-fixture path, so
+  until now the "missing" branch was proved solely by hand-mutating a file list:
+  four times by two people, and never again by anything. Two cases cover both
+  directions on a temporary directory, and they are mutation-proved — a planted
+  `return []` reddens one, and ignoring the directory argument reddens both.
+
+  Worth recording as the shape rather than the incident. A missing precondition was
+  fixed by adding one; adding it introduced a duplicate of it; the gate caught the
+  duplicate. Three links, and every one of them was found by something other than
+  the test suite, which was green at each step. The file count in this entry moved
+  from twenty-eight to twenty-nine because of it, and it was re-derived from
+  `npm run test:tools` rather than incremented by hand.
+
+- **The leak sweep's own self-test had no precondition on the fixture it builds,
+  and reported a scope regression instead.** Both self-tests copy a named list of
+  files into a throwaway repository, and `tools.mjs` was missing from both lists.
+  `check-tarball.test.mjs` refused by name, which is what a precondition is for.
+  `check-leaks.test.mjs` had no such check: **measured**, three of its four cases
+  failed with messages about scope — "expected a clean exit, got 1", "the run does
+  not say which scope it used" — because every invocation died of
+  `ERR_MODULE_NOT_FOUND`, and the fourth case *passed*, since a sweep that cannot
+  start also cannot report a finding. That is worse than a red suite: it sends the
+  next reader after the ruleset instead of after a missing file. It now refuses by
+  name, proved by dropping the file again.
+
+- **`npm_execpath` was trusted if it was merely absolute and ended in `.js`** —
+  which reversed this change's own thesis for npm. The decider had moved from
+  `$PATH` to an environment variable, and the local review demonstrated it by
+  pointing the variable at a hand-written file, which the tarball gate would then
+  have run as npm. The value must now also be *shaped* like npm's CLI, ending in
+  `node_modules/npm/bin/npm-cli.js`. What that does not claim, because a security
+  note that overstates its reach is worse than none: anyone who can both set your
+  environment and create a file at that path is still obeyed — and anyone able to
+  do both can usually substitute node itself. The narrowing is from "any writable
+  path" to "a path that looks like a real npm installation": **it stops accidents,
+  not an attacker**, and it is not a privilege barrier. An earlier draft said
+  "stray, mistaken or opportunistic", which the sentence after it contradicted — an
+  opportunistic value costs one `mkdir -p`.
+
+- **`npmCliPath()` refused to find npm on a Homebrew Mac.** Its first draft knew
+  only the `../lib/node_modules/…` layout, which is what the GitHub-hosted runner
+  and nvm use — so it passed in CI and failed on a developer's machine, where
+  Homebrew puts npm under `../libexec/lib/node_modules/…`. Both layouts are tried
+  now, each from the given path and again through `realpathSync`, since a node
+  reached by a symlink resolves its siblings from the real location. Caught by the
+  new self-test on the first run, which is the argument for having written it.
+
+- **The false-positive fix opened a worse false negative, and the second review
+  round caught it.** Excluding `RE.exec('git')` by putting a `(?<!\.)` lookbehind
+  in front of the whole alternation also excluded every *member-expression* spawn —
+  `child_process.execFileSync('git', …)`, `cp.execSync('git status')` — which is a
+  shape SonarJS does report and a contributor can write without doing anything
+  unusual. So a fix aimed at a shape nothing writes blinded the sweep to a shape
+  people do. The lookbehind now applies to the bare name `exec` alone, measured
+  over twelve shapes: the all-names form was wrong on four of them, this one on
+  none. The one trade it still makes — `obj.exec('git')`, a method named `exec` on
+  something that is not a regular expression — is in the limits list, because no
+  expression can tell it from `RE.exec('git')` without a parser. Both directions
+  are pinned in the preconditions now rather than left incidental, since a review
+  round changed this behaviour by accident once already.
+
+  Two smaller things fell out of it. The comment describing the lookbehind said
+  `(?!\.)` where the code says `(?<!\.)` — a look*ahead* there would match nothing
+  useful, so it was the one comment in the file that would mislead somebody
+  "fixing" the code to match it. And the worked examples added to document the
+  twelve shapes turned the file red, because an example of a bare call, spelled as
+  one, *is* a bare call as far as the sweep is concerned; they carry no quote
+  characters now. The sweep catching its own documentation is the least ambiguous
+  evidence available that the member-expression form works.
+
+- **Two documents that enumerate the gates had gone stale in the same commit that
+  added one.** `CONTRIBUTING.md` said "four more checks exist, and CI runs all
+  four" — five now, and the new one was missing from the block a contributor is
+  sent to, which also made the next paragraph's "a fifth command" read as a
+  contradiction. The pull-request checklist named two gates as "the
+  public-repository gates", so a contributor following it would not have run the
+  sweep that exists to catch exactly the call they might be adding.
+
 ## [1.3.15] - 2026-09-27
 
 The first release with features in it since the bridge got code. Three

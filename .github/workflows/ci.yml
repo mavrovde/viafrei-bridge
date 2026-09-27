@@ -59,6 +59,11 @@ jobs:
       - name: Leak-sweep scope self-test
         run: npm run test:leaks
 
+      # Also the sweep that keeps every spawned program coming from
+      # scripts/tools.mjs rather than from $PATH (javascript:S4036).
+      - name: Tool-resolution self-test
+        run: npm run test:tools
+
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that
       # connects. Any occurrence outside an assertion fails the build.

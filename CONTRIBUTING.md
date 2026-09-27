@@ -45,16 +45,17 @@ Streamable-HTTP MCP server:
 node dist/cli.js --url http://127.0.0.1:3000/mcp
 ```
 
-Four more checks exist, and CI runs all four:
+Five more checks exist, and CI runs all five:
 
 ```bash
 npm run check:tarball   # what npm pack would publish, unpacked and read
 npm run test:gate       # poisons that tarball once per rule, and mutates the ruleset once per refusal
 npm run check:leaks     # the repository itself, working tree and history
 npm run test:leaks      # the sweep's own history scope, on a throwaway repository
+npm run test:tools      # every spawned program comes from scripts/tools.mjs, not from $PATH
 ```
 
-A fifth command prints rather than checks, and CI does not run it:
+One more command prints rather than checks, and CI does not run it:
 
 ```bash
 npm run rules:show      # print the rules both checks read, decoded

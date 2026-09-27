@@ -39,13 +39,15 @@
  * which is also a failure.
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
+import { missingFixtureImports } from './fixture-root.mjs';
 import { PackJsonError, soleTarballFilename } from './npm-pack-json.mjs';
 import { hashToken, loadRules } from './rules.mjs';
+import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GATE = join(ROOT, 'scripts/check-tarball.mjs');
@@ -153,7 +155,7 @@ if (FORBIDDEN_NUMBER === undefined) {
  * than assumed, so the case cannot quietly stop being about anything.
  */
 function inventAbsentNumber() {
-    const tracked = execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '');
+    const tracked = execFileSync(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '');
     const corpus = tracked
         .map(file => {
             try {
@@ -641,10 +643,10 @@ const RULESET_CASES = [
         token: SECRET,
         prepare: root => {
             writeFileSync(join(root, 'src', `${SECRET}.md`), 'nothing in here.\n');
-            execFileSync('git', ['-C', root, 'add', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+            execFileSync(resolveTool('git'), ['-C', root, 'add', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
         },
         cleanup: root => {
-            execFileSync('git', ['-C', root, 'rm', '-q', '-f', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+            execFileSync(resolveTool('git'), ['-C', root, 'rm', '-q', '-f', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
         },
         mutate: rules => {
             rules.tokenHashes = [...rules.tokenHashes, hashToken(RULES.salt, SECRET)];
@@ -684,7 +686,7 @@ const RULESET_CASES = [
             // yields no number findings, claiming one. Read from git rather
             // than typed, so the case cannot rot into "no such blob" and pass
             // through the neighbouring branch.
-            const blob = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD:README.md'], { encoding: 'utf8' }).trim();
+            const blob = execFileSync(resolveTool('git'), ['-C', root, 'rev-parse', 'HEAD:README.md'], { encoding: 'utf8' }).trim();
             const path = join(root, 'scripts/rules.json');
             const rules = JSON.parse(readFileSync(path, 'utf8'));
             rules.historyNumberResidue = [{ blob, findings: 1 }];
@@ -748,7 +750,7 @@ function writeRuleset(root, mutate) {
 function buildGateRoot(workspace) {
     const root = join(workspace, 'ruleset-gate');
     mkdirSync(join(root, 'scripts'), { recursive: true });
-    for (const file of ['rules.mjs', 'check-tarball.mjs', 'check-leaks.mjs', 'npm-pack-json.mjs', 'rules.json']) {
+    for (const file of ['rules.mjs', 'tools.mjs', 'check-tarball.mjs', 'check-leaks.mjs', 'npm-pack-json.mjs', 'rules.json']) {
         cpSync(join(ROOT, 'scripts', file), join(root, 'scripts', file));
     }
     // The list above is written out by hand, so it can fall behind an import.
@@ -756,15 +758,7 @@ function buildGateRoot(workspace) {
     // and a stack trace - which reads as "the gate did not refuse" and sends
     // the next reader after the ruleset instead of after a missing file. The
     // copy is therefore CHECKED against what the copied files import.
-    const missing = [];
-    for (const file of readdirSync(join(root, 'scripts')).filter(name => name.endsWith('.mjs'))) {
-        const source = readFileSync(join(root, 'scripts', file), 'utf8');
-        for (const match of source.matchAll(/from\s+'\.\/([\w.-]+)'/gu)) {
-            if (!existsSync(join(root, 'scripts', match[1]))) {
-                missing.push(`${file} imports ./${match[1]}`);
-            }
-        }
-    }
+    const missing = missingFixtureImports(root);
     if (missing.length > 0) {
         refuse(`the throwaway gate root is incomplete - ${missing.join(', ')}; add the file to buildGateRoot()`);
     }
@@ -781,7 +775,7 @@ function buildGateRoot(workspace) {
 function buildSweepRepo(workspace) {
     const root = join(workspace, 'ruleset-sweep');
     mkdirSync(root, { recursive: true });
-    for (const file of execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '')) {
+    for (const file of execFileSync(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '')) {
         mkdirSync(dirname(join(root, file)), { recursive: true });
         cpSync(join(ROOT, file), join(root, file));
     }
@@ -793,7 +787,7 @@ function buildSweepRepo(workspace) {
         GIT_COMMITTER_EMAIL: 'gate@example.invalid'
     };
     for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'throwaway']]) {
-        execFileSync('git', ['-C', root, ...args], { stdio: 'ignore', env });
+        execFileSync(resolveTool('git'), ['-C', root, ...args], { stdio: 'ignore', env });
     }
     return root;
 }
@@ -827,8 +821,9 @@ function runGate(tarball, env = process.env) {
 function pack() {
     // Built here, because the published manifest may not carry a `prepack` to
     // do it - that is one of the things being tested.
-    execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-    const out = execFileSync('npm', ['pack', '--json', '--pack-destination', workspace], {
+    const npmCli = npmCliPath();
+    execFileSync(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+    const out = execFileSync(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
         cwd: ROOT,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'inherit']
@@ -854,7 +849,7 @@ function poisonedTarball(name, poison) {
     cpSync(join(workspace, 'clean'), directory, { recursive: true });
     poison(join(directory, 'package'));
     const tarball = join(workspace, `poison-${name}.tgz`);
-    execFileSync('tar', ['-czf', tarball, '-C', directory, 'package']);
+    execFileSync(resolveTool('tar'), ['-czf', tarball, '-C', directory, 'package']);
     return tarball;
 }
 
@@ -961,7 +956,7 @@ try {
 
     const clean = pack();
     mkdirSync(join(workspace, 'clean'), { recursive: true });
-    execFileSync('tar', ['-xzf', clean, '-C', join(workspace, 'clean')]);
+    execFileSync(resolveTool('tar'), ['-xzf', clean, '-C', join(workspace, 'clean')]);
 
     ran += 1;
     const cleanResult = runGate(clean);
