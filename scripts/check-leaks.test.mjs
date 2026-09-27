@@ -16,10 +16,11 @@
 // ref, or if the residue diagnostic stops telling the two scopes apart.
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, copyFileSync, readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, copyFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { missingFixtureImports } from './fixture-root.mjs';
 import { nodePath, resolveTool } from './tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -100,15 +101,7 @@ function buildRepo(root) {
     // after the ruleset instead of after a missing file. The sibling
     // check-tarball.test.mjs had this check and refused correctly; this file did
     // not, and the first version of this commit's message claimed both of them did.
-    const missing = [];
-    for (const file of readdirSync(join(root, 'scripts')).filter(name => name.endsWith('.mjs'))) {
-        const source = readFileSync(join(root, 'scripts', file), 'utf8');
-        for (const match of source.matchAll(/from\s+'\.\/([\w.-]+)'/gu)) {
-            if (!existsSync(join(root, 'scripts', match[1]))) {
-                missing.push(`${file} imports ./${match[1]}`);
-            }
-        }
-    }
+    const missing = missingFixtureImports(root);
     if (missing.length > 0) {
         console.error(
             `sweep scope self-test: CANNOT RUN - the throwaway repository is incomplete - ${

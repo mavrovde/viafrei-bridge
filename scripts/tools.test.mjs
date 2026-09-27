@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Self-test for scripts/tools.mjs, and the sweep that keeps its reason true.
+// Self-test for the shared `scripts/` helper modules — `tools.mjs` and
+// `fixture-root.mjs` — and for the sweep that keeps the first one's reason true.
 //
 // The module exists because every script here spawned `git`, `npm`, `tar` and
 // `mkdir` by bare name, which is a lookup through `$PATH` — so the environment,
@@ -10,17 +11,19 @@
 //
 // The sweep has three PRECONDITIONS, because a gate whose input is absent
 // reports success about what it never read:
-//   1. it must have read a minimum number of files (it looked at the repo);
+//   1. every source root must have been read, and the total must clear a floor
+//      (it looked at the whole repo, not just the part that clears a floor);
 //   2. it must find the call sites that ARE there (it can see a call at all);
 //   3. it must go red on a planted bad call (it can say no).
 // Without 3 in particular, an expression that matches nothing would pass this
 // file forever while the rule it names went unenforced.
 import { strict as assert } from 'node:assert';
-import { accessSync, constants, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { missingFixtureImports } from './fixture-root.mjs';
 import { TOOL_DIRS, ToolError, nodePath, npmCliPath, resolveTool } from './tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -179,6 +182,51 @@ check('npmCliPath() ignores an npm_execpath of the wrong shape', () => {
     } finally {
         if (saved === undefined) delete process.env.npm_execpath;
         else process.env.npm_execpath = saved;
+    }
+});
+
+// --- fixture-root.mjs: the precondition both self-tests now share ----------
+
+// WHY THESE TWO CASES EXIST. `missingFixtureImports()` was extracted because the
+// same eleven lines lived in both self-tests and SonarCloud failed the pull
+// request on it. Extracting it was right, and it doubled the blast radius: one
+// silent `return []` now disarms BOTH self-tests at once and restores the
+// wrong-reason pass that started the whole thread — a sweep that cannot start
+// reporting no findings. On every ordinary run both self-tests exercise only the
+// COMPLETE-fixture path, so without these the "missing" branch had no automated
+// proof at all; it was checked by hand-mutating a file list, which is not a thing
+// that happens again.
+
+check('missingFixtureImports() finds an import whose file is not beside it', () => {
+    const workspace = mkdtempSync(join(tmpdir(), 'viafrei-fixture-'));
+    try {
+        // `lib` rather than `scripts`, which exercises the directory parameter at
+        // the same time — it had no caller, and an argument no caller passes is a
+        // branch nothing reads.
+        const dir = join(workspace, 'lib');
+        mkdirSync(dir);
+        writeFileSync(join(dir, 'present.mjs'), "export const x = 1;\n");
+        writeFileSync(join(dir, 'broken.mjs'), "import { x } from './present.mjs';\nimport { y } from './absent.mjs';\nexport const z = x + y;\n");
+        const missing = missingFixtureImports(workspace, 'lib');
+        assert.deepEqual(missing, ['broken.mjs imports ./absent.mjs']);
+    } finally {
+        rmSync(workspace, { recursive: true, force: true });
+    }
+});
+
+check('missingFixtureImports() returns an empty list for a complete fixture', () => {
+    // The other direction, so "reports everything" cannot masquerade as working:
+    // an empty list is the ONLY thing that lets a suite proceed, so a function
+    // that always found something would be just as broken.
+    const workspace = mkdtempSync(join(tmpdir(), 'viafrei-fixture-ok-'));
+    try {
+        const dir = join(workspace, 'lib');
+        mkdirSync(dir);
+        writeFileSync(join(dir, 'present.mjs'), "export const x = 1;\n");
+        writeFileSync(join(dir, 'user.mjs'), "import { x } from './present.mjs';\nexport const y = x;\n");
+        assert.deepEqual(missingFixtureImports(workspace, 'lib'), []);
+    } finally {
+        rmSync(workspace, { recursive: true, force: true });
     }
 });
 

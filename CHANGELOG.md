@@ -15,12 +15,12 @@ published package" would have been the neater sentence and the false one.)
 ### Added
 
 - **A sweep that keeps the twenty-first call site from being written by accident**
-  (`scripts/tools.test.mjs`, `npm run test:tools`, and a step in CI). Sixteen
+  (`scripts/tools.test.mjs`, `npm run test:tools`, and a step in CI). Eighteen
   cases: what `resolveTool` accepts and refuses, that its directory list is
   root-owned and not group- or other-writable (the property the module relies on,
   rather than the list that is supposed to have it), that its contents cannot be
   extended at runtime, that an `npm_execpath` which is absolute, real and readable
-  but not npm is refused, and then a sweep of all twenty-eight source files,
+  but not npm is refused, and then a sweep of all twenty-nine source files,
   walked recursively, for a spawn whose program is a bare quoted name.
 
   It carries three preconditions, because a gate whose input is absent reports
@@ -75,6 +75,34 @@ published package" would have been the neater sentence and the false one.)
     cannot see the one call whose program argument sits on its own line. A count
     taken with the wrong instrument, in a release whose own subject is exactly
     that.)
+
+- **And the repair for that duplicated it, which the quality gate caught before
+  the merge.** The precondition was *copied* from one self-test into the other —
+  eleven lines — and SonarCloud failed the pull request on **3.1% duplication on
+  new code** against a 3% limit, over exactly that block. Copying was the wrong
+  half of the right idea: the answer was always one implementation used twice.
+  It now lives in `scripts/fixture-root.mjs` as `missingFixtureImports()`, and each
+  self-test keeps its own refusal wording, because the two name different builders
+  and exit by different routes — a difference that is real rather than incidental.
+  Re-proved in both: dropping `tools.mjs` from either file list makes that file
+  refuse by name, and each names its own builder.
+
+  **Concentrating the guarantee doubled its blast radius, so it got the assertion
+  it never had.** One function now stands behind both self-tests, which means a
+  silent `return []` disarms both at once and restores the wrong-reason pass that
+  started this thread — a sweep that cannot start, reporting no findings. On an
+  ordinary run both self-tests only ever exercise the complete-fixture path, so
+  until now the "missing" branch was proved solely by hand-mutating a file list:
+  four times by two people, and never again by anything. Two cases cover both
+  directions on a temporary directory, and they are mutation-proved — a planted
+  `return []` reddens one, and ignoring the directory argument reddens both.
+
+  Worth recording as the shape rather than the incident. A missing precondition was
+  fixed by adding one; adding it introduced a duplicate of it; the gate caught the
+  duplicate. Three links, and every one of them was found by something other than
+  the test suite, which was green at each step. The file count in this entry moved
+  from twenty-eight to twenty-nine because of it, and it was re-derived from
+  `npm run test:tools` rather than incremented by hand.
 
 - **The leak sweep's own self-test had no precondition on the fixture it builds,
   and reported a scope regression instead.** Both self-tests copy a named list of

@@ -39,11 +39,12 @@
  * which is also a failure.
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
+import { missingFixtureImports } from './fixture-root.mjs';
 import { PackJsonError, soleTarballFilename } from './npm-pack-json.mjs';
 import { hashToken, loadRules } from './rules.mjs';
 import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
@@ -757,15 +758,7 @@ function buildGateRoot(workspace) {
     // and a stack trace - which reads as "the gate did not refuse" and sends
     // the next reader after the ruleset instead of after a missing file. The
     // copy is therefore CHECKED against what the copied files import.
-    const missing = [];
-    for (const file of readdirSync(join(root, 'scripts')).filter(name => name.endsWith('.mjs'))) {
-        const source = readFileSync(join(root, 'scripts', file), 'utf8');
-        for (const match of source.matchAll(/from\s+'\.\/([\w.-]+)'/gu)) {
-            if (!existsSync(join(root, 'scripts', match[1]))) {
-                missing.push(`${file} imports ./${match[1]}`);
-            }
-        }
-    }
+    const missing = missingFixtureImports(root);
     if (missing.length > 0) {
         refuse(`the throwaway gate root is incomplete - ${missing.join(', ')}; add the file to buildGateRoot()`);
     }
