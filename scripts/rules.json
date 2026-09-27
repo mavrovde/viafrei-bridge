@@ -441,6 +441,20 @@
     "stronger than the hashes were, because it catches every internal value of",
     "this shape, including the ones nobody thought to add.",
     "",
+    "ONE GENERAL ADMISSION, stated as a rule because stating it per value would",
+    "be the caption this construction exists to avoid. A number that the SERVER",
+    "ITSELF publishes inside a tool description or an input schema is admissible",
+    "here: the hosted",
+    "service hands those descriptions to every client that calls tools/list, so",
+    "such a value is public by construction and is not the thing this rule",
+    "guards - the rule exists for values that are OURS and private, a port, an",
+    "internal identifier, the last octet of a host. API.md is generated from a",
+    "snapshot of those descriptions, so it carries a few. This is the same",
+    "reasoning group 2 of the host list rests on, and it is safer here than",
+    "there for a reason worth knowing: the sweep asserts that every entry below",
+    "OCCURS in the tree, so an exemption that stops being needed cannot sit here",
+    "accumulating - the host list has no such rule.",
+    "",
     "That sentence has to be TRUE OF EVERY ENTRY, and in round 4 it was not. One",
     "entry was in no tracked file: it was here only to silence a finding about a",
     "value the same commit had taken OUT of the tree, so diffing this list",
@@ -494,12 +508,16 @@
     "minDigits": 4,
     "maxDigits": 5,
     "allowed": [
+      1000,
       1024,
       1234,
       3000,
       3600,
       9110,
-      30000
+      10000,
+      14612,
+      30000,
+      36037
     ]
   },
   "_historyNumberResidue": [

@@ -97,11 +97,18 @@ lorry parking. The table said "car and lorry parking" until this release; it was
 the same over-claim the Rail row carried about disruptions, and it is corrected here rather
 than left for a user to discover.
 
-**No tool names, descriptions or schemas are pasted on this page, on purpose.**
-This file is frozen inside a published tarball and cannot be corrected without a
-release, so a copied catalogue would start rotting the first time a description
-changes on the server. There is one source of truth and it is the running
-server: connect any MCP client and call `tools/list`.
+**No tool names, descriptions or schemas are written by hand on this page, on
+purpose.** This file is frozen inside a published tarball and cannot be corrected
+without a release, so a hand-copied catalogue would start rotting the first time a
+description changed on the server.
+
+**[API.md](API.md) is the way round that, and it is honest about what it is.** It
+is *generated* from [`catalogue.json`](catalogue.json) — a snapshot of what the
+production server answered when asked to describe itself — and CI fails if the two
+have drifted, so the document cannot quietly disagree with the snapshot. What that
+does not fix is the snapshot ageing relative to the live server: a capture is a
+point in time, and API.md's header carries the date it was taken. **The source of
+truth is still the running server**: connect any MCP client and call `tools/list`.
 (<https://viafrei.de> is the live national traffic digest, not a catalogue.)
 
 ## Connect in one line
@@ -146,6 +153,25 @@ Claude Desktop's `claude_desktop_config.json`:
 ```
 
 Restart the client and ask it one of the questions above.
+
+## Documentation
+
+| | |
+|---|---|
+| **[API.md](API.md)** | Every tool with its parameters, types, defaults and constraints, plus the resources, resource templates and prompts. Generated from a dated snapshot of the running server, so the descriptions are the server's own words — which is what your assistant actually reads when it picks a tool. |
+| **[Wiki](https://github.com/mavrovde/viafrei-bridge/wiki)** | The prose half: [connecting your assistant](https://github.com/mavrovde/viafrei-bridge/wiki/Connecting-your-assistant), [tools at a glance](https://github.com/mavrovde/viafrei-bridge/wiki/Tools-at-a-glance), the [roadmap](https://github.com/mavrovde/viafrei-bridge/wiki/Roadmap) and an [FAQ](https://github.com/mavrovde/viafrei-bridge/wiki/FAQ). |
+| **[SOURCES.md](SOURCES.md)** | Every publisher, what it covers, its licence, and the attribution line to reproduce — including the conditions that are licence breaches rather than style problems. |
+| **[SUPPORT.md](SUPPORT.md)** | Where a question, a bad answer or a security report should go, and what makes a report easy to act on. |
+
+### Worked use cases
+
+Five walkthroughs, each naming the tools that answer it and what comes back:
+
+- [Driving Munich to Berlin](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Driving-Munich-to-Berlin) — briefing a motorway run: several A-roads in one call, roadworks ahead, a fuel or charging stop, parking at the far end.
+- [The commute that broke](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-The-commute-that-broke) — departures, regional disruption, and a station lift that is out, which is the difference between a step-free route existing and not.
+- [An EV on a long weekend](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-An-EV-on-a-long-weekend) — charging by connector and power, low-emission-zone rules, what is around a stop.
+- [Fleet and logistics briefings](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Fleet-and-logistics-briefings) — a dispatcher's morning brief, watches that report a change instead of being polled, and the one licence rule that bites hardest here.
+- [Building a local guide agent](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Building-a-local-guide-agent) — a vague place to coordinates and back, and what OpenStreetMap's licence asks of you.
 
 ## Why build on it
 

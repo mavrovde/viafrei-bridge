@@ -51,6 +51,7 @@
     "LICENSE",
     "NOTICE",
     "SOURCES.md",
+    "API.md",
     "CHANGELOG.md"
   ],
   "engines": {
@@ -69,6 +70,8 @@
     "test:tools": "node scripts/tools.test.mjs",
     "check:tarball": "node scripts/check-tarball.mjs",
     "check:leaks": "node scripts/check-leaks.mjs",
+    "docs:api": "node scripts/gen-api-doc.mjs",
+    "check:docs": "node scripts/gen-api-doc.mjs --check",
     "rules:show": "node scripts/show-rules.mjs"
   },
   "dependencies": {
