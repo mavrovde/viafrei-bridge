@@ -13,10 +13,14 @@ particular:
   - DELFI public-transport data is Creative Commons Attribution-ShareAlike. The
     catalogue record for the realtime feed names no version (see SOURCES.md), so
     treat the share-alike as applying and do not rely on a version for a
-    derivative. Share-alike reaches ADAPTATIONS, not arrangements: if you
-    recompute or reshape the data you must license that under BY-SA, but showing
-    it beside another source's data is an aggregation and puts no obligation on
-    the other source.
+    derivative. Share-alike reaches ADAPTATIONS, not aggregations: if you
+    recompute, reshape or rearrange the data you must license that under BY-SA -
+    art. 1(a) of the 4.0 text names material "translated, altered, arranged,
+    transformed, or otherwise modified", so a rearrangement is inside the
+    obligation and not outside it - but showing it beside another source's data
+    is an aggregation and puts no obligation on the other source. Which version
+    applies is the open question SOURCES.md sets out; the words above are quoted
+    from 4.0 because that is the text we read.
   - MTS-K fuel prices (Tankerkönig) are consumer information only. No
     redistribution in any form, aggregates and derived tables included.
   - Address, point-of-interest and place results can be derived from

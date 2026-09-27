@@ -210,7 +210,8 @@ bridge in this repository.
 
 Data obtained through the ViaFrei MCP server keeps its own provider licence and
 is not relicensed by anything here. Several of those licences are share-alike
-(DELFI public-transport data is CC BY-SA 4.0) or purpose-limited (MTS-K fuel
+(DELFI public-transport data is Creative Commons Attribution-ShareAlike; its
+catalogue entry states no version — see SOURCES.md) or purpose-limited (MTS-K fuel
 prices are consumer information only, with no redistribution in any form,
 aggregates included).
 

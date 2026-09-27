@@ -7,10 +7,26 @@ a Changelog and the versions follow Semantic Versioning.
 
 Nothing here changes what the published package **does**: no file in `dist/` is
 affected, no flag, default or exit code moves, and the version is deliberately
-**not** bumped. These are the repository's own development scripts. (The next
-tarball will differ in two files all the same — `CHANGELOG.md` ships, and the
-published manifest lists one more `scripts` entry. Saying "nothing changes the
-published package" would have been the neater sentence and the false one.)
+**not** bumped.
+
+It does change what the package **says**, and that is the point of half of it.
+**Five** of the six `files` entries move — `CHANGELOG.md`, `LICENSE`, `NOTICE`,
+`README.md` and `SOURCES.md` — plus one more entry in the manifest's `scripts`.
+(Six *entries*, not six files: `dist` is a directory, and the tarball holds twenty
+paths.) The licence corrections below are the reason: `NOTICE` is the file
+Apache-2.0 § 4(d) makes every downstream redistributor carry, so a corrected
+`NOTICE` reaching them is not a side effect, it is the remedy.
+
+This paragraph has now been wrong twice, which is worth leaving on the record
+rather than tidying away. The first draft called these "the repository's own
+development scripts" and said the next tarball would differ in two files — true of
+the first change here, false once the licence work landed beside it. The second
+draft said **four** files and omitted `LICENSE` — and the commit that wrote that
+sentence is the same commit that changed `LICENSE`, so it was false at the moment
+it was written, in the paragraph written to correct a false count. The list above
+was computed from `package.json`'s `files` intersected with
+`git diff --name-only`, not counted by eye, which is the only way this sentence
+has ever been right.
 
 ### Added
 
@@ -48,7 +64,7 @@ published package" would have been the neater sentence and the false one.)
   a reader acts on.** Every one was verified against its own source before it was
   changed, and each correction says that an earlier version had it wrong rather than
   quietly reading better.
-  - **Share-alike reaches adaptations, not arrangements.** `SOURCES.md`, `NOTICE`
+  - **Share-alike reaches adaptations, not aggregations.** `SOURCES.md`, `NOTICE`
     and `README.md` all said DELFI data must not be blended into a result under a
     different licence. CC BY-SA 4.0 art. 3(b) is expressed only over Adapted
     Material (art. 1(a)); showing licensed data beside another source's data is an
@@ -67,9 +83,12 @@ published package" would have been the neater sentence and the false one.)
     share-alike as applying regardless — because the version decides what a
     recipient may put on a derivative (art. 3(b)(1)), and 3.0 unported has no
     express database-rights clause where 4.0 art. 4 does.
-  - **§ 7 DWD-Gesetz prescribes a duty, not a wording.** Fetched verbatim: it
-    requires distribution to be "nur unter Angabe der Quelle zulässig" and sets no
-    text. The three words come from the DWD's own guidance, which also permits the
+  - **§ 7 DWD-Gesetz prescribes a duty, not a wording.** Fetched verbatim: the
+    section is headed *Quellenschutz*, requires distribution to be "nur unter
+    Angabe der Quelle zulässig" and sets no text — and its second sentence adds
+    that fuller protection under the Urheberrechtsgesetz "bleibt davon unberührt",
+    so attribution is the statute's minimum rather than the whole of what may be
+    owed. The three words come from the DWD's own guidance, which also permits the
     logo form — so a reader told the statute fixes the characters might refuse a
     form the publisher expressly allows.
   - **`NOTICE` understated the ODbL duty, and it is the file that republishes

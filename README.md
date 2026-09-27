@@ -288,8 +288,9 @@ licence breach rather than a style problem:
   derived. Answer the person who asked; do not build a product out of it.
 - **DELFI public-transport data is Creative Commons
   Attribution-ShareAlike.** Share-alike travels with anything you *derive* from
-  it — recompute it, reshape it, build a delay table out of it, and that is
-  Adapted Material you must license under BY-SA. Merely **showing** it beside
+  it — recompute it, reshape it, rearrange it, build a delay table out of it, and
+  that is Adapted Material you must license under BY-SA (art. 1(a) names material
+  "translated, altered, arranged, transformed, or otherwise modified"). Merely **showing** it beside
   another source's data is an aggregation, and puts no obligation on the other
   source; an earlier version of this page said otherwise, which told you a
   licence forbids something it permits. The catalogue record for the realtime
