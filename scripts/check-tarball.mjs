@@ -46,12 +46,13 @@
  * failure: a gate that cannot run has not passed).
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PackJsonError, soleTarball } from './npm-pack-json.mjs';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
+import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -318,8 +319,13 @@ function main() {
             // Built explicitly, because the published manifest may not carry a
             // `prepack` script to do it - see the lifecycle check below.
             note('gate: building, then packing…');
-            execFileSync('npm', ['run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-            const packed = execFileSync('npm', ['pack', '--json', '--pack-destination', workspace], {
+            // npm through node, by absolute path, not by $PATH lookup: this
+            // gate decides what is uploaded to the registry, so which npm
+            // packs the tarball must not be the environment's choice
+            // (scripts/tools.mjs).
+            const npmCli = npmCliPath();
+            execFileSync(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+            const packed = execFileSync(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
                 cwd: ROOT,
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'inherit']
@@ -347,8 +353,9 @@ function main() {
         statSync(tarball);
 
         const unpacked = join(workspace, 'unpacked');
-        execFileSync('mkdir', ['-p', unpacked]);
-        execFileSync('tar', ['-xzf', tarball, '-C', unpacked]);
+        // No subprocess at all for the directory: node makes it directly.
+        mkdirSync(unpacked, { recursive: true });
+        execFileSync(resolveTool('tar'), ['-xzf', tarball, '-C', unpacked]);
 
         const files = listFiles(unpacked).map(path => relative(unpacked, path));
         if (files.length === 0) {

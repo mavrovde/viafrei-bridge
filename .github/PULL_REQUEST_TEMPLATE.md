@@ -6,9 +6,12 @@
 ## Checklist
 
 - [ ] `npm run build` and `npm test` pass.
-- [ ] `npm run test:gate` and `npm run test:leaks` pass — the public-repository
-      gates. If either needed a new entry in `scripts/rules.json`, the PR says
-      which and why.
+- [ ] `npm run test:gate`, `npm run test:leaks` and `npm run test:tools` pass —
+      the public-repository gates. If one needed a new entry in
+      `scripts/rules.json`, the PR says which and why.
+- [ ] **No program is spawned by bare name.** `git`, `tar` and `npm` come from
+      `scripts/tools.mjs`, never from `$PATH` — `npm run test:tools` checks it,
+      and the module's doc comment says why.
 - [ ] **No test contacts the public endpoint or any provider.** Tests start their
       own stub server. This is not a style rule: a live call from CI risks the
       access itself.

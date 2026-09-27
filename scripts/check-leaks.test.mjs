@@ -16,10 +16,11 @@
 // ref, or if the residue diagnostic stops telling the two scopes apart.
 import { strict as assert } from 'node:assert';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, copyFileSync, readFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, copyFileSync, readFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { nodePath, resolveTool } from './tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = [];
@@ -30,7 +31,7 @@ function git(cwd, args) {
     // signing key it cannot reach turns every case in this file into a
     // failure about something the file is not testing.
     execFileSync(
-        'git',
+        resolveTool('git'),
         ['-c', 'color.ui=false', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args],
         { cwd, stdio: 'pipe' }
     );
@@ -40,7 +41,7 @@ function git(cwd, args) {
 // finding: a non-zero exit IS the thing under test here.
 function sweep(cwd, args) {
     try {
-        const stdout = execFileSync('node', [join(cwd, 'scripts/check-leaks.mjs'), ...args], {
+        const stdout = execFileSync(nodePath(), [join(cwd, 'scripts/check-leaks.mjs'), ...args], {
             cwd,
             stdio: 'pipe',
             encoding: 'utf8',
@@ -86,8 +87,35 @@ const STRAY = '9'.repeat(5);
 // `main` does not reach carrying that finding.
 function buildRepo(root) {
     mkdirSync(join(root, 'scripts'));
-    for (const file of ['check-leaks.mjs', 'rules.mjs']) {
+    for (const file of ['check-leaks.mjs', 'rules.mjs', 'tools.mjs']) {
         copyFileSync(join(here, file), join(root, 'scripts', file));
+    }
+    // The list above is written out by hand, so it can fall behind an import - and
+    // it did, when `tools.mjs` was added. MEASURED before this check existed: with
+    // a file missing, three of the four cases failed with messages about SCOPE
+    // ("expected a clean exit, got 1", "the run does not say which scope it used")
+    // because every invocation died of ERR_MODULE_NOT_FOUND, and the fourth case
+    // PASSED - for the wrong reason, since a sweep that cannot start also cannot
+    // report a finding. That is worse than a red suite: it sends the next reader
+    // after the ruleset instead of after a missing file. The sibling
+    // check-tarball.test.mjs had this check and refused correctly; this file did
+    // not, and the first version of this commit's message claimed both of them did.
+    const missing = [];
+    for (const file of readdirSync(join(root, 'scripts')).filter(name => name.endsWith('.mjs'))) {
+        const source = readFileSync(join(root, 'scripts', file), 'utf8');
+        for (const match of source.matchAll(/from\s+'\.\/([\w.-]+)'/gu)) {
+            if (!existsSync(join(root, 'scripts', match[1]))) {
+                missing.push(`${file} imports ./${match[1]}`);
+            }
+        }
+    }
+    if (missing.length > 0) {
+        console.error(
+            `sweep scope self-test: CANNOT RUN - the throwaway repository is incomplete - ${
+                missing.join(', ')}; add the file to buildRepo()`
+        );
+        console.error('sweep scope self-test: this is a failure, not a pass: a sweep that cannot start cannot report a finding');
+        process.exit(1);
     }
     // The real ruleset names residue blobs that exist only in the real
     // repository. Here they would all report "matched no blob in this
@@ -173,7 +201,7 @@ try {
     check('the residue diagnostic does not blame a rewrite under the default scope', () => {
         const rulesPath = join(repo, 'scripts', 'rules.json');
         const rules = JSON.parse(readFileSync(rulesPath, 'utf8'));
-        const blob = execFileSync('git', ['rev-parse', 'side:stray.txt'], {
+        const blob = execFileSync(resolveTool('git'), ['rev-parse', 'side:stray.txt'], {
             cwd: repo,
             encoding: 'utf8',
         }).trim();
