@@ -5,17 +5,29 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
-Nothing here changes what the published package **does**: no file in `dist/` is
-affected, no flag, default or exit code moves, and the version is deliberately
-**not** bumped.
+Nothing yet.
 
-It does change what the package **says**, and that is the point of half of it.
-**Five** of the six `files` entries move — `CHANGELOG.md`, `LICENSE`, `NOTICE`,
-`README.md` and `SOURCES.md` — plus one more entry in the manifest's `scripts`.
-(Six *entries*, not six files: `dist` is a directory, and the tarball holds twenty
-paths.) The licence corrections below are the reason: `NOTICE` is the file
-Apache-2.0 § 4(d) makes every downstream redistributor carry, so a corrected
-`NOTICE` reaching them is not a side effect, it is the remedy.
+## [1.3.16] - 2026-09-27
+
+**This is the release that delivers the licence corrections to the people the
+licences point at.** `NOTICE` is the file Apache-2.0 § 4(d) makes every downstream
+redistributor carry, and until this publish the corrected text existed only in the
+repository: the 1.3.15 tarball on the registry still carries the previous wording. So
+publishing is not a side effect of the correction, it **is** the correction — which
+is the whole reason this release exists, because nothing in `dist/` changes.
+
+The number matches the running service rather than counting the changes here.
+Production answered `initialize` with `1.3.16` when it was asked on 2026-09-27, and
+this package is the bridge to that server, so somebody comparing the two now reads
+one number instead of wondering which is behind.
+
+**No behaviour changes.** `dist/` is built rather than committed, and no file under
+`src/` has changed since the 1.3.15 tag — which is the evidence for the claim, since
+a diff of an untracked directory would be no evidence at all. So no flag, default or
+exit code moves. **Six** of the seven `files` entries do change —
+`README.md`, `LICENSE`, `NOTICE`, `SOURCES.md`, `CHANGELOG.md` and the new
+`API.md` — and the tarball goes from twenty paths to twenty-one. (Six *entries*,
+not six files: `dist` is a directory.)
 
 This paragraph has now been wrong twice, which is worth leaving on the record
 rather than tidying away. The first draft called these "the repository's own
@@ -23,10 +35,12 @@ development scripts" and said the next tarball would differ in two files — tru
 the first change here, false once the licence work landed beside it. The second
 draft said **four** files and omitted `LICENSE` — and the commit that wrote that
 sentence is the same commit that changed `LICENSE`, so it was false at the moment
-it was written, in the paragraph written to correct a false count. The list above
-was computed from `package.json`'s `files` intersected with
-`git diff --name-only`, not counted by eye, which is the only way this sentence
-has ever been right.
+it was written, in the paragraph written to correct a false count. The count moved
+once more at the cut, because `API.md` joined `files` in this release. Every
+version of it has been computed from `package.json`'s `files` intersected with
+`git diff --name-only v1.3.15..HEAD`, with the path count from `npm pack --json`,
+rather than counted by eye — which is the only way this sentence has ever been
+right.
 
 ### Added
 
@@ -36,7 +50,7 @@ has ever been right.
   root-owned and not group- or other-writable (the property the module relies on,
   rather than the list that is supposed to have it), that its contents cannot be
   extended at runtime, that an `npm_execpath` which is absolute, real and readable
-  but not npm is refused, and then a sweep of all twenty-nine source files,
+  but not npm is refused, and then a sweep of all thirty-two source files,
   walked recursively, for a spawn whose program is a bare quoted name.
 
   It carries three preconditions, because a gate whose input is absent reports
@@ -58,7 +72,134 @@ has ever been right.
   turns the sweep red, one source root removed turns precondition 1 red, and the
   files were restored byte-identical afterwards.
 
+- **[API.md](API.md): a reference for all 18 tools, generated rather than written.**
+  `catalogue.json` is what the production server answered when it was asked to
+  describe itself — `initialize` plus `tools/list`, `resources/list`,
+  `resources/templates/list` and `prompts/list`, captured on 2026-09-27 from
+  server `1.3.16`. `scripts/gen-api-doc.mjs` renders the document from it
+  (`npm run docs:api`), and `npm run check:docs` in CI fails if the two have
+  drifted. Every tool description in it is the server's own text, verbatim,
+  because that text is what an assistant reads when it decides which tool to
+  call — paraphrasing it would document a different server.
+
+  **No tool was invoked to produce the snapshot.** Listing is metadata; calling is
+  traffic, and one of the providers behind this service sets a floor on how often a
+  station may be queried, with the access itself at risk if it is exceeded. The
+  capture is therefore five list methods and nothing else.
+
+  **What generating it does and does not fix**, because README.md already argued
+  the opposite case and that argument was right. Drift between the document and the
+  snapshot is now impossible to keep — CI regenerates and compares. Drift between
+  the snapshot and the live server is not fixed by anything, because a capture is a
+  point in time. So API.md's own header says it is a dated snapshot, carries the
+  date, and names the running server as the source of truth — in that file and not
+  only in README.md. Both of them ship in the tarball, so that is not the reason;
+  the reason is that a qualification has to travel with the document it qualifies,
+  because somebody who opens the catalogue to look up a parameter has no occasion
+  to read the page beside it.
+
+  Two substitutions in the snapshot, both recorded in its own `$comment` rather
+  than left as silent differences from what the server sent: the 18 per-tool
+  `$schema` declarations are dropped as one constant repeated 18 times, and two
+  288-character date patterns are stored as their LENGTH. The second was forced by
+  the leak sweep and the interesting part is which side gave way — such a regex
+  spells its arithmetic as character classes of selected digits, which a digit-run
+  scanner cannot tell from a five-digit internal value. Both remedies on the
+  sweep's side would have been falsehoods: narrowing the scanner weakens it for
+  every file, and an allow-list entry would record that a character class is a
+  number this project publishes. So the text that cannot be scanned is not stored.
+  Nothing is hidden by it — the document already summarised a pattern over 60
+  characters by its length, and the server hands anyone the full expression.
+
+  One parameter is an object whose seven keys each carry their own bounds, and the
+  first draft rendered it as a dash in both the default and the constraints
+  column — the table's strongest claim broken on the row with the most to say. The
+  cause defeated the safety net as well: `properties` sat in the set of keywords
+  the renderer treats as handled, so the fallback that lists an unrecognised
+  keyword as a bare name never fired. The keyword was known; it was simply never
+  rendered.
+
+- **A self-test for the API-reference generator** (`scripts/gen-api-doc.test.mjs`,
+  `npm run test:docs`, and a step in CI). Its cases include the drift check refusing a
+  hand-edited file, never writing during `--check`, and naming `docs:api` when the
+  document is absent; eight snapshot mutations each refused with a named reason; a
+  malformed `required` rendering rather than throwing; a planted nested `default`
+  reaching the document; a union type in a table cell and in a bullet; an
+  array-of-scalar; and the reported line count agreeing with `wc -l`. The run prints
+  the total, which is the number to trust — this file has been wrong about counts
+  more than once, so it states none here.
+
+  It exists because the generator was the only script here making claims with nothing
+  checking them, and the same six mutants were being re-run by hand across three
+  review rounds — a check performed by remembering is not a check. It also earned
+  itself immediately, by catching two defects nothing else could:
+
+  The whitespace-flattening expression, rewritten to remove a super-linear
+  backtracking pattern, **was not equivalent to what it replaced.** It handled only
+  spaces and tabs beside the newline, so a `\r\n` line ending would have left a stray
+  carriage return in the document. API.md regenerated byte-identical, `--check`
+  passed, every gate was green — because this snapshot contains no CRLF. An output
+  comparison can only speak about the input it was given, so the test compares the two
+  **expressions** over every string up to length four drawn from a whitespace-heavy
+  alphabet, plus random longer ones, and asserts first that the alphabet can expose
+  the bug that shipped.
+
+  And a **union type was escaped twice**: `typeOf` joined with an already-escaped pipe
+  and the cell renderer escaped that pipe again, giving `string \\| null` — a literal
+  backslash, and a bare pipe left to end the table row early. In a bullet, which is not
+  a table, it produced a stray backslash instead. No tool in this snapshot declares a
+  union type, so neither was reachable and no comparison of documents could have found
+  it. Escaping now happens in one place, the one that knows it is writing a table cell.
+
+- **[SUPPORT.md](SUPPORT.md)**, so GitHub's issue chooser has somewhere to point:
+  where a question, a wrong answer and a security report each go, and what makes a
+  report actionable.
+
+- **README gains a Documentation table and five worked use cases** — a motorway
+  briefing, a broken commute including a station lift that is out, an EV weekend, a
+  dispatcher's morning brief, and a local-guide agent — each named by the question
+  it answers rather than by the tools it calls.
+
 ### Changed
+
+- **One entry of 13 characters left the leak sweep's private-name list, under that
+  list's own rule 1.** The rule is stated in `scripts/rules.json`: an entry must not
+  be a substring of text this repository legitimately prints, because such an entry
+  can never be satisfied, and the only ways out are deleting it or narrowing the
+  scanner — which is strictly worse. There is no mechanical test for it; the sweep
+  going red *is* the test, and it went red. Declared narrowing: one spelling of 13
+  characters is no longer matched anywhere. The list's second rule is not engaged,
+  which decides that nothing else follows: the audit recorded in that file says
+  nothing on the list is from the class whose harm is confirming a guess —
+  credentials, tokens, session or contract identifiers, access-granting hostnames,
+  personal data — so there is no rotation and no rename here.
+
+  Recorded that way on purpose, and it is a change of practice rather than of
+  style. The two removals recorded under 0.0.9 described what the entries were
+  ABOUT, and taken together those descriptions narrowed the candidate space for a
+  live entry further than a hash does — the same caption failure the number
+  allow-list refuses on the facing page. The file now ends with the ruling: record
+  the rule, the lengths and the narrowing, never the subject. This is the first
+  entry written under it. The older wordings stay where they are, because editing
+  a published file does not unpublish it.
+
+  Coverage was asked of the change rather than asserted, since going from six
+  entries to five must not leave the sweep reporting PASS about what it no longer
+  looks for. The matcher was exercised per slot without needing any real name:
+  the list replaced by five planted names, each planted in text, five reds
+  required, and a negative control that stays clean. The sweep also prints the
+  list's size on every run, so the change is visible rather than silent, and the
+  gate self-test still refuses an emptied list. The window `minTokenLength` and
+  `maxTokenLength` is unchanged at 7 and 15: both are stored literals, neither is
+  derived from the list, and the removed entry sat at neither bound, so no
+  published number narrowed.
+
+- **`numbers.allowed` admits four values the SERVER publishes about itself** — two
+  inside tool descriptions and two as bounds in its own input schemas — under one
+  general rule written into that file rather than a caption each, because a caption
+  per value is the construction the list exists to avoid. It is safe to state in
+  general terms because the sweep already refuses an allowed number that occurs
+  nowhere in the tree, so an exemption cannot outlive its reason.
 
 - **Four statements about other people's licences were wrong, and they are the kind
   a reader acts on.** Every one was verified against its own source before it was
@@ -140,14 +281,17 @@ has ever been right.
   It now lives in `scripts/fixture-root.mjs` as `missingFixtureImports()`, and each
   self-test keeps its own refusal wording, because the two name different builders
   and exit by different routes — a difference that is real rather than incidental.
-  Re-proved in both: dropping `tools.mjs` from either file list makes that file
+  Re-proved in each: dropping `tools.mjs` from a caller's file list makes that file
   refuse by name, and each names its own builder.
 
   **Concentrating the guarantee doubled its blast radius, so it got the assertion
-  it never had.** One function now stands behind both self-tests, which means a
-  silent `return []` disarms both at once and restores the wrong-reason pass that
-  started this thread — a sweep that cannot start, reporting no findings. On an
-  ordinary run both self-tests only ever exercise the complete-fixture path, so
+  it never had.** One function now stands behind every self-test that uses it, so a
+  silent `return []` disarms all of them at once and restores the wrong-reason pass
+  that started this thread — a sweep that cannot start, reporting no findings. The
+  number of those callers is deliberately not written here or in the module: it grew
+  again inside this release, and the sentence that said "both" went stale unnoticed
+  in five places while the corrected wording lived in one. On an ordinary run they
+  only ever exercise the complete-fixture path, so
   until now the "missing" branch was proved solely by hand-mutating a file list:
   four times by two people, and never again by anything. Two cases cover both
   directions on a temporary directory, and they are mutation-proved — a planted
@@ -157,8 +301,16 @@ has ever been right.
   fixed by adding one; adding it introduced a duplicate of it; the gate caught the
   duplicate. Three links, and every one of them was found by something other than
   the test suite, which was green at each step. The file count in this entry moved
-  from twenty-eight to twenty-nine because of it, and it was re-derived from
-  `npm run test:tools` rather than incremented by hand.
+  from twenty-eight to twenty-nine because of it, then to thirty when this release
+  added a source file of its own, and then to **thirty-two** as it added the generator's
+  self-test and the module they share. The first two were re-derived from `npm run test:tools` rather than
+  incremented by hand. The third was not, and the review round found it stale. The
+  fourth was not typed either: it was read out of `npm run test:tools`'s own output
+  and the edit refused to write a number the command did not report. That was a
+  one-off script in a scratchpad, not something this repository carries — said plainly
+  because an earlier draft of this very sentence claimed a committed artefact that
+  does not exist. This paragraph has been wrong before, and that was the first time
+  it invented an artefact rather than a number.
 
 - **The leak sweep's own self-test had no precondition on the fixture it builds,
   and reported a scope regression instead.** Both self-tests copy a named list of
@@ -796,6 +948,8 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.3.16]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.16
+[1.3.15]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.15
 [1.3.12]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.12
 [1.3.10]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.10
 [0.0.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.0.9

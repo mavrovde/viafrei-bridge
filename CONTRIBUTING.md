@@ -137,14 +137,18 @@ whether it belongs in a public repository, and if it does, add it to
 **Read this before you add one: the hash does not hide the name.** It keeps the
 list out of the clear so that the rules file is not itself the publication, and
 it confirms a guess for anyone who already has one. The audit in `rules.json`
-recovered *every* entry on the current list from a wordlist. So the question to
-ask is never "is the hash strong enough" — it is "may this string be confirmed
-to a stranger", and two rules answer it:
+recovered *every* entry from a wordlist built out of the platform's own tracked
+files — 8 of 8, measured on the eight-entry list of that round. Entries have
+been removed since, so read `_read_me` in that file for which list each figure
+was measured on rather than carrying one over. So the question to ask is never
+"is the hash strong enough" — it is "may this string be confirmed to a
+stranger", and two rules answer it:
 
 1. **It must not be a substring of text this repository legitimately prints.**
    Such an entry can never be satisfied; the only ways out are deleting it or
-   weakening the scanner, and weakening the scanner is strictly worse. Two
-   entries have already had to go for this.
+   weakening the scanner, and weakening the scanner is strictly worse. This has
+   already happened more than once; `rules.json` records each one, and no count
+   of them is kept here, because a count goes stale every time the rule fires.
 2. **It must not be anything whose harm *is* the confirmation of a guess** — a
    credential, an API key or token, a password, a session, subscription or
    contract identifier, a certificate serial, a hostname that grants access,
