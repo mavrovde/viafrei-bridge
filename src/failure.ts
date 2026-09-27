@@ -1,5 +1,5 @@
 import { StreamableHTTPError } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { EXIT, type ExitCode } from './config.js';
+import { DEFAULT_MCP_PATH, EXIT, type ExitCode } from './config.js';
 
 /**
  * A transport failure, reduced to the one line a human needs and the exit code
@@ -67,7 +67,16 @@ function errorCode(error: unknown): string | undefined {
     return undefined;
 }
 
-/** True when the failure is worth exactly one more attempt. */
+/**
+ * True when the failure is worth exactly one more attempt.
+ *
+ * Deliberately NOT 429, although `src/fetch.ts` does retry a 429 response. The
+ * difference is that there we still hold the response and can read
+ * `Retry-After`; here we hold only a thrown error, so a retry would happen after
+ * the fixed delay — which for a rate limit is the thing that makes it worse
+ * rather than better. A 429 that reaches this function is left to fail with its
+ * own line.
+ */
 export function isRetryable(error: unknown): boolean {
     if (error instanceof StreamableHTTPError) {
         return error.code === 502 || error.code === 503 || error.code === 504;
@@ -153,7 +162,7 @@ export function describeFailure(error: unknown, url: string): Failure {
         const detail = extractServerDetail(error.message);
         const suffix = detail === undefined ? '' : ` - ${detail}`;
         return {
-            line: `viafrei: ${url} refused the request: HTTP ${status} ${name}${suffix}`,
+            line: `viafrei: ${url} refused the request: HTTP ${status} ${name}${suffix}${pathHint(status, url)}`,
             exitCode: EXIT.REFUSED,
             status
         };
@@ -187,6 +196,45 @@ export function describeFailure(error: unknown, url: string): Failure {
         line: `viafrei: ${url}: ${oneLine(message)}`,
         exitCode: EXIT.UNEXPECTED
     };
+}
+
+/**
+ * The one hint this file gives, and the reason it is a hint and not a fix.
+ *
+ * `--url http://127.0.0.1:3000` is the mistake a self-hoster makes on their
+ * first try: the MCP endpoint is at a path, so a pathless URL gets a bare 404
+ * that is accurate and useless. We know enough to say something here.
+ *
+ * We do NOT append the path. Quietly rewriting what somebody typed hides a
+ * different mistake later: if the server really is at `/`, a silent rewrite
+ * sends the request somewhere they never asked for, and the 404 they would then
+ * get back would be about a URL that is not in their configuration. So the hint
+ * is a clause on the same line, and the URL in the message stays the URL we
+ * actually tried.
+ *
+ * It appears only when it is warranted. A 404 on a URL that already has a path
+ * means something else — wrong path, wrong service, a proxy route that is gone —
+ * and guessing there is noise. A 403 or a 500 never carries it, whatever the
+ * path.
+ *
+ * The parse is inside a `try` because a failure message that itself throws is
+ * the worst version of this bug: `describeFailure` is on the path where
+ * everything has already gone wrong, and it must always produce a line.
+ */
+function pathHint(status: number, url: string): string {
+    if (status !== 404) {
+        return '';
+    }
+    let path: string;
+    try {
+        path = new URL(url).pathname;
+    } catch {
+        return '';
+    }
+    if (path !== '' && path !== '/') {
+        return '';
+    }
+    return ` - the URL has no path; the MCP endpoint is usually ${DEFAULT_MCP_PATH}`;
 }
 
 /**

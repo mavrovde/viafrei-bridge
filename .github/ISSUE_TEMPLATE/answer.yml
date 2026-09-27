@@ -1,0 +1,56 @@
+name: A tool answered badly, or not at all
+description: The bridge connected, a tool ran, and what came back was wrong, empty or useless.
+title: "answer: "
+labels: ["answer-quality"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This is the report we most need and least often get.** The server sees
+        a question arrive and sees a tool fail. What it cannot see is that an
+        answer came back looking fine and was useless to you. Only you can tell
+        us that.
+
+        You do not need to know which tool ran, and you do not need to diagnose
+        anything. What you asked and what came back is a complete report.
+  - type: textarea
+    id: asked
+    attributes:
+      label: What you asked
+      description: Your own words, in whichever language you used.
+      placeholder: Wo kann ich in Leipzig mit Typ 2 laden?
+    validations:
+      required: true
+  - type: textarea
+    id: got
+    attributes:
+      label: What came back
+      description: Paste the answer, or describe it. "It said it could not find the place" is a fine answer.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: Even "I do not know, but not that" is useful - it tells us the answer read as wrong.
+    validations:
+      required: true
+  - type: input
+    id: when
+    attributes:
+      label: Roughly when
+      description: A date and a rough time, with a timezone if you know it. Live data changes, so this is often the difference between reproducible and not.
+      placeholder: 2026-09-27, around 12:20 Berlin time
+  - type: input
+    id: client
+    attributes:
+      label: Which client
+      description: Claude Desktop, an IDE, your own code - and whether you connect directly or through this bridge.
+      placeholder: Claude Desktop via npx viafrei
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Before you post
+      options:
+        - label: I have not pasted an API key, a token, or anything that looks like one.
+          required: true

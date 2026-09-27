@@ -19,6 +19,21 @@ export const URL_ENV_VAR = 'VIAFREI_MCP_URL';
 /** Environment variable that overrides the request timeout, in milliseconds. */
 export const TIMEOUT_ENV_VAR = 'VIAFREI_MCP_TIMEOUT_MS';
 
+/**
+ * Environment variable that adds HTTP headers, for an API key an MCP client
+ * cannot pass as a flag. Several headers are separated by a NEWLINE, because a
+ * newline can never appear in a header name or value, so no value is
+ * unrepresentable: a comma, a semicolon and a space all occur inside real header
+ * values, and any of those as the separator would make something unsendable.
+ */
+export const HEADER_ENV_VAR = 'VIAFREI_MCP_HEADER';
+
+/** The separator between headers in HEADER_ENV_VAR. See HEADER_ENV_VAR. */
+export const HEADER_ENV_SEPARATOR = '\n';
+
+/** Column width of the `Environment:` block in `helpText`. See its use there. */
+const ENV_NAME_WIDTH = Math.max(URL_ENV_VAR.length, TIMEOUT_ENV_VAR.length, HEADER_ENV_VAR.length);
+
 /** How long a single HTTP request may take before it is given up on. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -69,18 +84,23 @@ const RESERVED_HEADERS = new Set([
     'host'
 ]);
 
-function parseHeader(raw: string): [string, string] {
+/**
+ * `source` is what the reader typed — `--header` or the name of the environment
+ * variable — because an error that names the wrong one sends them to the wrong
+ * place to fix it.
+ */
+function parseHeader(raw: string, source = '--header'): [string, string] {
     const separator = raw.indexOf(':');
     if (separator < 1) {
-        throw new UsageError(`--header expects "Name: value", got ${JSON.stringify(raw)}`);
+        throw new UsageError(`${source} expects "Name: value", got ${JSON.stringify(raw)}`);
     }
     const name = raw.slice(0, separator).trim();
     const value = raw.slice(separator + 1).trim();
     if (name === '') {
-        throw new UsageError(`--header expects "Name: value", got ${JSON.stringify(raw)}`);
+        throw new UsageError(`${source} expects "Name: value", got ${JSON.stringify(raw)}`);
     }
     if (RESERVED_HEADERS.has(name.toLowerCase())) {
-        throw new UsageError(`--header ${name} is set by the transport and cannot be overridden`);
+        throw new UsageError(`${source}: ${name} is set by the transport and cannot be overridden`);
     }
     return [name, value];
 }
@@ -128,6 +148,19 @@ export function parseOptions(argv: readonly string[], env: NodeJS.ProcessEnv = p
     const timeoutFromEnv = env[TIMEOUT_ENV_VAR];
     if (timeoutFromEnv !== undefined && timeoutFromEnv.trim() !== '') {
         options.timeoutMs = parseTimeout(timeoutFromEnv.trim(), TIMEOUT_ENV_VAR);
+    }
+    // Before the argv loop, so a --header of the same name overwrites this one
+    // and a --header of a different name joins it — the same precedence --url
+    // has over VIAFREI_MCP_URL, established by position rather than by a rule.
+    const headersFromEnv = env[HEADER_ENV_VAR];
+    if (headersFromEnv !== undefined && headersFromEnv.trim() !== '') {
+        for (const line of headersFromEnv.split(HEADER_ENV_SEPARATOR)) {
+            if (line.trim() === '') {
+                continue;
+            }
+            const [name, value] = parseHeader(line, HEADER_ENV_VAR);
+            options.headers[name] = value;
+        }
     }
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -186,8 +219,11 @@ export function helpText(version: string): string {
         '  -h, --help           print this text and exit',
         '',
         'Environment:',
-        `  ${URL_ENV_VAR}      same as --url`,
-        `  ${TIMEOUT_ENV_VAR}  same as --timeout`,
+        // Padded from the names rather than by hand: three variables went ragged
+        // the first time this block was written, and the next one added would too.
+        `  ${URL_ENV_VAR.padEnd(ENV_NAME_WIDTH)}  same as --url`,
+        `  ${HEADER_ENV_VAR.padEnd(ENV_NAME_WIDTH)}  same as --header; separate several with a newline`,
+        `  ${TIMEOUT_ENV_VAR.padEnd(ENV_NAME_WIDTH)}  same as --timeout`,
         '',
         'Exit codes:',
         `  ${EXIT.OK}  clean shutdown            ${EXIT.UNEXPECTED}  unexpected error`,

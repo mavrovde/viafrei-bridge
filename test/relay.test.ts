@@ -8,7 +8,7 @@ import {
     type CallToolResult,
     type ReadResourceResult
 } from '@modelcontextprotocol/sdk/types.js';
-import { CLI_PATH, waitFor } from './helpers.js';
+import { CLI_PATH, initializeRequest, spawnBridge, waitFor, type RawBridge } from './helpers.js';
 import { startStubServer, type StubServer } from './stub-server.js';
 
 /**
@@ -114,4 +114,54 @@ describe('relay through the built CLI', () => {
         );
     });
 
+});
+
+/**
+ * The same thing through `VIAFREI_MCP_HEADER` (#2), because the clients that
+ * need it are exactly the ones that cannot pass a flag — so a unit test of
+ * `parseOptions` proves the parsing and not that the header reaches the wire.
+ *
+ * One run covers all three precedence claims at once: two headers arrive from
+ * the variable, a flag of the same name as one of them replaces it, and a flag
+ * of a new name joins them.
+ */
+describe('the header environment variable, end to end', () => {
+    let stub: StubServer;
+    let bridge: RawBridge;
+
+    before(async () => {
+        stub = await startStubServer();
+        bridge = spawnBridge(
+            ['--url', stub.url, '--header', 'X-From-Env-Two: flag-wins'],
+            {
+                VIAFREI_MCP_HEADER: 'X-From-Env-One: env-one\nX-From-Env-Two: env-loses'
+            }
+        );
+        bridge.send(initializeRequest(1));
+        const arrived = await waitFor(() => stub.headersSeen.length > 0);
+        assert.ok(arrived, `the stub never saw a request; stderr: ${bridge.stderr()}`);
+    });
+
+    after(async () => {
+        bridge.kill();
+        await stub.close();
+    });
+
+    it('sends every header the variable named', () => {
+        assert.ok(
+            stub.headersSeen.every(headers => headers['x-from-env-one'] === 'env-one'),
+            'a request arrived without the header set through VIAFREI_MCP_HEADER'
+        );
+    });
+
+    it('lets a --header of the same name replace the one from the variable', () => {
+        assert.ok(
+            stub.headersSeen.every(headers => headers['x-from-env-two'] === 'flag-wins'),
+            'the variable beat the flag on the wire'
+        );
+    });
+
+    it('starts cleanly, so nothing above passed because the bridge complained', () => {
+        assert.equal(bridge.stderr(), '', 'the bridge wrote to stderr');
+    });
 });

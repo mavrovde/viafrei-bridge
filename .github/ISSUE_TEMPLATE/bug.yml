@@ -1,0 +1,60 @@
+name: The bridge itself misbehaves
+description: It will not start, exits unexpectedly, prints something wrong, or a flag does not do what it says.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a bad *answer* from a tool, use the other template - that is a
+        different problem with a different fix. This one is for the bridge: the
+        process, its flags, its exit codes, its output.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the exact stderr line if there was one. The bridge prints one line and an exit code on purpose, and both are part of the report.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The command or the client configuration, with any secret replaced by the word REDACTED.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: exit
+    attributes:
+      label: Exit code
+      description: The README's table says what each one means. "I do not know" is fine.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `npx viafrei --version`.
+      placeholder: 1.3.x
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version and OS
+      description: The output of `node --version`, and which operating system.
+      placeholder: v22.11.0, macOS 15
+    validations:
+      required: true
+  - type: checkboxes
+    id: no-secrets
+    attributes:
+      label: Before you post
+      options:
+        - label: I have replaced every key, token and header value with REDACTED.
+          required: true
