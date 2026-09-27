@@ -9,6 +9,12 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
+**It is a dated snapshot, taken on 2026-09-27.** Generating this file makes
+it impossible for the document and the snapshot to disagree — CI regenerates and
+compares — but it cannot keep the snapshot from ageing against the live server,
+because a capture is a point in time. **The source of truth is the running
+server:** connect any MCP client and call `tools/list`.
+
 | | |
 | --- | --- |
 | Server | `viafrei` 1.3.16 |

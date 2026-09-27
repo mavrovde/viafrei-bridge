@@ -151,7 +151,15 @@ function parameterTable(schema) {
         const innerRequired = new Set(property.required ?? []);
         for (const key of Object.keys(nested)) {
             const inner = nested[key];
-            const facts = [typeOf(inner), innerRequired.has(key) ? '**required**' : null, constraintsOf(inner)]
+            const facts = [
+                typeOf(inner),
+                innerRequired.has(key) ? '**required**' : null,
+                // Included although no nested key carries one in today's snapshot:
+                // that is the same shape as the bug this renderer exists to fix, and
+                // a default lost silently is worse than one printed needlessly.
+                inner.default === undefined ? null : `default ${literal(inner.default)}`,
+                constraintsOf(inner)
+            ]
                 .filter(Boolean)
                 .join(', ');
             const said = inner.description ? ` — ${prose(inner.description)}` : '';
@@ -178,6 +186,12 @@ function render(catalogue) {
         "the server's own text, reproduced verbatim, because that text is what an",
         'assistant reads when it decides which tool to call; paraphrasing it here would',
         'document a different server.',
+        '',
+        `**It is a dated snapshot, taken on ${catalogue.capturedAt}.** Generating this file makes`,
+        'it impossible for the document and the snapshot to disagree — CI regenerates and',
+        'compares — but it cannot keep the snapshot from ageing against the live server,',
+        'because a capture is a point in time. **The source of truth is the running',
+        'server:** connect any MCP client and call `tools/list`.',
         '',
         '| | |',
         '| --- | --- |',
@@ -312,9 +326,18 @@ function main(argv) {
     // Preconditions. A generator handed an empty catalogue would write a
     // plausible, complete-looking document describing nothing, and `--check`
     // would then hold the repository to it.
-    for (const [key, floor] of [['tools', 1], ['resources', 1], ['prompts', 1]]) {
-        if (!Array.isArray(catalogue[key]) || catalogue[key].length < floor) {
-            console.error(`gen-api-doc: catalogue.json has no ${key} — refusing to render a reference to nothing`);
+    // `resourceTemplates` has a floor of 0 because a server may legitimately
+    // register none - but it must still BE an array. Leaving it out of this loop
+    // entirely meant a snapshot missing the key died with a TypeError deep in the
+    // renderer, and one set to [] rendered a document describing no templates and
+    // then passed `--check` against it, reporting "0 template(s)" as a success.
+    for (const [key, floor] of [['tools', 1], ['resources', 1], ['prompts', 1], ['resourceTemplates', 0]]) {
+        if (!Array.isArray(catalogue[key])) {
+            console.error(`gen-api-doc: catalogue.json has no ${key} array — refusing to render a reference to nothing`);
+            return 2;
+        }
+        if (catalogue[key].length < floor) {
+            console.error(`gen-api-doc: catalogue.json lists no ${key} — refusing to render a reference to nothing`);
             return 2;
         }
     }
@@ -347,8 +370,12 @@ function main(argv) {
         );
         return 0;
     }
-    writeFileSync(TARGET, rendered);
-    console.log(`gen-api-doc: wrote API.md — ${rendered.split('\n').length} lines from ${catalogue.tools.length} tool(s)`);
+    // Counted the way `wc -l` counts, deliberately. `split('\n').length` is one
+    // higher, because the trailing newline yields a final empty string, and that
+    // number was copied out of this line into a commit message where it was wrong.
+    const written = rendered.endsWith('\n') ? rendered : `${rendered}\n`;
+    writeFileSync(TARGET, written);
+    console.log(`gen-api-doc: wrote API.md — ${written.split('\n').length - 1} lines from ${catalogue.tools.length} tool(s)`);
     return 0;
 }
 

@@ -50,7 +50,7 @@ right.
   root-owned and not group- or other-writable (the property the module relies on,
   rather than the list that is supposed to have it), that its contents cannot be
   extended at runtime, that an `npm_execpath` which is absolute, real and readable
-  but not npm is refused, and then a sweep of all twenty-nine source files,
+  but not npm is refused, and then a sweep of all thirty source files,
   walked recursively, for a spawn whose program is a bare quoted name.
 
   It carries three preconditions, because a gate whose input is absent reports
@@ -91,8 +91,10 @@ right.
   the opposite case and that argument was right. Drift between the document and the
   snapshot is now impossible to keep — CI regenerates and compares. Drift between
   the snapshot and the live server is not fixed by anything, because a capture is a
-  point in time. So the document is introduced as a dated snapshot, says so in its
-  own header, and still names `tools/list` as the source of truth.
+  point in time. So API.md's own header says it is a dated snapshot, carries the
+  date, and names the running server as the source of truth — in that file rather
+  than only in README.md, because API.md is the one that ships frozen in the
+  tarball and a reader holding it is not holding the other.
 
   Two substitutions in the snapshot, both recorded in its own `$comment` rather
   than left as silent differences from what the server sent: the 18 per-tool
@@ -139,7 +141,7 @@ right.
   personal data — so there is no rotation and no rename here.
 
   Recorded that way on purpose, and it is a change of practice rather than of
-  style. The two removals recorded under 1.3.15 described what the entries were
+  style. The two removals recorded under 0.0.9 described what the entries were
   ABOUT, and taken together those descriptions narrowed the candidate space for a
   live entry further than a hash does — the same caption failure the number
   allow-list refuses on the facing page. The file now ends with the ruling: record
@@ -262,8 +264,11 @@ right.
   fixed by adding one; adding it introduced a duplicate of it; the gate caught the
   duplicate. Three links, and every one of them was found by something other than
   the test suite, which was green at each step. The file count in this entry moved
-  from twenty-eight to twenty-nine because of it, and it was re-derived from
-  `npm run test:tools` rather than incremented by hand.
+  from twenty-eight to twenty-nine because of it, and then to **thirty** at the cut,
+  when this release added a source file of its own. Every one of those numbers was
+  re-derived from `npm run test:tools` rather than incremented by hand — and the
+  review round found that the last of them had not been, which is how a paragraph
+  about re-deriving counts came to carry a stale one.
 
 - **The leak sweep's own self-test had no precondition on the fixture it builds,
   and reported a scope regression instead.** Both self-tests copy a named list of
