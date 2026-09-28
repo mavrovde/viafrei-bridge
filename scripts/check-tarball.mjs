@@ -119,6 +119,25 @@ function unrunnable() {
 /** Files that must be in the tarball for it to be the package at all. */
 export const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
 
+/**
+ * Every RELATIVE Markdown link target in `text`, once each, sorted.
+ *
+ * Exported so the rule below and its self-test read links through ONE expression: the
+ * self-test's third precondition has to prove this finds something in the real README,
+ * and a second copy of the pattern in the file that tests it is drift with a date on it.
+ *
+ * An anchor is allowed and dropped, because `](CONTRIBUTING.md#merging)` still names a
+ * file. The target class excludes `#` so an anchor that itself ends in `.md` cannot be
+ * glued on: `](a.md#b.md)` is `a.md`, not `a.md#b.md`, which would be reported as a
+ * dangling link nobody wrote. A pure anchor, an absolute URL and a `mailto:` are all
+ * excluded - none of them names a file the tarball could carry.
+ */
+export function relativeMarkdownLinks(text) {
+    return [...new Set(
+        [...text.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s#]+\.md)(?:#[^)\s]*)?\)/gu)].map(match => match[1])
+    )].sort();
+}
+
 /** File names that have no business being published. */
 /**
  * Each rule carries a `sample`: a file name it must reject. The self-test packs
@@ -408,6 +427,18 @@ function main() {
         // draft also missed an ANCHORED link, so `](CONTRIBUTING.md#merging)` to a file
         // the tarball does not carry passed silently; that was the likeliest fifth link
         // there is, and the capture now allows the anchor and drops it.
+        //
+        // The blind spot it KEEPS, which is larger than either of those: it reads
+        // `README.md` and nothing else. `CHANGELOG.md`, `API.md` and `SOURCES.md` ship
+        // too, and the shipped CHANGELOG carries two relative links - to
+        // `CONTRIBUTING.md` and `SUPPORT.md` - that the tarball does not carry, which is
+        // precisely the defect this rule exists to catch, in a file this rule never
+        // opens. They are left alone on purpose: both sit inside published version
+        // blocks, and a changelog whose past entries are edited to stay current is no
+        // longer a record. Widening the rule to every shipped `.md` is the better answer
+        // and then needs a stated exemption for those two, so it is a decision of its
+        // own rather than a nit.
+        //
         // An ABSENT README is not this check's business: it is in REQUIRED, so the check
         // above already fails it with the right code. Reading it unconditionally here
         // crashed that case with exit 2 instead of the rejection it expects - found by
@@ -421,9 +452,7 @@ function main() {
         }
         const shippedReadme = join(unpacked, 'package/README.md');
         const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
-        const relativeLinks = [...new Set(
-            [...readmeText.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s]+\.md)(?:#[^)\s]*)?\)/gu)].map(match => match[1])
-        )].sort();
+        const relativeLinks = relativeMarkdownLinks(readmeText);
         const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
         note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);
         if (danglingLinks.length > 0) {

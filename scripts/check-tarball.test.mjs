@@ -8,9 +8,10 @@
  * finding, so a case cannot pass by failing for the wrong reason.
  *
  * **Every case is derived from the gate's own rules**, not typed out here: one
- * per lifecycle script npm can start by itself, one per forbidden file name,
- * one per required file, one per content pattern, one for the numbers rule in
- * plaintext and in base64, and one per encoding at each alignment. A rule added
+ * per lifecycle script npm can start by itself, one per forbidden file name, one
+ * per required file, one per dependency shape, one per content pattern, one for the
+ * numbers rule in plaintext and in base64, one per encoding at each alignment, two for
+ * the shipped README's relative links, and one per `npm pack --json` shape. A rule added
  * to the gate is a case added here; a rule list that goes empty is a REFUSAL to
  * run rather than a smaller, quieter pass. That was a real hole: this file used
  * to exit on `failures === 0` whatever the number of cases, so emptying a list
@@ -42,7 +43,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
+import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, relativeMarkdownLinks, REQUIRED } from './check-tarball.mjs';
 import { missingFixtureImports } from './fixture-root.mjs';
 import { PackJsonError, soleTarballFilename } from './npm-pack-json.mjs';
 import { hashToken, loadRules } from './rules.mjs';
@@ -320,11 +321,33 @@ if (!REQUIRED.includes('package/README.md')) {
 if (existsSync(join(ROOT, UNSHIPPED_DOC))) {
     refuse(`${UNSHIPPED_DOC} exists in the working tree, so these cases can no longer prove a link that does not resolve`);
 }
+// The third precondition, and the one the other two do not reach: the rule must still
+// have something to READ. Both cases below would pass on a README carrying no relative
+// link at all, because each plants its own - and the clean control asserts exit 0, which
+// an inert rule also produces. If the last two relative links ever went absolute, the
+// rule would report "none", cover nothing, and every case here would stay green: the
+// §5b shape this suite already refuses for each of its rule LISTS. Read through the
+// gate's own extractor so it cannot drift from what the rule sees, and judged against
+// the manifest's `files` because the tarball listing does not exist yet at this point.
+const SHIPPED_PATHS = new Set(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).files ?? []);
+const TREE_README_LINKS = relativeMarkdownLinks(readFileSync(join(ROOT, 'README.md'), 'utf8'));
+if (!TREE_README_LINKS.some(link => SHIPPED_PATHS.has(link))) {
+    refuse(
+        'README.md carries no relative Markdown link to a file the manifest ships ' +
+        `(found ${JSON.stringify(TREE_README_LINKS)}), so the link rule reads nothing on a clean ` +
+        'tarball and these cases would prove it only against poison they planted themselves'
+    );
+}
+// The stand-in is escaped with the same expression `printsStandIn` uses: a
+// string-argument `replace` escapes only the FIRST dot, which is right for today's name
+// and wrong for the next one. The kind mirrors the gate's own name for the finding, as
+// every other case's kind does.
+const UNSHIPPED_DOC_RE = UNSHIPPED_DOC.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 for (const [name, link] of [
     ['readme-links-to-an-unshipped-file', UNSHIPPED_DOC],
     ['readme-links-to-an-unshipped-file-behind-an-anchor', `${UNSHIPPED_DOC}#merging`]
 ]) {
-    add('contents', name, `shipped README links.*${UNSHIPPED_DOC.replace('.', '\\.')}.*does not carry`, directory => {
+    add('shipped README links', name, `shipped README links.*${UNSHIPPED_DOC_RE}.*does not carry`, directory => {
         appendFileSync(join(directory, 'README.md'), `\n\nSee [the missing document](${link}).\n`);
     });
 }

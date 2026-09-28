@@ -59,9 +59,10 @@ has been kept in step by hand at every release since 1.3.15.
   It lives in `ci.yml` as well as `publish.yml` so the drift surfaces on the push that
   introduces it rather than at the tag, when the only remedy is a new version. Its exit
   codes are distinct on purpose — **2** could not run, **1** ran and disagreed — so "I
-  could not read the lockfile" can never look like "I read it and was satisfied". Eleven
-  self-test cases, including the mutant #18 asks for and the one that would otherwise
-  agree about nothing: three ABSENT fields are all equal to each other.
+  could not read the lockfile" can never look like "I read it and was satisfied". Its
+  self-test covers the mutant #18 asks for and the one that would otherwise agree about
+  nothing — three ABSENT fields are all equal to each other. No case count is written
+  here; `npm run test:versions` prints the one to trust.
 
 ### Changed
 
@@ -126,9 +127,12 @@ has been kept in step by hand at every release since 1.3.15.
 
 ### Deliberately not done
 
-- **`javascript:S2187` on the four self-tests** (#23, item 1) — *cannot be done from the
+- **`javascript:S2187` on every self-test** (#23, item 1) — *cannot be done from the
   repository.* SonarCloud reads `scripts/*.test.mjs` as test files, finds no framework
   assertions, and reports "add some tests to this file or delete it" at BLOCKER on each.
+  There are **five** as of this branch, because the version gate above brings its own — so
+  this work adds a file to the class it is declaring unfixable, which is the part worth
+  knowing before the next self-test is written.
   Measured: analysis here is **Automatic** (no scanner step in any workflow) and
   `api/settings/values` returns no `sonar.tests` or `sonar.test.inclusions`, so the test
   patterns live in SonarCloud's own UI and changing them needs a token this repository
@@ -143,8 +147,9 @@ has been kept in step by hand at every release since 1.3.15.
   issue says to unify them only if it can be done without weakening the per-file refusal
   wording. It cannot, cheaply: the refusals deliberately name different builders and exit
   by different routes, and that difference is load-bearing — it is what tells a reader
-  which fixture failed. The duplication is four small functions, not the eleven-line block
-  that caused the 3.1% duplication failure `fixture-root.mjs` was extracted to fix.
+  which fixture failed. The duplication is seven small functions across five files — four
+  define `check()`, three define `refuse()` — not the eleven-line block that caused the
+  3.1% duplication failure `fixture-root.mjs` was extracted to fix.
 
 ### Note on a count in the 1.3.16 entry below
 

@@ -193,9 +193,8 @@ check('npmCliPath() ignores an npm_execpath of the wrong shape', () => {
 // silent `return []` now disarms EVERY self-test that relies on it at once and
 // restores the wrong-reason pass that started the whole thread — a sweep that
 // cannot start reporting no findings. No count of those callers is written here,
-// because a third caller arrived the SAME DAY the module was written, and the sentence
-// that said
-// "both" went stale unnoticed. On every ordinary run they exercise only the
+// because a third caller arrived the SAME DAY the module was written, and the
+// sentence that said "both" went stale unnoticed. On every ordinary run they exercise only the
 // COMPLETE-fixture path, so without these the "missing" branch had no automated
 // proof at all; it was checked by hand-mutating a file list, which is not a thing
 // that happens again.
@@ -495,8 +494,11 @@ check('precondition 3: the sweep goes red on a planted bare call (it can say no)
     const q = String.fromCharCode(39);
     // Over EVERY name in SPAWNERS, not just one of them. The earlier version planted
     // `execFileSync` alone, so the expression could have stopped matching any of the
-    // other five - `runTool` above all, which is the one all 22 real call sites now use -
-    // while the case whose job is "it can say no" still went green.
+    // other five - `runTool` above all, which is the one every converted call site uses -
+    // while the case whose job is "it can say no" still went green. No count of those
+    // sites is written here: the commit that removed that figure from the CHANGELOG
+    // re-created it in this comment ten lines further down, which is the argument for
+    // the sweep being the instrument and a number in a comment never being one.
     for (const fn of SPAWNERS) {
         for (const program of ['git', 'npm', 'tar', 'mkdir', 'sh']) {
             const planted = `${fn}(${q}${program}${q}, [${q}--version${q}])`;
