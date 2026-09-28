@@ -135,8 +135,9 @@ export function safeMessage(error, rules, extraTokenHashes = new Set(), limit = 
 export function safeString(value, rules, extraTokenHashes = new Set()) {
     const limits = thresholds(rules);
     for (const candidate of tokenCandidates(value, limits)) {
-        const digest = hashToken(rules.salt, candidate);
-        if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
+        // Through the shared decision, like the sweep's own matcher. This was the
+        // THIRD hand-written copy of "is this a listed name?" in this file.
+        if (privateNameDigest(candidate, rules, extraTokenHashes) !== undefined) {
             return `[withheld: ${opaque(value, rules)}, it contains a private name]`;
         }
     }
@@ -176,6 +177,59 @@ export function compile(rule) {
  * promise, `blindSpots()` states it on every run, and a hash passed in through
  * `VF_EXTRA_TOKEN_HASHES` has to keep it too.
  */
+/** Every `[A-Za-z0-9_]+` run of the line, lower-cased. */
+function offerWholeRuns(line, offer) {
+    for (const run of line.match(/[A-Za-z0-9_]+/gu) ?? []) {
+        offer(run.toLowerCase());
+    }
+}
+
+/**
+ * Every window of min..max characters inside each unbroken run of letters and
+ * digits, which is what finds a name glued into a longer word.
+ *
+ * Added to the set DIRECTLY rather than through `offer`: every window is inside the
+ * range by construction, so the length filter would be a no-op, and routing it
+ * through `offer` would suggest a check that is not doing anything. That is the one
+ * asymmetry between the three generators, so it is written down.
+ */
+function offerRunWindows(line, candidates, min, max) {
+    for (const chunk of line.match(/[A-Za-z0-9]+/gu) ?? []) {
+        if (chunk.length <= min) {
+            continue;
+        }
+        const lowered = chunk.toLowerCase();
+        for (let start = 0; start + min <= lowered.length; start += 1) {
+            const limit = Math.min(max, lowered.length - start);
+            for (let width = min; width <= limit; width += 1) {
+                candidates.add(lowered.slice(start, start + width));
+            }
+        }
+    }
+}
+
+/**
+ * Consecutive separator-delimited pieces of the line, both glued together and
+ * re-joined with underscores — so a two-part name reaches the list however it was
+ * spelled in the file and however it was stored in the rules.
+ */
+function offerGluedPieces(line, offer, max) {
+    const pieces = linePieces(line);
+    for (let start = 0; start < pieces.length; start += 1) {
+        let glued = '';
+        let joined = '';
+        for (let end = start; end < pieces.length; end += 1) {
+            glued += pieces[end];
+            joined += end === start ? pieces[end] : `_${pieces[end]}`;
+            if (glued.length > max) {
+                break;
+            }
+            offer(glued);
+            offer(joined);
+        }
+    }
+}
+
 /** Pieces: a camel-case hump, an all-caps run, a lower-case word, a digit run. */
 const PIECE = /[A-Z]+(?![a-z])|[A-Z][a-z]*|[a-z]+|[0-9]+/gu;
 
@@ -198,58 +252,9 @@ export function tokenCandidates(line, limits) {
             candidates.add(value);
         }
     };
-    // The identifier exactly as written, underscores included: a name spelled
-    // with a doubled or a trailing underscore survives here and nowhere else,
-    // because the piece windows normalise every separator to one underscore.
-    for (const run of line.match(/[A-Za-z0-9_]+/gu) ?? []) {
-        offer(run.toLowerCase());
-    }
-    // A run with no boundary in it at all.
-    //
-    // The window construction needs something to cut at - a separator or a
-    // change of case. Inside one long unbroken alphanumeric run there is
-    // neither, so a name glued between filler letters was invisible at every
-    // length and in every encoding: 0/30 on a probe with lower-case filler,
-    // 0/30 with upper-case, 30/30 as soon as any separator appeared. That is
-    // the shape a name takes inside decoded hex or a minified bundle, which is
-    // exactly where one would be hiding.
-    //
-    // So a run longer than the SHORTEST name is also read as a sliding window,
-    // which is the only construction that can find a boundary-free name. The
-    // threshold is the shortest and not the longest: a run of exactly
-    // `maxTokenLength` can still hold a shorter name glued inside it, and
-    // testing `> max` left precisely that case missing - 7-character names in
-    // a 15-character run, the three placements that still failed the probe.
-    // Runs no longer than the shortest name are skipped because the piece
-    // windows already offer them whole.
-    for (const chunk of line.match(/[A-Za-z0-9]+/gu) ?? []) {
-        if (chunk.length <= min) {
-            continue;
-        }
-        const lowered = chunk.toLowerCase();
-        for (let start = 0; start + min <= lowered.length; start += 1) {
-            const limit = Math.min(max, lowered.length - start);
-            for (let width = min; width <= limit; width += 1) {
-                candidates.add(lowered.slice(start, start + width));
-            }
-        }
-    }
-    const pieces = linePieces(line);
-    for (let start = 0; start < pieces.length; start += 1) {
-        let glued = '';
-        let joined = '';
-        for (let end = start; end < pieces.length; end += 1) {
-            glued += pieces[end];
-            joined += end === start ? pieces[end] : `_${pieces[end]}`;
-            // `glued` is the shorter of the two spellings and only grows, so
-            // once it is too long every longer window is too.
-            if (glued.length > max) {
-                break;
-            }
-            offer(glued);
-            offer(joined);
-        }
-    }
+    offerWholeRuns(line, offer);
+    offerRunWindows(line, candidates, min, max);
+    offerGluedPieces(line, offer, max);
     return candidates;
 }
 
@@ -328,42 +333,28 @@ function readable(buffer, minLength) {
 }
 
 /**
- * The same line, written the other ways it could have been written.
+ * Base64, tried at each of the four alignments a run can start on.
  *
- * Returns `[{ encoding, text }]` for every decoding that produced readable
- * text. The original line is not included; the caller already has it.
+ * A run that is not base64 at all throws, and that is expected rather than
+ * exceptional — most runs of those characters are not base64 — so the failure is
+ * swallowed per alignment and the next one is tried.
  */
-export function decodings(line, limits) {
-    const found = [];
-    const add = (encoding, text) => {
-        if (text !== undefined && text.trim() !== '' && text !== line) {
-            found.push({ encoding, text });
-        }
-    };
-
+function addBase64(line, limits, add) {
     const base64Runs = new RegExp(`[A-Za-z0-9+/=_-]{${limits.base64MinRun},}`, 'gu');
     for (const run of line.match(base64Runs) ?? []) {
         const standard = run.replace(/-/gu, '+').replace(/_/gu, '/');
-        // Four offsets, because base64 packs three bytes into four characters:
-        // where a run STARTS in the text need not be where the encoder started.
-        // Dropping one, two or three leading characters re-aligns the decoder
-        // to the other three phases; the fourth is the original. (Dropped
-        // characters shift by 6 bits each, so only whole-byte phases - 0 and 4
-        // characters - decode to the same bytes, which is why four offsets
-        // cover it and a fifth would repeat the first.)
         for (let offset = 0; offset < 4 && offset < standard.length; offset += 1) {
             try {
                 add('base64', readable(Buffer.from(standard.slice(offset), 'base64'), limits.minTokenLength));
             } catch {
-                // Not base64 after all.
+                // Not base64 at this alignment. Try the next.
             }
         }
     }
-    // The run is matched as characters, not as pairs. Matching pairs anchored at
-    // the run start silently truncated an odd-length run before the offset was
-    // applied, so the odd alignment always lost the run's LAST byte - and the
-    // end of a run is exactly where a name hides. Each offset is trimmed to a
-    // whole number of bytes at its own end instead.
+}
+
+/** Hex, at both alignments, with an odd trailing nibble dropped. */
+function addHex(line, limits, add) {
     const hexRuns = new RegExp(`[0-9a-fA-F]{${limits.hexMinRun},}`, 'gu');
     for (const run of line.match(hexRuns) ?? []) {
         for (let offset = 0; offset < 2; offset += 1) {
@@ -372,11 +363,21 @@ export function decodings(line, limits) {
             add('hex', readable(Buffer.from(whole, 'hex'), limits.minTokenLength));
         }
     }
+}
+
+/**
+ * The three text-level encodings: percent-encoding, JavaScript `\xNN`/`\uNNNN`
+ * escapes, and string concatenation used to break a word across quotes.
+ *
+ * Each is guarded by a cheap test for its own marker, so a line that cannot contain
+ * one is not decoded for it.
+ */
+function addTextEncodings(line, add) {
     if (line.includes('%')) {
         try {
             add('percent', decodeURIComponent(line));
         } catch {
-            // Not percent-encoded after all.
+            // Not valid percent-encoding. Nothing to add.
         }
     }
     if (/\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}/u.test(line)) {
@@ -390,6 +391,24 @@ export function decodings(line, limits) {
     if (/['"]\s*\+\s*['"]/u.test(line)) {
         add('concatenated literals', line.replace(/['"]\s*\+\s*['"]/gu, ''));
     }
+}
+
+/**
+ * The same line, written the other ways it could have been written.
+ *
+ * Returns `[{ encoding, text }]` for every decoding that produced readable
+ * text. The original line is not included; the caller already has it.
+ */
+export function decodings(line, limits) {
+    const found = [];
+    const add = (encoding, text) => {
+        if (text !== undefined && text.trim() !== '' && text !== line) {
+            found.push({ encoding, text });
+        }
+    };
+    addBase64(line, limits, add);
+    addHex(line, limits, add);
+    addTextEncodings(line, add);
     return found;
 }
 
@@ -516,6 +535,74 @@ function isOwnRuleText(text, rules) {
 
 let ownRuleTexts;
 
+/**
+ * The digest of `candidate` if it is a listed private name, otherwise undefined.
+ *
+ * "Is this a listed name?" was written out by hand THREE times in this file: twice
+ * in `scanFile` - once for the file's path, once for each decoded view of each line -
+ * and once more in `safeString`, which is the function that WITHHOLDS a path carrying
+ * one. Three copies of the question, in the file that decides whether a commit may be
+ * published, is two too many: a fix applied to one is a silent hole in the others, and
+ * it fails in the reassuring direction.
+ *
+ * The count is three because it was measured after the first two were merged and the
+ * grep still found a match - the first draft of this comment said "twice", which was
+ * true of `scanFile` and false of the file.
+ */
+function privateNameDigest(candidate, rules, extraTokenHashes) {
+    const digest = hashToken(rules.salt, candidate);
+    if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
+        return digest;
+    }
+    return undefined;
+}
+
+/**
+ * Every listed private name in `subject`, reported at `where`.
+ *
+ * `describe` builds the detail, because the two call sites say different things
+ * about the same finding: one is about a PATH and one about a decoded view of a
+ * line. Extracted from `scanFile`, which was cognitive complexity 27 (#19).
+ */
+function reportNamesIn(subject, where, context, describe) {
+    const { rules, limits, extraTokenHashes, onFinding } = context;
+    for (const candidate of tokenCandidates(subject, limits)) {
+        const digest = privateNameDigest(candidate, rules, extraTokenHashes);
+        if (digest !== undefined) {
+            onFinding({ kind: 'private name', where, detail: describe(digest) });
+        }
+    }
+}
+
+/**
+ * One view of one line, against the forbidden patterns and the number rule.
+ *
+ * The pattern rules are skipped for a view that is this ruleset's OWN text — a
+ * `rules.json` entry decoded out of itself is not a finding — and the number rule
+ * still runs on it, which is the behaviour the old `continue` inside the rule loop
+ * produced. Hoisting that test out of the loop is the same thing said once instead
+ * of once per rule.
+ */
+function reportPatternsIn(view, where, patterns, context) {
+    const { rules, limits, onFinding } = context;
+    const ownDefinition = view.encoding !== 'plaintext' && isOwnRuleText(view.text, rules);
+    if (!ownDefinition) {
+        for (const rule of patterns) {
+            if (compile(rule).test(view.text)) {
+                onFinding({ kind: 'pattern', where, detail: `${rule.label}, as ${view.encoding}` });
+            }
+        }
+    }
+    scanNumbers(
+        view.text,
+        rules,
+        finding => {
+            onFinding({ kind: finding.kind, where, detail: `${finding.detail} (as ${view.encoding})` });
+        },
+        limits
+    );
+}
+
 export function scanFile({ label, text, patterns, rules, extraTokenHashes = new Set(), onFinding }) {
     const limits = thresholds(rules);
 
@@ -532,67 +619,22 @@ export function scanFile({ label, text, patterns, rules, extraTokenHashes = new 
      * verbatim because it left here safe.
      */
     const safeLabel = safeString(label, rules, extraTokenHashes);
+    const context = { rules, limits, extraTokenHashes, onFinding };
 
-    // The NAME of the file, not only its contents. Nothing scanned the labels
-    // before, so a private name in a path - `dist/<name>.js` - was invisible to
-    // every rule here and was then printed verbatim by the caller's listing.
-    for (const candidate of tokenCandidates(label, limits)) {
-        const digest = hashToken(rules.salt, candidate);
-        if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
-            onFinding({
-                kind: 'private name',
-                where: safeLabel,
-                detail: `a private name (hash ${digest.slice(0, 12)}…) is in this path, not only in what it contains`
-            });
-        }
-    }
+    reportNamesIn(label, safeLabel, context, digest =>
+        `a private name (hash ${digest.slice(0, 12)}…) is in this path, not only in what it contains`
+    );
 
-    const lines = text.split('\n');
-    for (const [index, line] of lines.entries()) {
+    for (const [index, line] of text.split('\n').entries()) {
         const where = `${safeLabel}:${index + 1}`;
-
         const views = [{ encoding: 'plaintext', text: line }, ...decodings(line, limits)];
-
         for (const view of views) {
-            const ownDefinition = view.encoding !== 'plaintext' && isOwnRuleText(view.text, rules);
-            for (const rule of patterns) {
-                if (ownDefinition) {
-                    // A decoded view that IS one of our own rule definitions is
-                    // the rules file describing itself - today's, or an older
-                    // one in the history. A rule matching its own definition is
-                    // a self-reference, not a leak, and the alternative is to
-                    // stop scanning a file, which is how the last one hid.
-                    continue;
-                }
-                if (compile(rule).test(view.text)) {
-                    // The shape, and where it is - not what matched. On a public
-                    // repository the log is as published as the file.
-                    onFinding({ kind: 'pattern', where, detail: `${rule.label}, as ${view.encoding}` });
-                }
-            }
-            scanNumbers(
-                view.text,
-                rules,
-                finding => {
-                    onFinding({ kind: finding.kind, where, detail: `${finding.detail} (as ${view.encoding})` });
-                },
-                limits
-            );
+            reportPatternsIn(view, where, patterns, context);
         }
-
         for (const view of views) {
-            for (const candidate of tokenCandidates(view.text, limits)) {
-                const digest = hashToken(rules.salt, candidate);
-                if (rules.tokenHashes.has(digest) || extraTokenHashes.has(digest)) {
-                    onFinding({
-                        kind: 'private name',
-                        where,
-                        // The hash prefix, never the name: this text ends up in a
-                        // public CI log.
-                        detail: `a private name (hash ${digest.slice(0, 12)}…) appears here as ${view.encoding}`
-                    });
-                }
-            }
+            reportNamesIn(view.text, where, context, digest =>
+                `a private name (hash ${digest.slice(0, 12)}…) appears here as ${view.encoding}`
+            );
         }
     }
 }
