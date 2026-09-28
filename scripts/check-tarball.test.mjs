@@ -12,7 +12,9 @@
  * one per forbidden file name (`FORBIDDEN_NAMES`), one per required file (`REQUIRED`),
  * and one per content pattern (from `rules.json`). A rule added to such a list is a
  * case added here automatically; a list that goes empty is a REFUSAL to run rather
- * than a smaller, quieter pass.
+ * than a smaller, quieter pass. That was a real hole: this file used to exit on
+ * `failures === 0` whatever the number of cases, so emptying a list in `rules.json`
+ * deleted six cases and still printed PASS.
  *
  * Where it has no list, the cases ARE enumerated in this file, and each one is a
  * rule somebody has to remember to cover: the dependency shapes, the numbers rule
@@ -25,9 +27,7 @@
  * below is a hand-written array, and the decoders live inside `decodings()` in
  * rules.mjs with no list to read, so adding a decoder adds no case here. They are
  * named apart because this is the family where the hazard has already bitten - the
- * numbers rule could be made inert while every case in this file stayed green. That was a real hole: this file used
- * to exit on `failures === 0` whatever the number of cases, so emptying a list
- * in `rules.json` deleted six cases and still printed PASS.
+ * numbers rule could be made inert while every case in this file stayed green.
  *
  * It also mutates the RULESET itself, once per refusal the rules can produce,
  * and runs each mutation against every leg it applies to - the gate, the sweep,
