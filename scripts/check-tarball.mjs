@@ -288,7 +288,8 @@ function listFiles(directory) {
     return out.sort();
 }
 
-function checkManifest(manifest) {
+/** Check 4: nothing in the published manifest runs on the installing machine. */
+function checkLifecycleScripts(manifest) {
     // --- lifecycle scripts ------------------------------------------------
     const scripts = manifest.scripts ?? {};
     const names = Object.keys(scripts);
@@ -307,33 +308,46 @@ function checkManifest(manifest) {
     if (manifest.gypfile === true) {
         fail('lifecycle script', 'the published manifest sets gypfile, which makes npm run node-gyp on install');
     }
+}
 
-    // --- dependencies, judged by what they resolve to ----------------------
+/**
+ * One dependency entry, judged by what its spec RESOLVES to rather than by how it
+ * is spelled. Split out of `checkManifest`, which was cognitive complexity 20 with
+ * the two field loops and this decision as one nest four levels deep (#19). The
+ * `continue` that skipped the range check after a private-scope finding is a
+ * `return` here, which is the only shape that changed.
+ */
+function checkDependencyEntry(field, name, spec) {
+        // A dependency key and a dependency spec are both arbitrary text,
+        // and a spec is very often a URL - the private repository's own
+        // git URL is precisely what check 5 exists to catch. Printing
+        // either one in a finding republishes it in a public CI log, which
+        // is the thing this gate is for. Length and hash prefix; the
+        // manifest is two commands away for anyone entitled to read it.
+        const shown = `${field} entry ${opaque(name, RULES)}, spec ${opaque(String(spec), RULES)}`;
+        const resolved = resolveSpec(name, String(spec));
+        // Lower-cased on both sides: npm treats package names as
+        // lower-case, so an upper-case spelling of the scope is the same
+        // dependency wearing a hat.
+        if (name.toLowerCase().startsWith(PRIVATE_SCOPE) || resolved.name.toLowerCase().startsWith(PRIVATE_SCOPE)) {
+            const how = resolved.aliased ? ' - through an npm: alias, and' : ' -';
+            fail('dependencies', `${shown}${how} that scope carries the platform`);
+            return;
+        }
+        if (!REGISTRY_RANGE.test(resolved.range)) {
+            fail(
+                'dependencies',
+                `${shown} is not a registry semver range - it resolves to wherever that points, which a name check cannot see`
+            );
+        }
+}
+
+/** Check 5: every dependency is a registry range, and none ships inside. */
+function checkDependencies(manifest) {
     const fields = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
     for (const field of fields) {
         for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
-            // A dependency key and a dependency spec are both arbitrary text,
-            // and a spec is very often a URL - the private repository's own
-            // git URL is precisely what check 5 exists to catch. Printing
-            // either one in a finding republishes it in a public CI log, which
-            // is the thing this gate is for. Length and hash prefix; the
-            // manifest is two commands away for anyone entitled to read it.
-            const shown = `${field} entry ${opaque(name, RULES)}, spec ${opaque(String(spec), RULES)}`;
-            const resolved = resolveSpec(name, String(spec));
-            // Lower-cased on both sides: npm treats package names as
-            // lower-case, so an upper-case spelling of the scope is the same
-            // dependency wearing a hat.
-            if (name.toLowerCase().startsWith(PRIVATE_SCOPE) || resolved.name.toLowerCase().startsWith(PRIVATE_SCOPE)) {
-                const how = resolved.aliased ? ' - through an npm: alias, and' : ' -';
-                fail('dependencies', `${shown}${how} that scope carries the platform`);
-                continue;
-            }
-            if (!REGISTRY_RANGE.test(resolved.range)) {
-                fail(
-                    'dependencies',
-                    `${shown} is not a registry semver range - it resolves to wherever that points, which a name check cannot see`
-                );
-            }
+            checkDependencyEntry(field, name, String(spec));
         }
     }
     const bundled = manifest.bundleDependencies ?? manifest.bundledDependencies ?? [];
@@ -342,6 +356,11 @@ function checkManifest(manifest) {
     }
     const dependencies = Object.keys(manifest.dependencies ?? {});
     note(`gate: ${dependencies.length} runtime dependenc${dependencies.length === 1 ? 'y' : 'ies'} declared`);
+}
+
+function checkManifest(manifest) {
+    checkLifecycleScripts(manifest);
+    checkDependencies(manifest);
 }
 
 /**
