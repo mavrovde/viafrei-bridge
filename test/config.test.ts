@@ -61,6 +61,28 @@ describe('parseOptions', () => {
         assert.equal(parseOptions(['--help'], {}).showHelp, true);
         assert.equal(parseOptions(['-V'], {}).showVersion, true);
     });
+
+    // Every short alias, as an EQUIVALENCE to its long form rather than one case
+    // each, so the set is pinned rather than the members I happened to think of.
+    //
+    // `-h` had no case at all: deleting it from the flag chain left all 80 tests
+    // green, measured before this was written. That matters more than the alias
+    // does, because the chain is about to become a lookup table and a table is
+    // exactly where a silently-dropped key hides.
+    it('treats every short alias as its long form', () => {
+        for (const [short, long] of [['-h', '--help'], ['-V', '--version']] as const) {
+            assert.deepEqual(parseOptions([short], {}), parseOptions([long], {}));
+        }
+        assert.deepEqual(parseOptions(['-H', 'X-A: 1'], {}), parseOptions(['--header', 'X-A: 1'], {}));
+    });
+
+    // The inline form is long-only today. Asserted because the obvious way to
+    // write the table - one prefix per alias - would newly ACCEPT `-H=X: 1`,
+    // and a refactor that widens what a CLI takes is not a refactor.
+    it('offers the =value form on the long flag only', () => {
+        assert.equal(parseOptions(['--url=http://127.0.0.1:9/mcp'], {}).url, 'http://127.0.0.1:9/mcp');
+        assert.throws(() => parseOptions(['-H=X-A: 1'], {}), UsageError);
+    });
 });
 
 describe('helpText', () => {
