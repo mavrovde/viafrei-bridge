@@ -120,6 +120,30 @@ function unrunnable() {
 export const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
 
 /**
+ * Code-unit order: exactly what a bare `.sort()` already does to strings, spelled out.
+ *
+ * `javascript:S2871` requires a comparator, and it is right to - a bare `.sort()` on
+ * anything but strings sorts by the decimal spelling of the values, which is a real bug
+ * class. The remedy it SUGGESTS is `localeCompare`, and that one is wrong here, measured
+ * twice over:
+ *
+ *   - it changes the order. `['a.md','B.md','C.md','b.md']` is `B C a b` by code unit and
+ *     `a b B C` by `localeCompare`, so adopting it would silently rewrite a list that the
+ *     self-test compares against golden values and the gate prints in its own receipt.
+ *   - it is LOCALE-DEPENDENT. `['z.md','ä.md']` sorts `ä` before `z` under `en` and `de`
+ *     and after it under `sv`, so the same tarball would produce a different list on a
+ *     runner with a different locale - a gate whose output depends on the environment,
+ *     which is the thing this whole directory exists to refuse.
+ *
+ * Trading a finding for a cross-machine difference is not a fix, so the comparator says
+ * what the default already did and the order is pinned by a case in the self-test.
+ */
+const byCodeUnit = (a, b) => {
+    if (a === b) return 0;
+    return a < b ? -1 : 1;
+};
+
+/**
  * Every RELATIVE Markdown link target in `text`, once each, sorted.
  *
  * Exported so the rule below and its self-test read links through ONE expression: the
@@ -141,7 +165,7 @@ export const REQUIRED = ['package/package.json', 'package/README.md', 'package/L
 export function relativeMarkdownLinks(text) {
     return [...new Set(
         [...text.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s#]+\.md)(?:#[^)\s]*)?\)/gu)].map(match => match[1])
-    )].sort();
+    )].sort(byCodeUnit);
 }
 
 /** File names that have no business being published. */

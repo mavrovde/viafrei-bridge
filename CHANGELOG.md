@@ -142,6 +142,31 @@ has been kept in step by hand at every release since 1.3.15.
   convention to `*.selftest.mjs` — which touches `package.json` scripts, CI steps and the
   sweep that counts them. The quality gate passes on all five conditions either way.
 
+- **The four remaining bare `.sort()` calls** — left, and named so the next person is not
+  ambushed. SonarCloud raised `javascript:S2871` (CRITICAL, type BUG) on the `.sort()` in
+  `relativeMarkdownLinks` and took the new-code reliability rating to D against an A
+  threshold, which is a required check. The line's behaviour was never wrong — every
+  element is a string and code-unit order is what is wanted — but the round-3 refactor
+  moved the expression into a new exported function, so a pattern older than this branch
+  became *new code* and failed a gate it had never been measured by. That is the trap, and
+  it is still loaded four times over:
+
+      git grep -n '\.sort()' -- '*.mjs' '*.ts' | grep -v '^\S*:[0-9]*: \*'
+
+  finds them in `scripts/check-tarball.mjs`, twice in `scripts/tools.test.mjs`, and in
+  `test/relay.test.ts`. All four are string arrays and all four are correct today; none is
+  in this PR's new-code period, so none fails the gate now. **Converting them here would
+  add three files to a diff that is already fifteen**, so they are recorded instead: the
+  next PR that so much as moves one of those lines should expect a CRITICAL BUG on code it
+  only touched, and should fix it in that PR rather than discovering it from a red required
+  check after the push, which is how this one was found.
+
+  Not `localeCompare`, whichever PR does it. It is what the rule suggests and it is wrong
+  here twice: it reorders (`B a` becomes `a B`) and it is locale-dependent (`ä` sorts before
+  `z` under `en`/`de` and after it under `sv`), so a gate's output would depend on the
+  runner. The comparator added here says only what the default already did, and the order
+  is pinned by a case in the self-test.
+
 - **A shared assertion harness for the self-tests** (#23, item 5) — declined, on the
   issue's own condition. Each self-test defines its own `check()`/`refuse()` pair, and the
   issue says to unify them only if it can be done without weakening the per-file refusal

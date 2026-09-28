@@ -383,6 +383,11 @@ for (const [name, link] of [
 //   https://    the absolute-URL exclusion
 //   notes.txt   the `.md` requirement - a non-Markdown target is out of scope
 //   three links dedupe and sort, which the note() receipt and the finding both print
+//   mixed case CODE-UNIT order, which is the only input that tells a bare sort and
+//               `localeCompare` apart - `B.md` before `a.md`. SonarCloud's S2871 asks
+//               for a comparator and suggests the locale-aware one, which would both
+//               reorder this list and make it depend on the runner's locale, so the
+//               order it must NOT acquire is pinned here rather than argued in a comment
 //
 // The `.md` one is the only input here that something else already catches: widening
 // the extractor makes the clean control reject the real tarball, because the README
@@ -393,7 +398,8 @@ for (const [input, expected] of [
     ['[x](mailto:a@b.md)', []],
     ['[x](https://github.com/o/r/blob/main/y.md)', []],
     ['[x](notes.txt)', []],
-    ['[y](B.md#c) and [z](A.md) and [w](B.md)', ['A.md', 'B.md']]
+    ['[y](B.md#c) and [z](A.md) and [w](B.md)', ['A.md', 'B.md']],
+    ['[x](a.md) and [y](B.md) and [z](C.md) and [w](b.md)', ['B.md', 'C.md', 'a.md', 'b.md']]
 ]) {
     const got = relativeMarkdownLinks(input);
     if (JSON.stringify(got) !== JSON.stringify(expected)) {
