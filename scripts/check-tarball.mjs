@@ -344,6 +344,182 @@ function checkManifest(manifest) {
     note(`gate: ${dependencies.length} runtime dependenc${dependencies.length === 1 ? 'y' : 'ies'} declared`);
 }
 
+/**
+ * The tarball this run judges: the one named on argv, or one packed here.
+ *
+ * Returns `{ refusal }` rather than a path when `npm pack --json` printed a shape
+ * the shared reader will not guess at - exit 2, "could not run", which is a
+ * failure and not a pass. Extracted from `main`, which was cognitive complexity
+ * 31 (#19); nothing here decides anything it did not decide before.
+ */
+function resolveTarball(workspace, given) {
+    if (given !== undefined) {
+        // Through safeString() like every other path: this one comes from
+        // argv, and a private name can be in a file name (that is a rule
+        // here), so the one path the gate prints before it has read
+        // anything should not be the one that escapes.
+        const tarball = resolve(given);
+        note(`gate: checking the tarball it was given: ${safeString(tarball, RULES, extraTokenHashes)}`);
+        return { tarball };
+    }
+    // Built explicitly, because the published manifest may not carry a
+    // `prepack` script to do it - see the lifecycle check below.
+    note('gate: building, then packing…');
+    // npm through node, by absolute path, not by $PATH lookup: this
+    // gate decides what is uploaded to the registry, so which npm
+    // packs the tarball must not be the environment's choice
+    // (scripts/tools.mjs).
+    const npmCli = npmCliPath();
+    runTool(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+    const packed = runTool(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
+        cwd: ROOT,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'inherit']
+    });
+    // Through the shared reader. This used to insist on an array,
+    // which was every npm that existed when it was written; npm 12
+    // prints an object keyed by package name instead, so the gate
+    // would have refused to run - honestly, but for a shape that is
+    // not actually wrong. Refusing to GUESS is the rule; refusing to
+    // READ is not.
+    let entry;
+    try {
+        entry = soleTarball(packed);
+    } catch (error) {
+        if (error instanceof PackJsonError) {
+            note(`gate: ${safeString(error.message, RULES, extraTokenHashes)}`);
+            return { refusal: 2 };
+        }
+        throw error;
+    }
+    note(`gate: packed ${entry.filename} (${entry.size} bytes, ${entry.entryCount} entries)`);
+    return { tarball: join(workspace, entry.filename) };
+}
+
+/** Check 1: it is actually the package, and only the package. */
+function checkInventory(files) {
+    for (const required of REQUIRED) {
+        if (!files.includes(required)) {
+            fail('contents', `${required} is missing from the tarball`);
+        }
+    }
+    for (const file of files) {
+        for (const rule of FORBIDDEN_NAMES) {
+            if (rule.test(file)) {
+                fail('file name', `${safeString(file, RULES, extraTokenHashes)} is a ${rule.label} and must not be published`);
+            }
+        }
+    }
+}
+
+/**
+ * Checks 2 and 3: what the files actually contain.
+ *
+ * The embedded-source rules apply to shipped code, not to prose: the
+ * changelog names the three patterns the gate looks for, and a document
+ * that says "sourceMappingURL" is not a document that ships sources.
+ * Everything else applies to every file - a leak in a README is still a
+ * leak.
+ */
+function scanContents(unpacked, files) {
+    note(
+        `gate: scanning ${files.length} files as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals`
+    );
+    note('gate: a name is looked for across every separator, at camel-case boundaries, inside an unbroken run of letters and digits, and in the file path as well as the contents');
+    note(`gate: cannot see ${blindSpots(RULES).join('; ')}`);
+    for (const file of files) {
+        const isProse = file.endsWith('.md');
+        const patterns = isProse ? RULES.tarballPatterns : [...RULES.embeddedSourcePatterns, ...RULES.tarballPatterns];
+        scanFile({
+            label: file,
+            text: readFileSync(join(unpacked, file), 'utf8'),
+            patterns,
+            rules: RULES,
+            extraTokenHashes,
+            // The finding's own kind, not a guess from it. Every kind that
+            // was not `pattern` used to be reported as "private name", so a
+            // number finding was labelled as a name - the one thing a
+            // finding line has to get right is what it is.
+            onFinding: finding => fail(finding.kind === 'pattern' ? 'content' : finding.kind, `${finding.where} ${finding.detail}`)
+        });
+    }
+}
+
+function checkReadmeLinks(unpacked, files) {
+    // --- every relative link in the SHIPPED README must resolve in the tarball ----
+    //
+    // README.md ships, and it linked to four Markdown files that do not: three since
+    // before 1.3.15 and one added by 1.3.16. npmjs.com rewrites relative links in the
+    // rendered README to the repository, so they work on the package page and break
+    // only for somebody reading an unpacked tarball - which is why nobody noticed for
+    // three releases. Absolute links are the remedy for the four; this is the gate
+    // that catches the fifth.
+    //
+    // It reads the README INSIDE the tarball, not the one in the working tree, so it
+    // judges what a consumer actually receives.
+    //
+    // SCOPE, stated because the rule is narrower than "every relative link": it reads
+    // links whose target is a `.md` file, with or without an anchor. A pure anchor
+    // (`](#section)`) is excluded deliberately - there is no file to carry - and a
+    // relative link to something that is not Markdown is out of scope. An earlier
+    // draft also missed an ANCHORED link, so `](CONTRIBUTING.md#merging)` to a file
+    // the tarball does not carry passed silently; that was the likeliest fifth link
+    // there is, and the capture now allows the anchor and drops it.
+    //
+    // The blind spot it KEEPS, which is larger than either of those: it reads
+    // `README.md` and nothing else. `CHANGELOG.md`, `API.md` and `SOURCES.md` ship
+    // too, and the shipped CHANGELOG carries two relative links - to
+    // `CONTRIBUTING.md` and `SUPPORT.md` - that the tarball does not carry, which is
+    // precisely the defect this rule exists to catch, in a file this rule never
+    // opens. They are left alone on purpose: both sit inside published version
+    // blocks, and a changelog whose past entries are edited to stay current is no
+    // longer a record. Widening the rule to every shipped `.md` is the better answer
+    // and then needs a stated exemption for those two, so it is a decision of its
+    // own rather than a nit.
+    //
+    // An ABSENT README is not this check's business: it is in REQUIRED, so the check
+    // above already fails it with the right code. Reading it unconditionally here
+    // crashed that case with exit 2 instead of the rejection it expects - found by
+    // the gate's own self-test, which is what that suite is for. Skipping is
+    // safe only because the absence is failed elsewhere, so that is ASSERTED rather
+    // than remembered: if README.md ever leaves REQUIRED, this refuses instead of
+    // quietly covering nothing.
+    if (!REQUIRED.includes('package/README.md')) {
+        note('gate: README.md is no longer REQUIRED, so skipping its link check would hide an absent README');
+        return { refusal: 2 };
+    }
+    const shippedReadme = join(unpacked, 'package/README.md');
+    const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
+    const relativeLinks = relativeMarkdownLinks(readmeText);
+    const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
+    note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);
+    if (danglingLinks.length > 0) {
+        fail(
+            'shipped README links',
+            `it links to ${danglingLinks.join(', ')}, which the tarball does not carry. ` +
+            'npm rewrites relative links on the package page, so this breaks only for a reader ' +
+            'of the unpacked tarball - add the file to `files`, or make the link absolute to ' +
+            'the repository, which is what a link meaning "the repository" should say.'
+        );
+    }
+    return {};
+}
+
+/** The verdict: 1 if anything was found, 0 if nothing was. */
+function report() {
+    if (findings.length > 0) {
+        note('');
+        note(`gate: FAIL - ${findings.length} finding${findings.length === 1 ? '' : 's'}`);
+        for (const finding of findings) {
+            note(`  ! ${finding}`);
+        }
+        return 1;
+    }
+    note('');
+    note('gate: PASS - required files only, no lifecycle script, every dependency a registry range, no embedded sources, no platform content');
+    return 0;
+}
+
 function main() {
     const reason = unrunnable();
     if (reason !== undefined) {
@@ -353,50 +529,13 @@ function main() {
     }
     const given = process.argv[2];
     const workspace = mkdtempSync(join(tmpdir(), 'viafrei-tarball-'));
-    let tarball;
 
     try {
-        if (given !== undefined) {
-            tarball = resolve(given);
-            // Through safeString() like every other path: this one comes from
-            // argv, and a private name can be in a file name (that is a rule
-            // here), so the one path the gate prints before it has read
-            // anything should not be the one that escapes.
-            note(`gate: checking the tarball it was given: ${safeString(tarball, RULES, extraTokenHashes)}`);
-        } else {
-            // Built explicitly, because the published manifest may not carry a
-            // `prepack` script to do it - see the lifecycle check below.
-            note('gate: building, then packing…');
-            // npm through node, by absolute path, not by $PATH lookup: this
-            // gate decides what is uploaded to the registry, so which npm
-            // packs the tarball must not be the environment's choice
-            // (scripts/tools.mjs).
-            const npmCli = npmCliPath();
-            runTool(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-            const packed = runTool(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
-                cwd: ROOT,
-                encoding: 'utf8',
-                stdio: ['ignore', 'pipe', 'inherit']
-            });
-            // Through the shared reader. This used to insist on an array,
-            // which was every npm that existed when it was written; npm 12
-            // prints an object keyed by package name instead, so the gate
-            // would have refused to run - honestly, but for a shape that is
-            // not actually wrong. Refusing to GUESS is the rule; refusing to
-            // READ is not.
-            let entry;
-            try {
-                entry = soleTarball(packed);
-            } catch (error) {
-                if (error instanceof PackJsonError) {
-                    note(`gate: ${safeString(error.message, RULES, extraTokenHashes)}`);
-                    return 2;
-                }
-                throw error;
-            }
-            tarball = join(workspace, entry.filename);
-            note(`gate: packed ${entry.filename} (${entry.size} bytes, ${entry.entryCount} entries)`);
+        const resolved = resolveTarball(workspace, given);
+        if (resolved.refusal !== undefined) {
+            return resolved.refusal;
         }
+        const { tarball } = resolved;
 
         statSync(tarball);
 
@@ -421,121 +560,19 @@ function main() {
             note(`  - ${safeString(file, RULES, extraTokenHashes)}`);
         }
 
-        // --- check 1: it is actually the package, and only the package -------
-        for (const required of REQUIRED) {
-            if (!files.includes(required)) {
-                fail('contents', `${required} is missing from the tarball`);
-            }
-        }
-        for (const file of files) {
-            for (const rule of FORBIDDEN_NAMES) {
-                if (rule.test(file)) {
-                    fail('file name', `${safeString(file, RULES, extraTokenHashes)} is a ${rule.label} and must not be published`);
-                }
-            }
-        }
+        checkInventory(files);
 
         // --- checks 4 and 5: the manifest ------------------------------------
         checkManifest(JSON.parse(readFileSync(join(unpacked, 'package/package.json'), 'utf8')));
 
-        // --- every relative link in the SHIPPED README must resolve in the tarball ----
-        //
-        // README.md ships, and it linked to four Markdown files that do not: three since
-        // before 1.3.15 and one added by 1.3.16. npmjs.com rewrites relative links in the
-        // rendered README to the repository, so they work on the package page and break
-        // only for somebody reading an unpacked tarball - which is why nobody noticed for
-        // three releases. Absolute links are the remedy for the four; this is the gate
-        // that catches the fifth.
-        //
-        // It reads the README INSIDE the tarball, not the one in the working tree, so it
-        // judges what a consumer actually receives.
-        //
-        // SCOPE, stated because the rule is narrower than "every relative link": it reads
-        // links whose target is a `.md` file, with or without an anchor. A pure anchor
-        // (`](#section)`) is excluded deliberately - there is no file to carry - and a
-        // relative link to something that is not Markdown is out of scope. An earlier
-        // draft also missed an ANCHORED link, so `](CONTRIBUTING.md#merging)` to a file
-        // the tarball does not carry passed silently; that was the likeliest fifth link
-        // there is, and the capture now allows the anchor and drops it.
-        //
-        // The blind spot it KEEPS, which is larger than either of those: it reads
-        // `README.md` and nothing else. `CHANGELOG.md`, `API.md` and `SOURCES.md` ship
-        // too, and the shipped CHANGELOG carries two relative links - to
-        // `CONTRIBUTING.md` and `SUPPORT.md` - that the tarball does not carry, which is
-        // precisely the defect this rule exists to catch, in a file this rule never
-        // opens. They are left alone on purpose: both sit inside published version
-        // blocks, and a changelog whose past entries are edited to stay current is no
-        // longer a record. Widening the rule to every shipped `.md` is the better answer
-        // and then needs a stated exemption for those two, so it is a decision of its
-        // own rather than a nit.
-        //
-        // An ABSENT README is not this check's business: it is in REQUIRED, so the check
-        // above already fails it with the right code. Reading it unconditionally here
-        // crashed that case with exit 2 instead of the rejection it expects - found by
-        // the gate's own self-test, which is what that suite is for. Skipping is
-        // safe only because the absence is failed elsewhere, so that is ASSERTED rather
-        // than remembered: if README.md ever leaves REQUIRED, this refuses instead of
-        // quietly covering nothing.
-        if (!REQUIRED.includes('package/README.md')) {
-            note('gate: README.md is no longer REQUIRED, so skipping its link check would hide an absent README');
-            return 2;
-        }
-        const shippedReadme = join(unpacked, 'package/README.md');
-        const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
-        const relativeLinks = relativeMarkdownLinks(readmeText);
-        const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
-        note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);
-        if (danglingLinks.length > 0) {
-            fail(
-                'shipped README links',
-                `it links to ${danglingLinks.join(', ')}, which the tarball does not carry. ` +
-                'npm rewrites relative links on the package page, so this breaks only for a reader ' +
-                'of the unpacked tarball - add the file to `files`, or make the link absolute to ' +
-                'the repository, which is what a link meaning "the repository" should say.'
-            );
+        const readme = checkReadmeLinks(unpacked, files);
+        if (readme.refusal !== undefined) {
+            return readme.refusal;
         }
 
-        // --- checks 2 and 3: what the files actually contain ------------------
-        //
-        // The embedded-source rules apply to shipped code, not to prose: the
-        // changelog names the three patterns the gate looks for, and a document
-        // that says "sourceMappingURL" is not a document that ships sources.
-        // Everything else applies to every file - a leak in a README is still a
-        // leak.
-        note(
-            `gate: scanning ${files.length} files as plaintext, base64, hex, percent-encoding, JavaScript escapes and concatenated literals`
-        );
-        note('gate: a name is looked for across every separator, at camel-case boundaries, inside an unbroken run of letters and digits, and in the file path as well as the contents');
-        note(`gate: cannot see ${blindSpots(RULES).join('; ')}`);
-        for (const file of files) {
-            const isProse = file.endsWith('.md');
-            const patterns = isProse ? RULES.tarballPatterns : [...RULES.embeddedSourcePatterns, ...RULES.tarballPatterns];
-            scanFile({
-                label: file,
-                text: readFileSync(join(unpacked, file), 'utf8'),
-                patterns,
-                rules: RULES,
-                extraTokenHashes,
-                // The finding's own kind, not a guess from it. Every kind that
-                // was not `pattern` used to be reported as "private name", so a
-                // number finding was labelled as a name - the one thing a
-                // finding line has to get right is what it is.
-                onFinding: finding => fail(finding.kind === 'pattern' ? 'content' : finding.kind, `${finding.where} ${finding.detail}`)
-            });
-        }
+        scanContents(unpacked, files);
 
-        if (findings.length > 0) {
-            note('');
-            note(`gate: FAIL - ${findings.length} finding${findings.length === 1 ? '' : 's'}`);
-            for (const finding of findings) {
-                note(`  ! ${finding}`);
-            }
-            return 1;
-        }
-
-        note('');
-        note('gate: PASS - required files only, no lifecycle script, every dependency a registry range, no embedded sources, no platform content');
-        return 0;
+        return report();
     } catch (error) {
         // Through the same door as every other uncontrolled string. This used
         // to print the message raw while the sweep refused to print git's at
