@@ -25,9 +25,12 @@ has been kept in step by hand at every release since 1.3.15.
   scripts refuse by name, prove their controls can say no, and treat a check that read
   nothing as a failure — and a hung subprocess defeats all of it at once, because it
   cannot be told apart from work in progress: no exit code, no message, and a log that
-  simply stops. There is now no unbounded external program in `scripts/`: 22 call sites
-  across six files go through one wrapper with a 120-second default, which is roughly
-  120 times the slowest legitimate call here.
+  simply stops. There is now no unbounded external program in `scripts/`: every one goes
+  through a single wrapper with a 120-second default, roughly 120 times the slowest
+  legitimate call here. No count is written down — the bare-name sweep is the instrument,
+  and it fails if a call appears that does not go through the wrapper. (This branch
+  CONVERTED 22 sites across six files; that is a figure about the change, not an
+  inventory of the tree, and an earlier draft of this sentence used it as both.)
 
   Only a **timeout** is translated, into a refusal naming the program, its arguments and
   the limit. Every other failure is re-thrown untouched, because each gate decides
@@ -99,7 +102,13 @@ has been kept in step by hand at every release since 1.3.15.
   repository, so it only bit someone reading an unpacked tarball. All four are now
   absolute, which is the honest form: a link that means "the repository" says so, and it
   survives any packaging change. The two that remain relative, `API.md` and `SOURCES.md`,
-  are files the tarball carries, and that is now asserted rather than assumed.
+  are files the tarball carries — and that is now **asserted by the tarball gate**, which
+  reads the README *inside* the built tarball, extracts every relative Markdown link and
+  fails if one is not among the shipped paths. So the fifth such link is caught rather
+  than noticed three releases later. An earlier draft of this sentence said "asserted"
+  when nothing asserted it, which is the third time an entry in this file has claimed a
+  mechanism the tree did not contain; this time the mechanism was written instead of the
+  sentence being softened.
 
 - **Two comments carried counts that read as inventories** (#23). `scripts/tools.mjs` said
   "TWENTY sites were changed in all" where twenty was what one commit changed, not what

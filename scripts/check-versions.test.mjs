@@ -95,6 +95,28 @@ function fixture(mutate) {
         `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 120))}`);
 }
 
+// --- The DEFAULT root, with no override at all ---------------------------------------
+//
+// Every other case sets VF_VERSIONS_ROOT, including the green one, which passes the real
+// root through the override - so without this the default path is never exercised and a
+// wrong default would be invisible here. This repository's convention for a named root
+// override is that a self-test pins BOTH directions.
+{
+    const clean = { ...process.env };
+    delete clean.VF_VERSIONS_ROOT;
+    let status = 0;
+    let out = '';
+    try {
+        out = runTool(nodePath(), [GATE], { encoding: 'utf8', cwd: ROOT, env: clean });
+    } catch (error) {
+        status = error.status ?? -1;
+        out = `${error.stdout ?? ''}${error.stderr ?? ''}`;
+    }
+    check('with no VF_VERSIONS_ROOT it reads this repository and passes',
+        status === 0 && /PASS - all three agree at /u.test(out),
+        `status ${status}, out ${JSON.stringify(out.slice(0, 120))}`);
+}
+
 // --- Red: each field moved on its own ------------------------------------------------
 for (const [label, mutate] of [
     ['package.json alone', state => { state.manifest.version = '9.9.9'; }],

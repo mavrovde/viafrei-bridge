@@ -71,7 +71,38 @@ export class ToolError extends Error {
  * self-test finishes in 36. Anything approaching two minutes is already wrong. The
  * override exists for a machine slow enough to need it, not for silencing this.
  */
-export const TOOL_TIMEOUT_MS = Math.max(1000, Number(process.env.VF_TOOL_TIMEOUT_MS ?? 120_000));
+const DEFAULT_TIMEOUT_MS = 120_000;
+const TIMEOUT_FLOOR_MS = 1000;
+
+/**
+ * The override is honoured only if it is a finite, positive number, and a floor of one
+ * second applies to whatever survives. Two failure modes are closed here, both measured:
+ *
+ *   - `VF_TOOL_TIMEOUT_MS=0` means `timeout: 0`, and in Node that is UNBOUNDED — the
+ *     exact thing this module exists to prevent, reachable by a value that looks like
+ *     "no waiting" to whoever typed it.
+ *   - `VF_TOOL_TIMEOUT_MS=abc` gives `NaN`, and `timeout: NaN` makes Node throw
+ *     `ERR_OUT_OF_RANGE` in about a millisecond. That fails closed, which is the right
+ *     direction, but the error names neither this variable nor this module, `runTool`
+ *     does not recognise it as a timeout, and every gate in the directory then dies with
+ *     an opaque RangeError. A typo in an optional override should not read like a bug in
+ *     the sweep.
+ */
+function resolveTimeout(raw) {
+    if (raw === undefined || raw === '') return DEFAULT_TIMEOUT_MS;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new ToolError(
+            `VF_TOOL_TIMEOUT_MS is ${JSON.stringify(raw)}, which is not a positive number of ` +
+            `milliseconds. Unset it to use the ${DEFAULT_TIMEOUT_MS} ms default. It exists for a ` +
+            'machine genuinely slower than that, and 0 would mean no deadline at all, which is ' +
+            'the one thing scripts/tools.mjs is here to prevent.'
+        );
+    }
+    return Math.max(TIMEOUT_FLOOR_MS, parsed);
+}
+
+export const TOOL_TIMEOUT_MS = resolveTimeout(process.env.VF_TOOL_TIMEOUT_MS);
 
 /**
  * `execFileSync` with a deadline, and a refusal that names what stopped.

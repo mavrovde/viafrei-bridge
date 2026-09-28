@@ -389,6 +389,47 @@ function main() {
         // --- checks 4 and 5: the manifest ------------------------------------
         checkManifest(JSON.parse(readFileSync(join(unpacked, 'package/package.json'), 'utf8')));
 
+        // --- every relative link in the SHIPPED README must resolve in the tarball ----
+        //
+        // README.md ships, and it linked to four Markdown files that do not: three since
+        // before 1.3.15 and one added by 1.3.16. npmjs.com rewrites relative links in the
+        // rendered README to the repository, so they work on the package page and break
+        // only for somebody reading an unpacked tarball - which is why nobody noticed for
+        // three releases. Absolute links are the remedy for the four; this is the gate
+        // that catches the fifth.
+        //
+        // It reads the README INSIDE the tarball, not the one in the working tree, so it
+        // judges what a consumer actually receives. An absent README is already a failure
+        // above (it is in REQUIRED), so there is no path where this check reads nothing
+        // and says nothing.
+        // An ABSENT README is not this check's business: it is in REQUIRED, so the check
+        // above already fails it with the right code. Reading it unconditionally here
+        // crashed that case with exit 2 instead of the rejection it expects - found by
+        // the gate's own self-test, which is what a 107-case suite is for. Skipping is
+        // safe only because the absence is failed elsewhere, so that is ASSERTED rather
+        // than remembered: if README.md ever leaves REQUIRED, this refuses instead of
+        // quietly covering nothing.
+        if (!REQUIRED.includes('package/README.md')) {
+            note('gate: README.md is no longer REQUIRED, so skipping its link check would hide an absent README');
+            return 2;
+        }
+        const shippedReadme = join(unpacked, 'package/README.md');
+        const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
+        const relativeLinks = [...new Set(
+            [...readmeText.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s#]+\.md)\)/gu)].map(match => match[1])
+        )].sort();
+        const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
+        note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);
+        if (danglingLinks.length > 0) {
+            fail(
+                'shipped README links',
+                `it links to ${danglingLinks.join(', ')}, which the tarball does not carry. ` +
+                'npm rewrites relative links on the package page, so this breaks only for a reader ' +
+                'of the unpacked tarball - add the file to `files`, or make the link absolute to ' +
+                'the repository, which is what a link meaning "the repository" should say.'
+            );
+        }
+
         // --- checks 2 and 3: what the files actually contain ------------------
         //
         // The embedded-source rules apply to shipped code, not to prose: the

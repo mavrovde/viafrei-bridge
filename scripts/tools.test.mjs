@@ -445,9 +445,46 @@ check('runTool re-throws an ordinary failure unchanged, so the gates can still r
 check(`runTool has a default deadline (${TOOL_TIMEOUT_MS} ms) and it cannot be switched off`, () => {
     assert.ok(Number.isFinite(TOOL_TIMEOUT_MS) && TOOL_TIMEOUT_MS >= 1000,
         'the default must be a real, finite deadline');
-    // A floor, so `VF_TOOL_TIMEOUT_MS=0` or nonsense cannot mean "unbounded".
-    assert.equal(Math.max(1000, Number('0')), 1000);
-    assert.equal(Math.max(1000, Number('not a number')) || 1000, 1000);
+
+    // The floor is read OUT OF THE MODULE, under an override, in a child process.
+    //
+    // The first version of this case evaluated `Math.max(1000, Number('0'))` inline and
+    // asserted the answer - so it tested Math.max, not tools.mjs. Mutation-proved by the
+    // review: deleting the floor from the module left this suite PASSING, and with the
+    // floor gone `VF_TOOL_TIMEOUT_MS=0` means `timeout: 0`, which in Node is UNBOUNDED -
+    // the one thing this module exists to prevent, behind a value that reads like "no
+    // waiting" to whoever typed it. So the floor was the only part of the change with no
+    // gate on it.
+    const readTimeout = value => runTool(
+        nodePath(),
+        ['-e', "import('./scripts/tools.mjs').then(m => console.log(m.TOOL_TIMEOUT_MS)).catch(e => { console.log('REFUSED:' + e.message); })"],
+        { cwd: ROOT, encoding: 'utf8', env: { ...process.env, VF_TOOL_TIMEOUT_MS: value } }
+    ).trim();
+
+    assert.equal(readTimeout('1'), '1000', 'a positive value under the floor is raised to it');
+    assert.equal(readTimeout('250000'), '250000', 'a value above the floor is honoured');
+
+    // `0` is REFUSED rather than floored, and that is the deliberate choice: whoever
+    // typed it meant "no deadline", and quietly handing them 1000 ms would hide their
+    // intent instead of telling them it is not on offer. A negative or non-numeric value
+    // goes the same way - by NAME, rather than becoming `timeout: NaN`, which Node turns
+    // into an ERR_OUT_OF_RANGE naming neither this variable nor this module: failing
+    // closed, but unreadably.
+    for (const nonsense of ['0', '-5', 'abc', 'Infinity']) {
+        const said = readTimeout(nonsense);
+        assert.match(said, /^REFUSED:/u, `VF_TOOL_TIMEOUT_MS=${nonsense} must be refused, got ${said}`);
+        assert.match(said, /VF_TOOL_TIMEOUT_MS/u, 'the refusal must name the variable');
+    }
+
+    // Unset behaves as the documented default.
+    const withoutOverride = { ...process.env };
+    delete withoutOverride.VF_TOOL_TIMEOUT_MS;
+    const fallback = runTool(
+        nodePath(),
+        ['-e', "import('./scripts/tools.mjs').then(m => console.log(m.TOOL_TIMEOUT_MS))"],
+        { cwd: ROOT, encoding: 'utf8', env: withoutOverride }
+    ).trim();
+    assert.equal(fallback, '120000', 'with no override the default must be 120 s');
 });
 
 check('precondition 3: the sweep goes red on a planted bare call (it can say no)', () => {
@@ -456,11 +493,18 @@ check('precondition 3: the sweep goes red on a planted bare call (it can say no)
     // make this file fail its own sweep, and the usual repair for that — an
     // exclusion — is what lets a real regression hide.
     const q = String.fromCharCode(39);
-    for (const program of ['git', 'npm', 'tar', 'mkdir', 'sh']) {
-        const planted = `execFileSync(${q}${program}${q}, [${q}--version${q}])`;
-        const hits = bareCalls(planted);
-        assert.equal(hits.length, 1, `planted ${program} call not reported: ${planted}`);
-        assert.equal(hits[0].program, program);
+    // Over EVERY name in SPAWNERS, not just one of them. The earlier version planted
+    // `execFileSync` alone, so the expression could have stopped matching any of the
+    // other five - `runTool` above all, which is the one all 22 real call sites now use -
+    // while the case whose job is "it can say no" still went green.
+    for (const fn of SPAWNERS) {
+        for (const program of ['git', 'npm', 'tar', 'mkdir', 'sh']) {
+            const planted = `${fn}(${q}${program}${q}, [${q}--version${q}])`;
+            const hits = bareCalls(planted);
+            assert.equal(hits.length, 1, `planted ${fn} call for ${program} not reported: ${planted}`);
+            assert.equal(hits[0].program, program);
+            assert.equal(hits[0].fn, fn, `reported the wrong function for ${planted}`);
+        }
     }
     // And a shape it must NOT report, so "red on everything" cannot masquerade
     // as a working sweep: a path is not a $PATH lookup.
