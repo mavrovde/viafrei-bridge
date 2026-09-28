@@ -59,12 +59,11 @@
  *   node scripts/check-leaks.mjs              # tracked files in the working tree
  *   node scripts/check-leaks.mjs --history    # every blob in every commit too
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
-import { resolveTool } from './tools.mjs';
+import { resolveTool, runTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -117,7 +116,7 @@ try {
  */
 const runGit = (args, options = {}) => {
     try {
-        return execFileSync(resolveTool('git'), ['-c', 'color.ui=false', ...args], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024, ...options });
+        return runTool(resolveTool('git'), ['-c', 'color.ui=false', ...args], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024, ...options });
     } catch (error) {
         return refuse(`git ${args[0]} could not be run here (exit ${error?.status ?? 'none'}) - ${safeMessage(error, RULES)}`);
     }
@@ -136,7 +135,7 @@ const git = args => runGit(args, { encoding: 'utf8' });
  */
 function blobExists(sha) {
     try {
-        execFileSync(resolveTool('git'), ['-c', 'color.ui=false', 'cat-file', '-e', `${sha}^{blob}`], { cwd: ROOT, stdio: 'ignore' });
+        runTool(resolveTool('git'), ['-c', 'color.ui=false', 'cat-file', '-e', `${sha}^{blob}`], { cwd: ROOT, stdio: 'ignore' });
         return true;
     } catch {
         return false;

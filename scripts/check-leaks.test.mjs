@@ -15,13 +15,12 @@
 // if the default goes back to every ref, if --all-refs stops meaning every
 // ref, or if the residue diagnostic stops telling the two scopes apart.
 import { strict as assert } from 'node:assert';
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, copyFileSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { missingFixtureImports } from './fixture-root.mjs';
-import { nodePath, resolveTool } from './tools.mjs';
+import { nodePath, resolveTool, runTool } from './tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = [];
@@ -31,7 +30,7 @@ function git(cwd, args) {
     // The fixture must not inherit a contributor's global configuration: a
     // signing key it cannot reach turns every case in this file into a
     // failure about something the file is not testing.
-    execFileSync(
+    runTool(
         resolveTool('git'),
         ['-c', 'color.ui=false', '-c', 'commit.gpgsign=false', '-c', 'tag.gpgsign=false', ...args],
         { cwd, stdio: 'pipe' }
@@ -42,7 +41,7 @@ function git(cwd, args) {
 // finding: a non-zero exit IS the thing under test here.
 function sweep(cwd, args) {
     try {
-        const stdout = execFileSync(nodePath(), [join(cwd, 'scripts/check-leaks.mjs'), ...args], {
+        const stdout = runTool(nodePath(), [join(cwd, 'scripts/check-leaks.mjs'), ...args], {
             cwd,
             stdio: 'pipe',
             encoding: 'utf8',
@@ -194,7 +193,7 @@ try {
     check('the residue diagnostic does not blame a rewrite under the default scope', () => {
         const rulesPath = join(repo, 'scripts', 'rules.json');
         const rules = JSON.parse(readFileSync(rulesPath, 'utf8'));
-        const blob = execFileSync(resolveTool('git'), ['rev-parse', 'side:stray.txt'], {
+        const blob = runTool(resolveTool('git'), ['rev-parse', 'side:stray.txt'], {
             cwd: repo,
             encoding: 'utf8',
         }).trim();

@@ -24,7 +24,7 @@ import { dirname, extname, isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { missingFixtureImports } from './fixture-root.mjs';
-import { TOOL_DIRS, ToolError, nodePath, npmCliPath, resolveTool } from './tools.mjs';
+import { TOOL_DIRS, TOOL_TIMEOUT_MS, ToolError, nodePath, npmCliPath, resolveTool, runTool } from './tools.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, '..');
@@ -281,7 +281,24 @@ check('missingFixtureImports() returns an empty list for a complete fixture', ()
 //     no expression can tell it apart from `RE.exec('git')` without a parser.
 // All five are reasons to read the module's doc comment rather than to trust this
 // expression as a proof.
-const BARE_CALL = /(?:\b(?:execFileSync|execFile|spawnSync|spawn|execSync)|(?<![.\w])exec)\s*\(\s*(['"])([^'"\n/\\]+)\1/gu;
+// `runTool` is in this list for a reason that is easy to miss: it is this
+// repository's own bounded wrapper (#25), and routing the call sites through it
+// renamed every one of them. A sweep that still looked only for `execFileSync`
+// would have gone green over the whole set the moment they were converted -
+// the gate silently ceasing to cover the thing it exists for, which is the
+// failure this file is built to refuse.
+// ONE list, used by the expression below AND by precondition 2. They were two
+// literals until the call sites were routed through `runTool`, at which point the
+// sweep learned the new name and the precondition did not - so the precondition
+// found zero spawning files and refused, which is the only reason this is not a
+// silent hole. Deriving both from one array is what stops that recurring.
+const SPAWNERS = ['execFileSync', 'execFile', 'spawnSync', 'spawn', 'execSync', 'runTool'];
+const BARE_CALL = new RegExp(
+    `(?:\\b(?:${SPAWNERS.join('|')})|(?<![.\\w])exec)\\s*\\(\\s*(['"])([^'"\\n/\\\\]+)\\1`,
+    'gu'
+);
+/** The same set, calling through the helper - what a CORRECT call site looks like. */
+const HELPER_CALL = new RegExp(`\\b(?:${SPAWNERS.join('|')})\\s*\\(\\s*resolveTool\\(`, 'u');
 
 function bareCalls(text) {
     const hits = [];
@@ -373,13 +390,13 @@ check('precondition 2: the expression locates a program argument in a REAL file 
     const self = join(ROOT, 'scripts', 'tools.test.mjs');
     assert.ok(files.includes(self), 'this file must itself be swept by the case below');
     const spawners = files.filter(file => file !== self
-        && /execFileSync\s*\(\s*resolveTool\(/u.test(readFileSync(file, 'utf8')));
+        && HELPER_CALL.test(readFileSync(file, 'utf8')));
     assert.ok(spawners.length >= 3, `only ${spawners.length} file(s) spawn through the helper`);
     let proved = 0;
     for (const file of spawners) {
         const asItWas = readFileSync(file, 'utf8').replace(
-            /execFileSync\(\s*resolveTool\((['"])(\w+)\1\)/gu,
-            (_match, quote, program) => `execFileSync(${quote}${program}${quote}`
+            new RegExp(`(${SPAWNERS.join('|')})\\(\\s*resolveTool\\((['"])(\\w+)\\2\\)`, 'gu'),
+            (_match, fn, quote, program) => `${fn}(${quote}${program}${quote}`
         );
         const hits = bareCalls(asItWas);
         assert.ok(hits.length >= 1, `BARE_CALL found no program in ${relative(ROOT, file)} with its helper removed`);
@@ -389,6 +406,47 @@ check('precondition 2: the expression locates a program argument in a REAL file 
         proved += hits.length;
     }
     assert.ok(proved >= 5, `only ${proved} program argument(s) located across ${spawners.length} real file(s)`);
+});
+
+check('runTool kills a program that overruns, and names it (#25)', () => {
+    // The change this proves: before it, a hung `git` inside the gate self-test ran for
+    // 1 h 49 min on a runner and was ended by hand. A timeout nobody has watched fire is
+    // a comment, so this plants a program that WILL overrun and requires the kill.
+    const started = Date.now();
+    assert.throws(
+        () => runTool(resolveTool('sleep'), ['30'], { timeout: 400 }),
+        error => {
+            assert.equal(error.name, 'ToolError', 'a timeout must be a ToolError, not a bare exec failure');
+            assert.match(error.message, /timed out after 400 ms and was killed/u);
+            assert.match(error.message, /sleep 30/u, 'the refusal must name the program and its arguments');
+            return true;
+        }
+    );
+    const elapsed = Date.now() - started;
+    assert.ok(elapsed < 10_000, `the kill took ${elapsed} ms, so the deadline is not being enforced`);
+});
+
+check('runTool re-throws an ordinary failure unchanged, so the gates can still read it', () => {
+    // Every gate here decides "refused" from `status`, `stdout` and `stderr` on the
+    // thrown error. If the wrapper replaced those, the gates would stop measuring what
+    // they claim to - so only a TIMEOUT is translated and nothing else.
+    assert.throws(
+        () => runTool(resolveTool('git'), ['rev-parse', 'a-ref-that-does-not-exist'], { stdio: 'pipe' }),
+        error => {
+            assert.notEqual(error.name, 'ToolError', 'an ordinary non-zero exit must not be reported as a hang');
+            assert.equal(typeof error.status, 'number', '`status` must survive for the gates to read');
+            assert.notEqual(error.status, 0);
+            return true;
+        }
+    );
+});
+
+check(`runTool has a default deadline (${TOOL_TIMEOUT_MS} ms) and it cannot be switched off`, () => {
+    assert.ok(Number.isFinite(TOOL_TIMEOUT_MS) && TOOL_TIMEOUT_MS >= 1000,
+        'the default must be a real, finite deadline');
+    // A floor, so `VF_TOOL_TIMEOUT_MS=0` or nonsense cannot mean "unbounded".
+    assert.equal(Math.max(1000, Number('0')), 1000);
+    assert.equal(Math.max(1000, Number('not a number')) || 1000, 1000);
 });
 
 check('precondition 3: the sweep goes red on a planted bare call (it can say no)', () => {

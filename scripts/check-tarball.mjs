@@ -45,14 +45,13 @@
  * Exit 0 = clean, 1 = a finding, 2 = the gate could not run (which is also a
  * failure: a gate that cannot run has not passed).
  */
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PackJsonError, soleTarball } from './npm-pack-json.mjs';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
-import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
+import { nodePath, npmCliPath, resolveTool, runTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -324,8 +323,8 @@ function main() {
             // packs the tarball must not be the environment's choice
             // (scripts/tools.mjs).
             const npmCli = npmCliPath();
-            execFileSync(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-            const packed = execFileSync(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
+            runTool(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+            const packed = runTool(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
                 cwd: ROOT,
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'inherit']
@@ -355,7 +354,7 @@ function main() {
         const unpacked = join(workspace, 'unpacked');
         // No subprocess at all for the directory: node makes it directly.
         mkdirSync(unpacked, { recursive: true });
-        execFileSync(resolveTool('tar'), ['-xzf', tarball, '-C', unpacked]);
+        runTool(resolveTool('tar'), ['-xzf', tarball, '-C', unpacked]);
 
         const files = listFiles(unpacked).map(path => relative(unpacked, path));
         if (files.length === 0) {

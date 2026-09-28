@@ -33,6 +33,7 @@
  * `process.execPath <npm-cli.js> …` and never as a program named "npm".
  */
 
+import { execFileSync } from 'node:child_process';
 import { accessSync, constants, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, sep } from 'node:path';
 
@@ -44,6 +45,54 @@ export class ToolError extends Error {
     constructor(message) {
         super(message);
         this.name = 'ToolError';
+    }
+}
+
+/**
+ * How long any external program may run before it is killed.
+ *
+ * WHY THIS EXISTS. On 2026-09-28 a `git` call inside the tarball gate's self-test
+ * stopped returning on a GitHub runner. The job had no timeout either, so it ran for
+ * **1 hour 49 minutes** and was ended by hand; the publish job hit the same stall and
+ * sat for 15 minutes. Both stopped after the same case, and the Node 22 job of the same
+ * commit passed, so it reproduces rather than being a one-off (#25).
+ *
+ * A hang is the one failure mode every gate in this directory is otherwise built to
+ * prevent. These scripts refuse by name, prove their controls can say no, and treat a
+ * check that read nothing as a failure — and a hung subprocess defeats all of it at
+ * once, because it is indistinguishable from work in progress: no exit code, no
+ * message, and a log that simply stops. So there is no such thing here as an unbounded
+ * external program.
+ *
+ * 120 s is deliberately generous: the slowest legitimate call in this repository is
+ * `npm pack` on a cold cache, which takes about a second, and the whole 107-case gate
+ * self-test finishes in 36. Anything approaching two minutes is already wrong. The
+ * override exists for a machine slow enough to need it, not for silencing this.
+ */
+export const TOOL_TIMEOUT_MS = Math.max(1000, Number(process.env.VF_TOOL_TIMEOUT_MS ?? 120_000));
+
+/**
+ * `execFileSync` with a deadline, and a refusal that names what stopped.
+ *
+ * Every other failure is re-thrown UNCHANGED, because callers read `status`, `stdout`
+ * and `stderr` off it to decide whether a gate refused — wrapping those would break the
+ * thing the gates measure. Only a timeout is translated, into a `ToolError` whose
+ * message carries the program, its arguments and the elapsed limit, so the next
+ * occurrence diagnoses itself instead of needing somebody to watch a log stop.
+ */
+export function runTool(file, args = [], options = {}) {
+    try {
+        return execFileSync(file, args, { timeout: TOOL_TIMEOUT_MS, killSignal: 'SIGKILL', ...options });
+    } catch (error) {
+        const timedOut = error.code === 'ETIMEDOUT'
+            || (error.killed === true && error.signal === 'SIGKILL');
+        if (!timedOut) throw error;
+        const limit = options.timeout ?? TOOL_TIMEOUT_MS;
+        throw new ToolError(
+            `timed out after ${limit} ms and was killed: ${file} ${args.join(' ')}. ` +
+            'This is a hang, not a failing assertion - see issue #25. Raise VF_TOOL_TIMEOUT_MS only ' +
+            'if the machine is genuinely that slow.'
+        );
     }
 }
 

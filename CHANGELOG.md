@@ -5,7 +5,88 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
-Nothing yet.
+Nothing here is released. These are two gates the 1.3.22 release wanted and could not
+have: one because the failure it prevents happened *during* that release, and one that
+has been kept in step by hand at every release since 1.3.15.
+
+### Added
+
+- **Every external program these scripts run now has a deadline** (`runTool` in
+  `scripts/tools.mjs`, `npm run test:tools`), because on 2026-09-28 one of them stopped
+  returning and nothing noticed.
+
+  A `git` call inside the tarball gate's self-test hung on a GitHub runner. The job had
+  no timeout either, so it ran for **1 hour 49 minutes** before being cancelled by hand;
+  the publish job hit the same stall and sat for 15 minutes with a tag already pushed.
+  Both stopped after the same case and the Node 22 job of the same commit passed, so it
+  reproduces rather than being a one-off (#25).
+
+  **A hang is the one failure mode everything else here is built to prevent.** These
+  scripts refuse by name, prove their controls can say no, and treat a check that read
+  nothing as a failure — and a hung subprocess defeats all of it at once, because it
+  cannot be told apart from work in progress: no exit code, no message, and a log that
+  simply stops. There is now no unbounded external program in `scripts/`: 22 call sites
+  across six files go through one wrapper with a 120-second default, which is roughly
+  120 times the slowest legitimate call here.
+
+  Only a **timeout** is translated, into a refusal naming the program, its arguments and
+  the limit. Every other failure is re-thrown untouched, because each gate decides
+  "refused" from `status`, `stdout` and `stderr` on the thrown error, and wrapping those
+  would break the thing the gates measure. Both halves are asserted.
+
+  **Renaming the call sites nearly disabled the gate that watches them.** The bare-name
+  sweep looked for `execFileSync(`; routing 22 calls through `runTool(` would have left
+  it green over the whole set while covering none of it — the exact silent-hole failure
+  that file exists to refuse. It is caught structurally now: the function names live in
+  one `SPAWNERS` array that both the sweep and its own precondition are derived from, so
+  the two cannot drift again. The only reason this was noticed is that the precondition
+  went red on its own when it found zero spawning files.
+
+- **A gate on the manifest and lockfile versions** (`scripts/check-versions.mjs`,
+  `npm run check:versions`), in **both** workflows (#18).
+
+  Cutting 1.3.15 left `package.json` at `1.3.15` while `package-lock.json` still said
+  `1.3.12`, on a tree seven review rounds had confirmed, and every gate passed. The
+  measured reason: **`npm ci` does not compare the root `version` field at all** —
+  checked on npm 11.19.1 and on the 12.0.2 the publish workflow pins — so nothing in
+  build, test, pack or the tarball gate reads that pair. It has been kept in step by hand
+  ever since, and 1.3.16 and 1.3.22 each said so in their commit messages. "Done
+  deliberately" is the failure mode, not the remedy.
+
+  It lives in `ci.yml` as well as `publish.yml` so the drift surfaces on the push that
+  introduces it rather than at the tag, when the only remedy is a new version. Its exit
+  codes are distinct on purpose — **2** could not run, **1** ran and disagreed — so "I
+  could not read the lockfile" can never look like "I read it and was satisfied". Eleven
+  self-test cases, including the mutant #18 asks for and the one that would otherwise
+  agree about nothing: three ABSENT fields are all equal to each other.
+
+### Changed
+
+- **Both workflow jobs carry `timeout-minutes: 15`** (#25). There was no timeout on any
+  job, so GitHub's default six hours applied — which is how a hung step ran for nearly
+  two. Fifteen minutes is nine times the observed duration of a successful run (~100 s
+  for CI, ~95 s for publish), so it cannot fire on a slow-but-working build, and it ends
+  a hung one in minutes.
+
+- **`publish.yml` refuses a tag whose commit `main` does not contain** (#18). A tag alone
+  decides what is published, so a tag pushed from any branch would have published from
+  it. The ancestry is answerable because the checkout is already full-depth, and the ref
+  is fetched explicitly so an unresolvable `origin/main` is an error rather than a skip.
+
+- **The `npm` deployment environment now says what it gates and why it has no protection
+  rule** (#18): it is the OIDC subject npm's trusted publisher is configured against, so
+  it is part of the credential, and it has no required reviewer deliberately — the
+  release is already gated by a verdict covering HEAD and by every gate running against
+  the exact tarball uploaded. Recorded so "no rule needed" is distinguishable from
+  "nobody looked".
+
+### Note on a count in the 1.3.16 entry below
+
+That entry says the tool sweep reads "thirty-two source files". It now reads **34**,
+because this work adds two. The published entry is **left alone**: it was measured at
+that release and editing a shipped block to keep a number current is how a changelog
+stops being a record. The figure to trust is the one `npm run test:tools` prints, which
+is why nothing here states a total either.
 
 ## [1.3.22] - 2026-09-28
 
