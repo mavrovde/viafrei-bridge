@@ -196,9 +196,8 @@ check('npmCliPath() ignores an npm_execpath of the wrong shape', () => {
 // because a third caller arrived the SAME DAY the module was written, and the
 // sentence that said "both" went stale unnoticed. On every ordinary run they
 // exercise only the COMPLETE-fixture path, so without these the "missing" branch
-// had no automated
-// proof at all; it was checked by hand-mutating a file list, which is not a thing
-// that happens again.
+// had no automated proof at all; it was checked by hand-mutating a file list,
+// which is not a thing that happens again.
 
 check('missingFixtureImports() finds an import whose file is not beside it', () => {
     const workspace = mkdtempSync(join(tmpdir(), 'viafrei-fixture-'));

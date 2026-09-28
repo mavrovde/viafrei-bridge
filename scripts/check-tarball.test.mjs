@@ -8,18 +8,24 @@
  * finding, so a case cannot pass by failing for the wrong reason.
  *
  * **Where the gate has a rule LIST, the cases are derived from it** and are never
- * typed out here: one per lifecycle script npm can start by itself, one per
- * forbidden file name, one per required file, one per content pattern, and one per
- * encoding at each alignment. A rule added to such a list is a case added here
- * automatically; a list that goes empty is a REFUSAL to run rather than a smaller,
- * quieter pass.
+ * typed out here: one per lifecycle script npm can start by itself (`AUTO_RUN_SCRIPTS`),
+ * one per forbidden file name (`FORBIDDEN_NAMES`), one per required file (`REQUIRED`),
+ * and one per content pattern (from `rules.json`). A rule added to such a list is a
+ * case added here automatically; a list that goes empty is a REFUSAL to run rather
+ * than a smaller, quieter pass.
  *
  * Where it has no list, the cases ARE enumerated in this file, and each one is a
  * rule somebody has to remember to cover: the dependency shapes, the numbers rule
- * in plaintext and in base64, the gypfile manifest, the private name in a path, the
- * two for the shipped README's relative links, and one per `npm pack --json` shape.
- * That half is the standing hazard - the README-link rule shipped with no case at
- * all and the suite's count did not move. That was a real hole: this file used
+ * in plaintext and in base64, one per encoding at each alignment, the gypfile
+ * manifest, the private name in a path, the two for the shipped README's relative
+ * links, and one per `npm pack --json` shape. That half is the standing hazard - the
+ * README-link rule shipped with no case at all and the suite's count did not move.
+ *
+ * The encodings belong to that second half although they look derived: `ENCODING_CASES`
+ * below is a hand-written array, and the decoders live inside `decodings()` in
+ * rules.mjs with no list to read, so adding a decoder adds no case here. They are
+ * named apart because this is the family where the hazard has already bitten - the
+ * numbers rule could be made inert while every case in this file stayed green. That was a real hole: this file used
  * to exit on `failures === 0` whatever the number of cases, so emptying a list
  * in `rules.json` deleted six cases and still printed PASS.
  *
@@ -375,11 +381,18 @@ for (const [name, link] of [
 //   a.md#b.md   the `#` exclusion in the target class, and the anchor group
 //   mailto:     the `mailto:` exclusion, which nothing else here reaches
 //   https://    the absolute-URL exclusion
+//   notes.txt   the `.md` requirement - a non-Markdown target is out of scope
 //   three links dedupe and sort, which the note() receipt and the finding both print
+//
+// The `.md` one is the only input here that something else already catches: widening
+// the extractor makes the clean control reject the real tarball, because the README
+// names a file that does not ship. That is loud and correct and it rests on one line
+// of one document continuing to exist, so the clause gets its own assertion too.
 for (const [input, expected] of [
     ['[x](a.md#b.md)', ['a.md']],
     ['[x](mailto:a@b.md)', []],
     ['[x](https://github.com/o/r/blob/main/y.md)', []],
+    ['[x](notes.txt)', []],
     ['[y](B.md#c) and [z](A.md) and [w](B.md)', ['A.md', 'B.md']]
 ]) {
     const got = relativeMarkdownLinks(input);
