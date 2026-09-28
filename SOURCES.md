@@ -310,13 +310,13 @@ sourceNote              : null
 ```
 
 So GovData's harvest is faithful and there is no versioned statement anywhere in
-the chain. The attribution string the server emits today still names 4.0; that is
-a defect at the source, tracked there, and it will be corrected in the server
-rather than by rewording this page — what this page documents is what the server
-actually sends.
+the chain, and the attribution string the server emits says exactly that: the
+licence is CC BY-SA and the version is unstated. It named 4.0 until v1.4.1, which
+corrected it at the source rather than by rewording this page — what this page
+documents is what the server actually sends.
 
 ```
-Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA 4.0
+Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA
 ```
 
 Share-alike. See [the obligation above](#public-transport-realtime-is-share-alike):
