@@ -69,8 +69,9 @@ export class ToolError extends Error {
  * 120 s is deliberately generous: the slowest legitimate call in this repository is
  * `npm pack` on a cold cache, which takes about a second, and the whole gate self-test
  * finishes in about 40 (measured). No case count is written here: the suite's own
- * count moves and a number in a comment does not. Anything approaching two minutes is already wrong. The
- * override exists for a machine slow enough to need it, not for silencing this.
+ * count moves and a number in a comment does not. Anything approaching two minutes
+ * is already wrong. The override exists for a machine slow enough to need it, not
+ * for silencing this.
  */
 const DEFAULT_TIMEOUT_MS = 120_000;
 const TIMEOUT_FLOOR_MS = 1000;

@@ -7,13 +7,19 @@
  * ways the gate exists to catch and checks that it is rejected - naming the
  * finding, so a case cannot pass by failing for the wrong reason.
  *
- * **Every case is derived from the gate's own rules**, not typed out here: one
- * per lifecycle script npm can start by itself, one per forbidden file name, one
- * per required file, one per dependency shape, one per content pattern, one for the
- * numbers rule in plaintext and in base64, one per encoding at each alignment, two for
- * the shipped README's relative links, and one per `npm pack --json` shape. A rule added
- * to the gate is a case added here; a rule list that goes empty is a REFUSAL to
- * run rather than a smaller, quieter pass. That was a real hole: this file used
+ * **Where the gate has a rule LIST, the cases are derived from it** and are never
+ * typed out here: one per lifecycle script npm can start by itself, one per
+ * forbidden file name, one per required file, one per content pattern, and one per
+ * encoding at each alignment. A rule added to such a list is a case added here
+ * automatically; a list that goes empty is a REFUSAL to run rather than a smaller,
+ * quieter pass.
+ *
+ * Where it has no list, the cases ARE enumerated in this file, and each one is a
+ * rule somebody has to remember to cover: the dependency shapes, the numbers rule
+ * in plaintext and in base64, the gypfile manifest, the private name in a path, the
+ * two for the shipped README's relative links, and one per `npm pack --json` shape.
+ * That half is the standing hazard - the README-link rule shipped with no case at
+ * all and the suite's count did not move. That was a real hole: this file used
  * to exit on `failures === 0` whatever the number of cases, so emptying a list
  * in `rules.json` deleted six cases and still printed PASS.
  *
@@ -306,14 +312,15 @@ for (const required of REQUIRED) {
 //
 // The rule this covers was added with no case here, which the review caught: the
 // suite's own count advertised it, because 107 stayed 107. Two cases, not one,
-// because the first draft of the rule read `([^)\s#]+\.md)\)` and therefore could
-// not see an ANCHORED link - `](CONTRIBUTING.md#merging)` to a file the tarball
-// does not carry passed silently, which was the likeliest fifth link there is.
+// because the first draft of the rule had no anchor group - `([^)\s#]+\.md)\)` where
+// today's reads `([^)\s#]+\.md)(?:#[^)\s]*)?\)` - and therefore could not see an
+// ANCHORED link: `](CONTRIBUTING.md#merging)` to a file the tarball does not carry
+// passed silently, which was the likeliest fifth link there is.
 // A rule and the gap it had are different facts, so each gets its own case.
 //
-// The accepting direction needs nothing added: the real README still links
-// relatively to API.md and SOURCES.md, both shipped, and the clean control above
-// is that assertion.
+// The accepting direction is the clean control above: exit 0 on the real tarball,
+// which a rule wrongly flagging API.md or SOURCES.md would break. What that does NOT
+// prove is that the rule read anything at all - which is the third precondition below.
 const UNSHIPPED_DOC = 'NOT-SHIPPED-DOC.md';
 if (!REQUIRED.includes('package/README.md')) {
     refuse('README.md is not required, so these two cases would be asserting against a tarball that may carry no README');
@@ -350,6 +357,38 @@ for (const [name, link] of [
     add('shipped README links', name, `shipped README links.*${UNSHIPPED_DOC_RE}.*does not carry`, directory => {
         appendFileSync(join(directory, 'README.md'), `\n\nSee [the missing document](${link}).\n`);
     });
+}
+
+// The extractor's own contract, asserted directly, because a tarball case cannot reach
+// all of it: reverting the `#` exclusion in the target class alone - so `](a.md#b.md)`
+// captures `a.md#b.md` and is reported as a dangling link nobody wrote - left all 109
+// cases green when it was tried. A spurious red on a future README rather than a shipped
+// defect, which is why this is a handful of lines here and not a tarball case.
+//
+// Each input is one a SINGLE mutation of the expression breaks, measured rather than
+// assumed, because the first draft of this block asserted `](#s)` gives `[]` and that
+// cannot fail: a pure anchor is already unmatchable once `#` is out of the target class,
+// so no mutation of the leading `#` in the lookahead changes it. Which is the trap worth
+// recording - the lookahead's `#` is REDUNDANT given the class, so it is no backstop for
+// anyone who later widens the class believing otherwise.
+//
+//   a.md#b.md   the `#` exclusion in the target class, and the anchor group
+//   mailto:     the `mailto:` exclusion, which nothing else here reaches
+//   https://    the absolute-URL exclusion
+//   three links dedupe and sort, which the note() receipt and the finding both print
+for (const [input, expected] of [
+    ['[x](a.md#b.md)', ['a.md']],
+    ['[x](mailto:a@b.md)', []],
+    ['[x](https://github.com/o/r/blob/main/y.md)', []],
+    ['[y](B.md#c) and [z](A.md) and [w](B.md)', ['A.md', 'B.md']]
+]) {
+    const got = relativeMarkdownLinks(input);
+    if (JSON.stringify(got) !== JSON.stringify(expected)) {
+        refuse(
+            `relativeMarkdownLinks(${JSON.stringify(input)}) returned ${JSON.stringify(got)}, ` +
+            `not ${JSON.stringify(expected)} - the rule's own extractor does not hold to its contract`
+        );
+    }
 }
 
 // --- dependencies, judged by what they resolve to --------------------------

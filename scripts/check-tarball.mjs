@@ -131,6 +131,12 @@ export const REQUIRED = ['package/package.json', 'package/README.md', 'package/L
  * glued on: `](a.md#b.md)` is `a.md`, not `a.md#b.md`, which would be reported as a
  * dangling link nobody wrote. A pure anchor, an absolute URL and a `mailto:` are all
  * excluded - none of them names a file the tarball could carry.
+ *
+ * The leading `#` in the lookahead is redundant given that class, measured: every input
+ * behaves the same with and without it, because `[^)\s#]+` already cannot start on a
+ * `#`. It is kept because it states the intent, and it is called out because it is NOT a
+ * backstop - widening the class back to `[^)\s]+` reintroduces `a.md#b.md` with the
+ * lookahead fully intact.
  */
 export function relativeMarkdownLinks(text) {
     return [...new Set(
