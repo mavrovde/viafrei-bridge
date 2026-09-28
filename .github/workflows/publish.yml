@@ -62,10 +62,24 @@ jobs:
     # artefact, so the runner image it is built on is part of what is
     # being released. ubuntu-latest moves under us on GitHub's schedule.
     runs-on: ubuntu-24.04
+    # Observed: a successful publish job is ~95 s. The same stall hit this workflow
+    # for 15 minutes on 2026-09-28 (#25); with no timeout it would have run for six
+    # hours with a tag already pushed and nothing published. Fifteen minutes is the
+    # same ceiling as CI, for the same reason.
+    timeout-minutes: 15
     # A deployment environment gives the owner a place to hang an approval on,
     # and npm can be told to require it. If the trusted publisher on npm is
     # configured WITHOUT an environment, delete this line - the two must agree,
     # or the OIDC claim will not match and the publish will be refused.
+    #
+    # WHAT IT GATES, AND WHY IT CARRIES NO PROTECTION RULE (#18). This environment is
+    # the OIDC subject npm's trusted publisher is configured against, so it is part of
+    # the credential: the claim must name it or the publish is refused. It has no
+    # required reviewer DELIBERATELY - the release is already gated by a reviewer
+    # verdict that must cover HEAD before the merge, and by every gate above this line
+    # running against the exact tarball that is uploaded. A second approval here would
+    # add a click, not a check. Recorded so "no rule needed" is distinguishable from
+    # "nobody looked".
     environment: npm
     steps:
       # Pinned to a commit, not a tag: a tag is mutable and this workflow
@@ -112,6 +126,33 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match package.json version $manifest." >&2
             exit 1
           fi
+
+      # The same assertion CI carries, repeated here as a belt: a tag can be pushed
+      # without the branch ever having run CI (#18).
+      - name: Manifest and lockfile versions agree
+        run: npm run check:versions
+
+      # A tag alone decides what gets published, so a tag pushed from ANY branch would
+      # publish from it. This requires the tagged commit to be one `main` contains.
+      # `fetch-depth: 0` above is what makes the ancestry answerable; without it this
+      # would fail for the wrong reason, so the ref is fetched explicitly and its
+      # absence is an error rather than a skip (#18).
+      - name: The tagged commit must be contained in main
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -eu
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git rev-parse --verify --quiet refs/remotes/origin/main >/dev/null; then
+            echo "origin/main could not be resolved, so containment cannot be checked" >&2
+            exit 2
+          fi
+          echo "tag sha : ${GITHUB_SHA}"
+          echo "main sha: $(git rev-parse refs/remotes/origin/main)"
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" refs/remotes/origin/main; then
+            echo "The tagged commit is not contained in main - refusing to publish from it." >&2
+            exit 1
+          fi
+          echo "OK: the tagged commit is contained in main."
 
       - name: Build
         run: npm run build

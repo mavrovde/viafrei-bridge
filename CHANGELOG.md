@@ -5,7 +5,184 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
-Nothing yet.
+Nothing here is released. These are two gates the 1.3.22 release wanted and could not
+have: one because the failure it prevents happened *during* that release, and one that
+has been kept in step by hand at every release since 1.3.15.
+
+### Added
+
+- **Every external program these scripts run now has a deadline** (`runTool` in
+  `scripts/tools.mjs`, `npm run test:tools`), because on 2026-09-28 one of them stopped
+  returning and nothing noticed.
+
+  A `git` call inside the tarball gate's self-test hung on a GitHub runner. The job had
+  no timeout either, so it ran for **1 hour 49 minutes** before being cancelled by hand;
+  the publish job hit the same stall and sat for 15 minutes with a tag already pushed.
+  Both stopped after the same case and the Node 22 job of the same commit passed, so it
+  reproduces rather than being a one-off (#25).
+
+  **A hang is the one failure mode everything else here is built to prevent.** These
+  scripts refuse by name, prove their controls can say no, and treat a check that read
+  nothing as a failure — and a hung subprocess defeats all of it at once, because it
+  cannot be told apart from work in progress: no exit code, no message, and a log that
+  simply stops. There is now no unbounded external program in `scripts/`: every one goes
+  through a single wrapper with a 120-second default, roughly 120 times the slowest
+  legitimate call here. No count is written down — the bare-name sweep is the instrument,
+  and it fails if a call appears that does not go through the wrapper. (This branch
+  CONVERTED 22 sites across six files; that is a figure about the change, not an
+  inventory of the tree, and an earlier draft of this sentence used it as both.)
+
+  Only a **timeout** is translated, into a refusal naming the program, its arguments and
+  the limit. Every other failure is re-thrown untouched, because each gate decides
+  "refused" from `status`, `stdout` and `stderr` on the thrown error, and wrapping those
+  would break the thing the gates measure. Both halves are asserted.
+
+  **Renaming the call sites nearly disabled the gate that watches them.** The bare-name
+  sweep looked for `execFileSync(`; routing 22 calls through `runTool(` would have left
+  it green over the whole set while covering none of it — the exact silent-hole failure
+  that file exists to refuse. It is caught structurally now: the function names live in
+  one `SPAWNERS` array that both the sweep and its own precondition are derived from, so
+  the two cannot drift again. The only reason this was noticed is that the precondition
+  went red on its own when it found zero spawning files.
+
+- **A gate on the manifest and lockfile versions** (`scripts/check-versions.mjs`,
+  `npm run check:versions`), in **both** workflows (#18).
+
+  Cutting 1.3.15 left `package.json` at `1.3.15` while `package-lock.json` still said
+  `1.3.12`, on a tree seven review rounds had confirmed, and every gate passed. The
+  measured reason: **`npm ci` does not compare the root `version` field at all** —
+  checked on npm 11.19.1 and on the 12.0.2 the publish workflow pins — so nothing in
+  build, test, pack or the tarball gate reads that pair. It has been kept in step by hand
+  ever since, and 1.3.16 and 1.3.22 each said so in their commit messages. "Done
+  deliberately" is the failure mode, not the remedy.
+
+  It lives in `ci.yml` as well as `publish.yml` so the drift surfaces on the push that
+  introduces it rather than at the tag, when the only remedy is a new version. Its exit
+  codes are distinct on purpose — **2** could not run, **1** ran and disagreed — so "I
+  could not read the lockfile" can never look like "I read it and was satisfied". Its
+  self-test covers the mutant #18 asks for and the one that would otherwise agree about
+  nothing — three ABSENT fields are all equal to each other. No case count is written
+  here; `npm run test:versions` prints the one to trust.
+
+### Changed
+
+- **Both workflow jobs carry `timeout-minutes: 15`** (#25). There was no timeout on any
+  job, so GitHub's default six hours applied — which is how a hung step ran for nearly
+  two. Fifteen minutes is nine times the observed duration of a successful run (~100 s
+  for CI, ~95 s for publish), so it cannot fire on a slow-but-working build, and it ends
+  a hung one in minutes.
+
+- **`publish.yml` refuses a tag whose commit `main` does not contain** (#18). A tag alone
+  decides what is published, so a tag pushed from any branch would have published from
+  it. The ancestry is answerable because the checkout is already full-depth, and the ref
+  is fetched explicitly so an unresolvable `origin/main` is an error rather than a skip.
+
+- **The `npm` deployment environment now says what it gates and why it has no protection
+  rule** (#18): it is the OIDC subject npm's trusted publisher is configured against, so
+  it is part of the credential, and it has no required reviewer deliberately — the
+  release is already gated by a verdict covering HEAD and by every gate running against
+  the exact tarball uploaded. Recorded so "no rule needed" is distinguishable from
+  "nobody looked".
+
+### Fixed
+
+- **Every push ran CI twice** (#23). `push: branches: ['**']` and `pull_request` both
+  fired for a branch with an open pull request, so one push ran the whole matrix twice —
+  four `build-and-test` jobs for two Node versions, doubling the wait and the minutes for
+  no added signal. `push` is now `main` only; everything else arrives through its pull
+  request. The cost is named in the workflow rather than discovered later: a branch pushed
+  with **no** pull request now gets no CI. That is the right trade here — the flow is
+  push-then-open-immediately, the reviewer reads local commits before the push, and the
+  publish workflow re-runs every gate against the tag regardless.
+
+- **Four README links resolved on the package page but not inside the tarball** (#23).
+  `README.md` ships and linked to `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`
+  and `SUPPORT.md`, none of which do. Three were pre-existing — verified in the published
+  1.3.15 tarball — and `SUPPORT.md` was added by 1.3.16, so that release made an existing
+  condition one worse. npm rewrites relative links in the rendered README to the
+  repository, so it only bit someone reading an unpacked tarball. All four are now
+  absolute, which is the honest form: a link that means "the repository" says so, and it
+  survives any packaging change. The two that remain relative, `API.md` and `SOURCES.md`,
+  are files the tarball carries — and that is now **asserted by the tarball gate**, which
+  reads the README *inside* the built tarball, extracts every relative Markdown link and
+  fails if one is not among the shipped paths. So the fifth such link is caught rather
+  than noticed three releases later. An earlier draft of this sentence said "asserted"
+  when nothing asserted it, which is the third time an entry in this file has claimed a
+  mechanism the tree did not contain; this time the mechanism was written instead of the
+  sentence being softened.
+
+  The rule then arrived with **no case in the gate's own self-test**, and the suite's case
+  count stayed where it was, which is how the review found it: a count that does not move
+  when a rule is added is the suite saying so. It now has two cases, because the rule's
+  first draft could not see an ANCHORED link — `](CONTRIBUTING.md#merging)` to a file the
+  tarball does not carry passed silently, and that is the likeliest fifth link there is.
+  Each was proved red on its own: neutering the rule fails both, and restoring the
+  anchor-blind capture fails only the anchored one.
+
+- **Two comments carried counts that read as inventories** (#23). `scripts/tools.mjs` said
+  "TWENTY sites were changed in all" where twenty was what one commit changed, not what
+  the tree holds; it now says so. `scripts/tools.test.mjs` said a third caller of the
+  shared precondition arrived "within the week" when it arrived the **same day**, which is
+  the harder version of its own point.
+
+### Deliberately not done
+
+- **`javascript:S2187` on every self-test** (#23, item 1) — *cannot be done from the
+  repository.* SonarCloud reads `scripts/*.test.mjs` as test files, finds no framework
+  assertions, and reports "add some tests to this file or delete it" at BLOCKER on each.
+  There are **five** as of this branch, because the version gate above brings its own — so
+  this work adds a file to the class it is declaring unfixable, which is the part worth
+  knowing before the next self-test is written.
+  Measured: analysis here is **Automatic** (no scanner step in any workflow) and
+  `api/settings/values` returns no `sonar.tests` or `sonar.test.inclusions`, so the test
+  patterns live in SonarCloud's own UI and changing them needs a token this repository
+  does not hold. A `sonar-project.properties` was **not** added, because Automatic
+  Analysis may ignore it and a config file that silently does nothing is worse than the
+  finding. The two real options are a UI change to the test patterns, or renaming the
+  convention to `*.selftest.mjs` — which touches `package.json` scripts, CI steps and the
+  sweep that counts them. The quality gate passes on all five conditions either way.
+
+- **The four remaining bare `.sort()` calls** — left, and named so the next person is not
+  ambushed. SonarCloud raised `javascript:S2871` (CRITICAL, type BUG) on the `.sort()` in
+  `relativeMarkdownLinks` and took the new-code reliability rating to D against an A
+  threshold, which is a required check. The line's behaviour was never wrong — every
+  element is a string and code-unit order is what is wanted — but the round-3 refactor
+  moved the expression into a new exported function, so a pattern older than this branch
+  became *new code* and failed a gate it had never been measured by. That is the trap, and
+  it is still loaded four times over:
+
+      git grep -n '\.sort()' -- '*.mjs' '*.ts' | grep -v '^\S*:[0-9]*: \*'
+
+  finds them in `scripts/check-tarball.mjs`, twice in `scripts/tools.test.mjs`, and in
+  `test/relay.test.ts`. All four are string arrays and all four are correct today; none is
+  in this PR's new-code period, so none fails the gate now. **Converting them here would
+  add three files to a diff that is already fifteen**, so they are recorded instead: the
+  next PR that so much as moves one of those lines should expect a CRITICAL BUG on code it
+  only touched, and should fix it in that PR rather than discovering it from a red required
+  check after the push, which is how this one was found.
+
+  Not `localeCompare`, whichever PR does it. It is what the rule suggests and it is wrong
+  here twice: it reorders (`B a` becomes `a B`) and it is locale-dependent (`ä` sorts before
+  `z` under `en`/`de` and after it under `sv`), so a gate's output would depend on the
+  runner. The comparator added here says only what the default already did, and the order
+  is pinned by a case in the self-test.
+
+- **A shared assertion harness for the self-tests** (#23, item 5) — declined, on the
+  issue's own condition. Each self-test defines its own `check()`/`refuse()` pair, and the
+  issue says to unify them only if it can be done without weakening the per-file refusal
+  wording. It cannot, cheaply: the refusals deliberately name different builders and exit
+  by different routes, and that difference is load-bearing — it is what tells a reader
+  which fixture failed. The duplication is seven small functions across five files — four
+  define `check()`, three define `refuse()` — not the eleven-line block that caused the
+  3.1% duplication failure `fixture-root.mjs` was extracted to fix.
+
+### Note on a count in the 1.3.16 entry below
+
+That entry says the tool sweep reads "thirty-two source files". It now reads **34**,
+because this work adds two. The published entry is **left alone**: it was measured at
+that release and editing a shipped block to keep a number current is how a changelog
+stops being a record. The figure to trust is the one `npm run test:tools` prints, which
+is why nothing here states a total either.
 
 ## [1.3.22] - 2026-09-28
 

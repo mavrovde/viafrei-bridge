@@ -9,8 +9,15 @@ name: CI
 # start their own stub server; the network is not part of the contract.
 
 on:
+  # `main` on push, everything else through its pull request. Both triggers used to fire
+  # for a branch with an open PR, so one push ran the whole matrix TWICE (#23).
+  #
+  # The cost of this shape, named rather than discovered later: a branch pushed with no
+  # pull request gets no CI. That is the right trade here - this repository's flow is
+  # push-then-open-immediately, the reviewer reads local commits before the push, and
+  # the publish workflow re-runs every gate against the tag regardless.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -20,6 +27,12 @@ permissions:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    # Observed: a successful build-and-test job is ~100 s. Fifteen minutes is nine
+    # times that, so it never fires on a slow-but-working run - and it ends a HUNG
+    # one in minutes. On 2026-09-28 the Node 24 job of this workflow stopped
+    # returning inside the gate self-test and ran 1 h 49 min before being cancelled
+    # by hand, because GitHub's default is six hours (#25).
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -40,6 +53,13 @@ jobs:
       # build or publish this package. The gate refuses a lifecycle script in
       # OUR manifest; this is the same rule applied to everyone else's.
       - run: npm ci --ignore-scripts
+
+      # FIRST, because `npm ci` above does not compare the root `version` field and
+      # nothing else here reads that pair (#18). Its home is this workflow rather than
+      # only publish.yml so the drift surfaces on the push that introduces it, not at
+      # the tag - when the only remedy is a new version.
+      - name: Manifest and lockfile versions agree
+        run: npm run check:versions
 
       - name: Build
         run: npm run build
@@ -75,6 +95,12 @@ jobs:
       # which is where its whitespace bug lived, invisible to a byte comparison.
       - name: API-reference generator self-test
         run: npm run test:docs
+
+      # The version gate above compares three fields. This proves it can say NO, with
+      # the mutant #18 asks for, and that "could not read the lockfile" (exit 2) never
+      # looks like "read it and was satisfied" (exit 0).
+      - name: Version-gate self-test
+        run: npm run test:versions
 
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that

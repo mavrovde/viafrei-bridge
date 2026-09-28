@@ -7,14 +7,27 @@
  * ways the gate exists to catch and checks that it is rejected - naming the
  * finding, so a case cannot pass by failing for the wrong reason.
  *
- * **Every case is derived from the gate's own rules**, not typed out here: one
- * per lifecycle script npm can start by itself, one per forbidden file name,
- * one per required file, one per content pattern, one for the numbers rule in
- * plaintext and in base64, and one per encoding at each alignment. A rule added
- * to the gate is a case added here; a rule list that goes empty is a REFUSAL to
- * run rather than a smaller, quieter pass. That was a real hole: this file used
- * to exit on `failures === 0` whatever the number of cases, so emptying a list
- * in `rules.json` deleted six cases and still printed PASS.
+ * **Where the gate has a rule LIST, the cases are derived from it** and are never
+ * typed out here: one per lifecycle script npm can start by itself (`AUTO_RUN_SCRIPTS`),
+ * one per forbidden file name (`FORBIDDEN_NAMES`), one per required file (`REQUIRED`),
+ * and one per content pattern (from `rules.json`). A rule added to such a list is a
+ * case added here automatically; a list that goes empty is a REFUSAL to run rather
+ * than a smaller, quieter pass. That was a real hole: this file used to exit on
+ * `failures === 0` whatever the number of cases, so emptying a list in `rules.json`
+ * deleted six cases and still printed PASS.
+ *
+ * Where it has no list, the cases ARE enumerated in this file, and each one is a
+ * rule somebody has to remember to cover: the dependency shapes, the numbers rule
+ * in plaintext and in base64, one per encoding at each alignment, the gypfile
+ * manifest, the private name in a path, the two for the shipped README's relative
+ * links, and one per `npm pack --json` shape. That half is the standing hazard - the
+ * README-link rule shipped with no case at all and the suite's count did not move.
+ *
+ * The encodings belong to that second half although they look derived: `ENCODING_CASES`
+ * below is a hand-written array, and the decoders live inside `decodings()` in
+ * rules.mjs with no list to read, so adding a decoder adds no case here. They are
+ * named apart because this is the family where the hazard has already bitten - the
+ * numbers rule could be made inert while every case in this file stayed green.
  *
  * It also mutates the RULESET itself, once per refusal the rules can produce,
  * and runs each mutation against every leg it applies to - the gate, the sweep,
@@ -38,16 +51,15 @@
  * Exit 0 = every case behaved, 1 = a case failed, 2 = the test could not run,
  * which is also a failure.
  */
-import { execFileSync } from 'node:child_process';
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, REQUIRED } from './check-tarball.mjs';
+import { AUTO_RUN_SCRIPTS, FORBIDDEN_NAMES, relativeMarkdownLinks, REQUIRED } from './check-tarball.mjs';
 import { missingFixtureImports } from './fixture-root.mjs';
 import { PackJsonError, soleTarballFilename } from './npm-pack-json.mjs';
 import { hashToken, loadRules } from './rules.mjs';
-import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
+import { nodePath, npmCliPath, resolveTool, runTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const GATE = join(ROOT, 'scripts/check-tarball.mjs');
@@ -155,7 +167,7 @@ if (FORBIDDEN_NUMBER === undefined) {
  * than assumed, so the case cannot quietly stop being about anything.
  */
 function inventAbsentNumber() {
-    const tracked = execFileSync(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '');
+    const tracked = runTool(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '');
     const corpus = tracked
         .map(file => {
             try {
@@ -300,6 +312,102 @@ for (const required of REQUIRED) {
         process.env,
         isManifest ? [2] : [1]
     );
+}
+
+// --- the shipped README may not link relatively to a file the tarball lacks ---
+//
+// The rule this covers was added with no case here, which the review caught: the
+// suite's own count advertised it, because 107 stayed 107. Two cases, not one,
+// because the first draft of the rule had no anchor group - `([^)\s#]+\.md)\)` where
+// today's reads `([^)\s#]+\.md)(?:#[^)\s]*)?\)` - and therefore could not see an
+// ANCHORED link: `](CONTRIBUTING.md#merging)` to a file the tarball does not carry
+// passed silently, which was the likeliest fifth link there is.
+// A rule and the gap it had are different facts, so each gets its own case.
+//
+// The accepting direction is the clean control above: exit 0 on the real tarball,
+// which a rule wrongly flagging API.md or SOURCES.md would break. What that does NOT
+// prove is that the rule read anything at all - which is the third precondition below.
+const UNSHIPPED_DOC = 'NOT-SHIPPED-DOC.md';
+if (!REQUIRED.includes('package/README.md')) {
+    refuse('README.md is not required, so these two cases would be asserting against a tarball that may carry no README');
+}
+if (existsSync(join(ROOT, UNSHIPPED_DOC))) {
+    refuse(`${UNSHIPPED_DOC} exists in the working tree, so these cases can no longer prove a link that does not resolve`);
+}
+// The third precondition, and the one the other two do not reach: the rule must still
+// have something to READ. Both cases below would pass on a README carrying no relative
+// link at all, because each plants its own - and the clean control asserts exit 0, which
+// an inert rule also produces. If the last two relative links ever went absolute, the
+// rule would report "none", cover nothing, and every case here would stay green: the
+// §5b shape this suite already refuses for each of its rule LISTS. Read through the
+// gate's own extractor so it cannot drift from what the rule sees, and judged against
+// the manifest's `files` because the tarball listing does not exist yet at this point.
+const SHIPPED_PATHS = new Set(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).files ?? []);
+const TREE_README_LINKS = relativeMarkdownLinks(readFileSync(join(ROOT, 'README.md'), 'utf8'));
+if (!TREE_README_LINKS.some(link => SHIPPED_PATHS.has(link))) {
+    refuse(
+        'README.md carries no relative Markdown link to a file the manifest ships ' +
+        `(found ${JSON.stringify(TREE_README_LINKS)}), so the link rule reads nothing on a clean ` +
+        'tarball and these cases would prove it only against poison they planted themselves'
+    );
+}
+// The stand-in is escaped with the same expression `printsStandIn` uses: a
+// string-argument `replace` escapes only the FIRST dot, which is right for today's name
+// and wrong for the next one. The kind mirrors the gate's own name for the finding, as
+// every other case's kind does.
+const UNSHIPPED_DOC_RE = UNSHIPPED_DOC.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+for (const [name, link] of [
+    ['readme-links-to-an-unshipped-file', UNSHIPPED_DOC],
+    ['readme-links-to-an-unshipped-file-behind-an-anchor', `${UNSHIPPED_DOC}#merging`]
+]) {
+    add('shipped README links', name, `shipped README links.*${UNSHIPPED_DOC_RE}.*does not carry`, directory => {
+        appendFileSync(join(directory, 'README.md'), `\n\nSee [the missing document](${link}).\n`);
+    });
+}
+
+// The extractor's own contract, asserted directly, because a tarball case cannot reach
+// all of it: reverting the `#` exclusion in the target class alone - so `](a.md#b.md)`
+// captures `a.md#b.md` and is reported as a dangling link nobody wrote - left all 109
+// cases green when it was tried. A spurious red on a future README rather than a shipped
+// defect, which is why this is a handful of lines here and not a tarball case.
+//
+// Each input is one a SINGLE mutation of the expression breaks, measured rather than
+// assumed, because the first draft of this block asserted `](#s)` gives `[]` and that
+// cannot fail: a pure anchor is already unmatchable once `#` is out of the target class,
+// so no mutation of the leading `#` in the lookahead changes it. Which is the trap worth
+// recording - the lookahead's `#` is REDUNDANT given the class, so it is no backstop for
+// anyone who later widens the class believing otherwise.
+//
+//   a.md#b.md   the `#` exclusion in the target class, and the anchor group
+//   mailto:     the `mailto:` exclusion, which nothing else here reaches
+//   https://    the absolute-URL exclusion
+//   notes.txt   the `.md` requirement - a non-Markdown target is out of scope
+//   three links dedupe and sort, which the note() receipt and the finding both print
+//   mixed case CODE-UNIT order, which is the only input that tells a bare sort and
+//               `localeCompare` apart - `B.md` before `a.md`. SonarCloud's S2871 asks
+//               for a comparator and suggests the locale-aware one, which would both
+//               reorder this list and make it depend on the runner's locale, so the
+//               order it must NOT acquire is pinned here rather than argued in a comment
+//
+// The `.md` one is the only input here that something else already catches: widening
+// the extractor makes the clean control reject the real tarball, because the README
+// names a file that does not ship. That is loud and correct and it rests on one line
+// of one document continuing to exist, so the clause gets its own assertion too.
+for (const [input, expected] of [
+    ['[x](a.md#b.md)', ['a.md']],
+    ['[x](mailto:a@b.md)', []],
+    ['[x](https://github.com/o/r/blob/main/y.md)', []],
+    ['[x](notes.txt)', []],
+    ['[y](B.md#c) and [z](A.md) and [w](B.md)', ['A.md', 'B.md']],
+    ['[x](a.md) and [y](B.md) and [z](C.md) and [w](b.md)', ['B.md', 'C.md', 'a.md', 'b.md']]
+]) {
+    const got = relativeMarkdownLinks(input);
+    if (JSON.stringify(got) !== JSON.stringify(expected)) {
+        refuse(
+            `relativeMarkdownLinks(${JSON.stringify(input)}) returned ${JSON.stringify(got)}, ` +
+            `not ${JSON.stringify(expected)} - the rule's own extractor does not hold to its contract`
+        );
+    }
 }
 
 // --- dependencies, judged by what they resolve to --------------------------
@@ -643,10 +751,10 @@ const RULESET_CASES = [
         token: SECRET,
         prepare: root => {
             writeFileSync(join(root, 'src', `${SECRET}.md`), 'nothing in here.\n');
-            execFileSync(resolveTool('git'), ['-C', root, 'add', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+            runTool(resolveTool('git'), ['-C', root, 'add', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
         },
         cleanup: root => {
-            execFileSync(resolveTool('git'), ['-C', root, 'rm', '-q', '-f', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
+            runTool(resolveTool('git'), ['-C', root, 'rm', '-q', '-f', join('src', `${SECRET}.md`)], { stdio: 'ignore' });
         },
         mutate: rules => {
             rules.tokenHashes = [...rules.tokenHashes, hashToken(RULES.salt, SECRET)];
@@ -686,7 +794,7 @@ const RULESET_CASES = [
             // yields no number findings, claiming one. Read from git rather
             // than typed, so the case cannot rot into "no such blob" and pass
             // through the neighbouring branch.
-            const blob = execFileSync(resolveTool('git'), ['-C', root, 'rev-parse', 'HEAD:README.md'], { encoding: 'utf8' }).trim();
+            const blob = runTool(resolveTool('git'), ['-C', root, 'rev-parse', 'HEAD:README.md'], { encoding: 'utf8' }).trim();
             const path = join(root, 'scripts/rules.json');
             const rules = JSON.parse(readFileSync(path, 'utf8'));
             rules.historyNumberResidue = [{ blob, findings: 1 }];
@@ -775,7 +883,7 @@ function buildGateRoot(workspace) {
 function buildSweepRepo(workspace) {
     const root = join(workspace, 'ruleset-sweep');
     mkdirSync(root, { recursive: true });
-    for (const file of execFileSync(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '')) {
+    for (const file of runTool(resolveTool('git'), ['-C', ROOT, 'ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(entry => entry !== '')) {
         mkdirSync(dirname(join(root, file)), { recursive: true });
         cpSync(join(ROOT, file), join(root, file));
     }
@@ -787,14 +895,14 @@ function buildSweepRepo(workspace) {
         GIT_COMMITTER_EMAIL: 'gate@example.invalid'
     };
     for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'throwaway']]) {
-        execFileSync(resolveTool('git'), ['-C', root, ...args], { stdio: 'ignore', env });
+        runTool(resolveTool('git'), ['-C', root, ...args], { stdio: 'ignore', env });
     }
     return root;
 }
 
 function runNode(script, args, env = process.env) {
     try {
-        const stdout = execFileSync(process.execPath, [script, ...args], { encoding: 'utf8', env });
+        const stdout = runTool(process.execPath, [script, ...args], { encoding: 'utf8', env });
         return { code: 0, stdout };
     } catch (error) {
         return { code: error.status ?? -1, stdout: `${error.stdout ?? ''}${error.stderr ?? ''}` };
@@ -811,7 +919,7 @@ let ran = 0;
 
 function runGate(tarball, env = process.env) {
     try {
-        const stdout = execFileSync(process.execPath, [GATE, tarball], { encoding: 'utf8', cwd: ROOT, env });
+        const stdout = runTool(process.execPath, [GATE, tarball], { encoding: 'utf8', cwd: ROOT, env });
         return { code: 0, stdout };
     } catch (error) {
         return { code: error.status ?? -1, stdout: `${error.stdout ?? ''}${error.stderr ?? ''}` };
@@ -822,8 +930,8 @@ function pack() {
     // Built here, because the published manifest may not carry a `prepack` to
     // do it - that is one of the things being tested.
     const npmCli = npmCliPath();
-    execFileSync(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-    const out = execFileSync(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
+    runTool(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+    const out = runTool(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
         cwd: ROOT,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'inherit']
@@ -849,7 +957,7 @@ function poisonedTarball(name, poison) {
     cpSync(join(workspace, 'clean'), directory, { recursive: true });
     poison(join(directory, 'package'));
     const tarball = join(workspace, `poison-${name}.tgz`);
-    execFileSync(resolveTool('tar'), ['-czf', tarball, '-C', directory, 'package']);
+    runTool(resolveTool('tar'), ['-czf', tarball, '-C', directory, 'package']);
     return tarball;
 }
 
@@ -956,7 +1064,7 @@ try {
 
     const clean = pack();
     mkdirSync(join(workspace, 'clean'), { recursive: true });
-    execFileSync(resolveTool('tar'), ['-xzf', clean, '-C', join(workspace, 'clean')]);
+    runTool(resolveTool('tar'), ['-xzf', clean, '-C', join(workspace, 'clean')]);
 
     ran += 1;
     const cleanResult = runGate(clean);

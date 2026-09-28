@@ -32,7 +32,6 @@
  *     renamed field turns the case red rather than making it a no-op.
  */
 
-import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -40,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 
 import { missingFixtureImports } from './fixture-root.mjs';
 import { flatten } from './flatten.mjs';
-import { nodePath } from './tools.mjs';
+import { nodePath, runTool } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -97,7 +96,7 @@ if (typeof flatten !== 'function') {
  */
 function runIn(directory, argv) {
     try {
-        const stdout = execFileSync(nodePath(), [join(directory, 'scripts', 'gen-api-doc.mjs'), ...argv], {
+        const stdout = runTool(nodePath(), [join(directory, 'scripts', 'gen-api-doc.mjs'), ...argv], {
             cwd: directory,
             encoding: 'utf8',
             stdio: ['ignore', 'pipe', 'pipe']

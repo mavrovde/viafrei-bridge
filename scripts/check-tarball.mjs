@@ -45,14 +45,13 @@
  * Exit 0 = clean, 1 = a finding, 2 = the gate could not run (which is also a
  * failure: a gate that cannot run has not passed).
  */
-import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PackJsonError, soleTarball } from './npm-pack-json.mjs';
 import { blindSpots, loadRules, opaque, safeMessage, safeString, scanFile, thresholds } from './rules.mjs';
-import { nodePath, npmCliPath, resolveTool } from './tools.mjs';
+import { nodePath, npmCliPath, resolveTool, runTool } from './tools.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -119,6 +118,55 @@ function unrunnable() {
 
 /** Files that must be in the tarball for it to be the package at all. */
 export const REQUIRED = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/dist/cli.js'];
+
+/**
+ * Code-unit order: exactly what a bare `.sort()` already does to strings, spelled out.
+ *
+ * `javascript:S2871` requires a comparator, and it is right to - a bare `.sort()` on
+ * anything but strings sorts by the decimal spelling of the values, which is a real bug
+ * class. The remedy it SUGGESTS is `localeCompare`, and that one is wrong here, measured
+ * twice over:
+ *
+ *   - it changes the order. `['a.md','B.md','C.md','b.md']` is `B C a b` by code unit and
+ *     `a b B C` by `localeCompare`, so adopting it would silently rewrite a list that the
+ *     self-test compares against golden values and the gate prints in its own receipt.
+ *   - it is LOCALE-DEPENDENT. `['z.md','ä.md']` sorts `ä` before `z` under `en` and `de`
+ *     and after it under `sv`, so the same tarball would produce a different list on a
+ *     runner with a different locale - a gate whose output depends on the environment,
+ *     which is the thing this whole directory exists to refuse.
+ *
+ * Trading a finding for a cross-machine difference is not a fix, so the comparator says
+ * what the default already did and the order is pinned by a case in the self-test.
+ */
+const byCodeUnit = (a, b) => {
+    if (a === b) return 0;
+    return a < b ? -1 : 1;
+};
+
+/**
+ * Every RELATIVE Markdown link target in `text`, once each, sorted.
+ *
+ * Exported so the rule below and its self-test read links through ONE expression: the
+ * self-test's third precondition has to prove this finds something in the real README,
+ * and a second copy of the pattern in the file that tests it is drift with a date on it.
+ *
+ * An anchor is allowed and dropped, because `](CONTRIBUTING.md#merging)` still names a
+ * file. The target class excludes `#` so an anchor that itself ends in `.md` cannot be
+ * glued on: `](a.md#b.md)` is `a.md`, not `a.md#b.md`, which would be reported as a
+ * dangling link nobody wrote. A pure anchor, an absolute URL and a `mailto:` are all
+ * excluded - none of them names a file the tarball could carry.
+ *
+ * The leading `#` in the lookahead is redundant given that class, measured: every input
+ * behaves the same with and without it, because `[^)\s#]+` already cannot start on a
+ * `#`. It is kept because it states the intent, and it is called out because it is NOT a
+ * backstop - widening the class back to `[^)\s]+` reintroduces `a.md#b.md` with the
+ * lookahead fully intact.
+ */
+export function relativeMarkdownLinks(text) {
+    return [...new Set(
+        [...text.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s#]+\.md)(?:#[^)\s]*)?\)/gu)].map(match => match[1])
+    )].sort(byCodeUnit);
+}
 
 /** File names that have no business being published. */
 /**
@@ -324,8 +372,8 @@ function main() {
             // packs the tarball must not be the environment's choice
             // (scripts/tools.mjs).
             const npmCli = npmCliPath();
-            execFileSync(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
-            const packed = execFileSync(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
+            runTool(nodePath(), [npmCli, 'run', 'build'], { cwd: ROOT, stdio: ['ignore', 'ignore', 'inherit'] });
+            const packed = runTool(nodePath(), [npmCli, 'pack', '--json', '--pack-destination', workspace], {
                 cwd: ROOT,
                 encoding: 'utf8',
                 stdio: ['ignore', 'pipe', 'inherit']
@@ -355,7 +403,7 @@ function main() {
         const unpacked = join(workspace, 'unpacked');
         // No subprocess at all for the directory: node makes it directly.
         mkdirSync(unpacked, { recursive: true });
-        execFileSync(resolveTool('tar'), ['-xzf', tarball, '-C', unpacked]);
+        runTool(resolveTool('tar'), ['-xzf', tarball, '-C', unpacked]);
 
         const files = listFiles(unpacked).map(path => relative(unpacked, path));
         if (files.length === 0) {
@@ -389,6 +437,63 @@ function main() {
 
         // --- checks 4 and 5: the manifest ------------------------------------
         checkManifest(JSON.parse(readFileSync(join(unpacked, 'package/package.json'), 'utf8')));
+
+        // --- every relative link in the SHIPPED README must resolve in the tarball ----
+        //
+        // README.md ships, and it linked to four Markdown files that do not: three since
+        // before 1.3.15 and one added by 1.3.16. npmjs.com rewrites relative links in the
+        // rendered README to the repository, so they work on the package page and break
+        // only for somebody reading an unpacked tarball - which is why nobody noticed for
+        // three releases. Absolute links are the remedy for the four; this is the gate
+        // that catches the fifth.
+        //
+        // It reads the README INSIDE the tarball, not the one in the working tree, so it
+        // judges what a consumer actually receives.
+        //
+        // SCOPE, stated because the rule is narrower than "every relative link": it reads
+        // links whose target is a `.md` file, with or without an anchor. A pure anchor
+        // (`](#section)`) is excluded deliberately - there is no file to carry - and a
+        // relative link to something that is not Markdown is out of scope. An earlier
+        // draft also missed an ANCHORED link, so `](CONTRIBUTING.md#merging)` to a file
+        // the tarball does not carry passed silently; that was the likeliest fifth link
+        // there is, and the capture now allows the anchor and drops it.
+        //
+        // The blind spot it KEEPS, which is larger than either of those: it reads
+        // `README.md` and nothing else. `CHANGELOG.md`, `API.md` and `SOURCES.md` ship
+        // too, and the shipped CHANGELOG carries two relative links - to
+        // `CONTRIBUTING.md` and `SUPPORT.md` - that the tarball does not carry, which is
+        // precisely the defect this rule exists to catch, in a file this rule never
+        // opens. They are left alone on purpose: both sit inside published version
+        // blocks, and a changelog whose past entries are edited to stay current is no
+        // longer a record. Widening the rule to every shipped `.md` is the better answer
+        // and then needs a stated exemption for those two, so it is a decision of its
+        // own rather than a nit.
+        //
+        // An ABSENT README is not this check's business: it is in REQUIRED, so the check
+        // above already fails it with the right code. Reading it unconditionally here
+        // crashed that case with exit 2 instead of the rejection it expects - found by
+        // the gate's own self-test, which is what that suite is for. Skipping is
+        // safe only because the absence is failed elsewhere, so that is ASSERTED rather
+        // than remembered: if README.md ever leaves REQUIRED, this refuses instead of
+        // quietly covering nothing.
+        if (!REQUIRED.includes('package/README.md')) {
+            note('gate: README.md is no longer REQUIRED, so skipping its link check would hide an absent README');
+            return 2;
+        }
+        const shippedReadme = join(unpacked, 'package/README.md');
+        const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
+        const relativeLinks = relativeMarkdownLinks(readmeText);
+        const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
+        note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);
+        if (danglingLinks.length > 0) {
+            fail(
+                'shipped README links',
+                `it links to ${danglingLinks.join(', ')}, which the tarball does not carry. ` +
+                'npm rewrites relative links on the package page, so this breaks only for a reader ' +
+                'of the unpacked tarball - add the file to `files`, or make the link absolute to ' +
+                'the repository, which is what a link meaning "the repository" should say.'
+            );
+        }
 
         // --- checks 2 and 3: what the files actually contain ------------------
         //

@@ -10,10 +10,12 @@
  * registry. A gate whose implementation the caller can substitute is not a
  * gate. SonarCloud flagged seven of these call sites as `javascript:S4036` and
  * put the project's Security Rating on new code at B, which is the visible half
- * of the same fact. TWENTY sites were changed in all: the seven it named, plus
- * thirteen in the two self-tests, which it does not analyse. Leaving those would
- * have left the rule true of the code and false of the repository, and a rule
- * with a quiet exemption is the one nobody remembers when adding the next call.
+ * of the same fact. TWENTY sites were changed BY THAT COMMIT: the seven it named,
+ * plus thirteen in the self-tests, which it does not analyse. That is a count of what
+ * changed then, not an inventory of this tree - more call sites have been added since,
+ * and every one of them goes through this module. Leaving the self-tests out would have
+ * left the rule true of the code and false of the repository, and a rule with a quiet
+ * exemption is the one nobody remembers when adding the next call.
  * (The first count said nineteen. It was taken with a single-line grep, which
  * cannot see `scripts/check-leaks.test.mjs:34`, where the program argument sits
  * on a line of its own — the same blind spot the sweep below is careful not to
@@ -33,6 +35,7 @@
  * `process.execPath <npm-cli.js> …` and never as a program named "npm".
  */
 
+import { execFileSync } from 'node:child_process';
 import { accessSync, constants, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, sep } from 'node:path';
 
@@ -44,6 +47,87 @@ export class ToolError extends Error {
     constructor(message) {
         super(message);
         this.name = 'ToolError';
+    }
+}
+
+/**
+ * How long any external program may run before it is killed.
+ *
+ * WHY THIS EXISTS. On 2026-09-28 a `git` call inside the tarball gate's self-test
+ * stopped returning on a GitHub runner. The job had no timeout either, so it ran for
+ * **1 hour 49 minutes** and was ended by hand; the publish job hit the same stall and
+ * sat for 15 minutes. Both stopped after the same case, and the Node 22 job of the same
+ * commit passed, so it reproduces rather than being a one-off (#25).
+ *
+ * A hang is the one failure mode every gate in this directory is otherwise built to
+ * prevent. These scripts refuse by name, prove their controls can say no, and treat a
+ * check that read nothing as a failure — and a hung subprocess defeats all of it at
+ * once, because it is indistinguishable from work in progress: no exit code, no
+ * message, and a log that simply stops. So there is no such thing here as an unbounded
+ * external program.
+ *
+ * 120 s is deliberately generous: the slowest legitimate call in this repository is
+ * `npm pack` on a cold cache, which takes about a second, and the whole gate self-test
+ * finishes in about 40 (measured). No case count is written here: the suite's own
+ * count moves and a number in a comment does not. Anything approaching two minutes
+ * is already wrong. The override exists for a machine slow enough to need it, not
+ * for silencing this.
+ */
+const DEFAULT_TIMEOUT_MS = 120_000;
+const TIMEOUT_FLOOR_MS = 1000;
+
+/**
+ * The override is honoured only if it is a finite, positive number, and a floor of one
+ * second applies to whatever survives. Two failure modes are closed here, both measured:
+ *
+ *   - `VF_TOOL_TIMEOUT_MS=0` means `timeout: 0`, and in Node that is UNBOUNDED — the
+ *     exact thing this module exists to prevent, reachable by a value that looks like
+ *     "no waiting" to whoever typed it.
+ *   - `VF_TOOL_TIMEOUT_MS=abc` gives `NaN`, and `timeout: NaN` makes Node throw
+ *     `ERR_OUT_OF_RANGE` in about a millisecond. That fails closed, which is the right
+ *     direction, but the error names neither this variable nor this module, `runTool`
+ *     does not recognise it as a timeout, and every gate in the directory then dies with
+ *     an opaque RangeError. A typo in an optional override should not read like a bug in
+ *     the sweep.
+ */
+function resolveTimeout(raw) {
+    if (raw === undefined || raw === '') return DEFAULT_TIMEOUT_MS;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        throw new ToolError(
+            `VF_TOOL_TIMEOUT_MS is ${JSON.stringify(raw)}, which is not a positive number of ` +
+            `milliseconds. Unset it to use the ${DEFAULT_TIMEOUT_MS} ms default. It exists for a ` +
+            'machine genuinely slower than that, and 0 would mean no deadline at all, which is ' +
+            'the one thing scripts/tools.mjs is here to prevent.'
+        );
+    }
+    return Math.max(TIMEOUT_FLOOR_MS, parsed);
+}
+
+export const TOOL_TIMEOUT_MS = resolveTimeout(process.env.VF_TOOL_TIMEOUT_MS);
+
+/**
+ * `execFileSync` with a deadline, and a refusal that names what stopped.
+ *
+ * Every other failure is re-thrown UNCHANGED, because callers read `status`, `stdout`
+ * and `stderr` off it to decide whether a gate refused — wrapping those would break the
+ * thing the gates measure. Only a timeout is translated, into a `ToolError` whose
+ * message carries the program, its arguments and the elapsed limit, so the next
+ * occurrence diagnoses itself instead of needing somebody to watch a log stop.
+ */
+export function runTool(file, args = [], options = {}) {
+    try {
+        return execFileSync(file, args, { timeout: TOOL_TIMEOUT_MS, killSignal: 'SIGKILL', ...options });
+    } catch (error) {
+        const timedOut = error.code === 'ETIMEDOUT'
+            || (error.killed === true && error.signal === 'SIGKILL');
+        if (!timedOut) throw error;
+        const limit = options.timeout ?? TOOL_TIMEOUT_MS;
+        throw new ToolError(
+            `timed out after ${limit} ms and was killed: ${file} ${args.join(' ')}. ` +
+            'This is a hang, not a failing assertion - see issue #25. Raise VF_TOOL_TIMEOUT_MS only ' +
+            'if the machine is genuinely that slow.'
+        );
     }
 }
 
