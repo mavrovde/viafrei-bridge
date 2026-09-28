@@ -9,7 +9,7 @@
 // ancestry. Every ref is not the whole repository -- see the rev-list comment
 // in check-leaks.mjs for what it does and does not cover.
 //
-// That change had no test: the tarball gate's 107 cases all stayed green with
+// That change had no test: every one of the tarball gate's cases stayed green with
 // the scoping reverted, which is the silent-skip class in its usual clothes --
 // a behaviour nothing reads is a behaviour nothing protects. These cases fail
 // if the default goes back to every ref, if --all-refs stops meaning every

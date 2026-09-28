@@ -399,13 +399,19 @@ function main() {
         // that catches the fifth.
         //
         // It reads the README INSIDE the tarball, not the one in the working tree, so it
-        // judges what a consumer actually receives. An absent README is already a failure
-        // above (it is in REQUIRED), so there is no path where this check reads nothing
-        // and says nothing.
+        // judges what a consumer actually receives.
+        //
+        // SCOPE, stated because the rule is narrower than "every relative link": it reads
+        // links whose target is a `.md` file, with or without an anchor. A pure anchor
+        // (`](#section)`) is excluded deliberately - there is no file to carry - and a
+        // relative link to something that is not Markdown is out of scope. An earlier
+        // draft also missed an ANCHORED link, so `](CONTRIBUTING.md#merging)` to a file
+        // the tarball does not carry passed silently; that was the likeliest fifth link
+        // there is, and the capture now allows the anchor and drops it.
         // An ABSENT README is not this check's business: it is in REQUIRED, so the check
         // above already fails it with the right code. Reading it unconditionally here
         // crashed that case with exit 2 instead of the rejection it expects - found by
-        // the gate's own self-test, which is what a 107-case suite is for. Skipping is
+        // the gate's own self-test, which is what that suite is for. Skipping is
         // safe only because the absence is failed elsewhere, so that is ASSERTED rather
         // than remembered: if README.md ever leaves REQUIRED, this refuses instead of
         // quietly covering nothing.
@@ -416,7 +422,7 @@ function main() {
         const shippedReadme = join(unpacked, 'package/README.md');
         const readmeText = files.includes('package/README.md') ? readFileSync(shippedReadme, 'utf8') : '';
         const relativeLinks = [...new Set(
-            [...readmeText.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s#]+\.md)\)/gu)].map(match => match[1])
+            [...readmeText.matchAll(/\]\((?!https?:\/\/|mailto:|#)([^)\s]+\.md)(?:#[^)\s]*)?\)/gu)].map(match => match[1])
         )].sort();
         const danglingLinks = relativeLinks.filter(link => !files.includes(join('package', link)));
         note(`gate: ${relativeLinks.length} relative markdown link(s) in the shipped README: ${relativeLinks.join(', ') || 'none'}`);

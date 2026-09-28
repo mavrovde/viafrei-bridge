@@ -110,6 +110,14 @@ has been kept in step by hand at every release since 1.3.15.
   mechanism the tree did not contain; this time the mechanism was written instead of the
   sentence being softened.
 
+  The rule then arrived with **no case in the gate's own self-test**, and the suite's case
+  count stayed where it was, which is how the review found it: a count that does not move
+  when a rule is added is the suite saying so. It now has two cases, because the rule's
+  first draft could not see an ANCHORED link — `](CONTRIBUTING.md#merging)` to a file the
+  tarball does not carry passed silently, and that is the likeliest fifth link there is.
+  Each was proved red on its own: neutering the rule fails both, and restoring the
+  anchor-blind capture fails only the anchored one.
+
 - **Two comments carried counts that read as inventories** (#23). `scripts/tools.mjs` said
   "TWENTY sites were changed in all" where twenty was what one commit changed, not what
   the tree holds; it now says so. `scripts/tools.test.mjs` said a third caller of the

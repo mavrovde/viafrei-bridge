@@ -38,7 +38,7 @@
  * Exit 0 = every case behaved, 1 = a case failed, 2 = the test could not run,
  * which is also a failure.
  */
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -299,6 +299,34 @@ for (const required of REQUIRED) {
         process.env,
         isManifest ? [2] : [1]
     );
+}
+
+// --- the shipped README may not link relatively to a file the tarball lacks ---
+//
+// The rule this covers was added with no case here, which the review caught: the
+// suite's own count advertised it, because 107 stayed 107. Two cases, not one,
+// because the first draft of the rule read `([^)\s#]+\.md)\)` and therefore could
+// not see an ANCHORED link - `](CONTRIBUTING.md#merging)` to a file the tarball
+// does not carry passed silently, which was the likeliest fifth link there is.
+// A rule and the gap it had are different facts, so each gets its own case.
+//
+// The accepting direction needs nothing added: the real README still links
+// relatively to API.md and SOURCES.md, both shipped, and the clean control above
+// is that assertion.
+const UNSHIPPED_DOC = 'NOT-SHIPPED-DOC.md';
+if (!REQUIRED.includes('package/README.md')) {
+    refuse('README.md is not required, so these two cases would be asserting against a tarball that may carry no README');
+}
+if (existsSync(join(ROOT, UNSHIPPED_DOC))) {
+    refuse(`${UNSHIPPED_DOC} exists in the working tree, so these cases can no longer prove a link that does not resolve`);
+}
+for (const [name, link] of [
+    ['readme-links-to-an-unshipped-file', UNSHIPPED_DOC],
+    ['readme-links-to-an-unshipped-file-behind-an-anchor', `${UNSHIPPED_DOC}#merging`]
+]) {
+    add('contents', name, `shipped README links.*${UNSHIPPED_DOC.replace('.', '\\.')}.*does not carry`, directory => {
+        appendFileSync(join(directory, 'README.md'), `\n\nSee [the missing document](${link}).\n`);
+    });
 }
 
 // --- dependencies, judged by what they resolve to --------------------------
