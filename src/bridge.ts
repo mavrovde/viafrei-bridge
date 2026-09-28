@@ -91,6 +91,59 @@ function readSupportedVersions(data: unknown): string[] {
  * headers, and because a version the server cannot speak deserves a sentence
  * rather than a stack trace.
  */
+interface InitializeReconciliation {
+    /** The protocol version this client asked for, if it named one. */
+    readonly requested: string | undefined;
+    /** The endpoint, for the message — a reader needs to know which one answered. */
+    readonly url: string;
+    /** Called when the server named a usable version. Applies it to the session. */
+    readonly onNegotiated: (served: string) => void;
+    readonly warn: (line: string) => void;
+}
+
+/**
+ * Reconcile the server's answer to `initialize`, and return the line that must
+ * end the session — AFTER the answer has been relayed, never instead of it, which
+ * is why this returns the line rather than exiting.
+ *
+ * Extracted from `remote.onmessage`, which was cognitive complexity 18 (#19) with
+ * this nested four deep inside the relay path. Nothing here decides anything new:
+ * a usable version is applied through `onNegotiated`, a mismatch warns and relays
+ * unchanged, a rejection returns the fatal line, and any other shape is relayed
+ * with no comment.
+ *
+ * Two of the three behaviours this moved were NOT covered when the move was made,
+ * measured by deleting them: `setProtocolVersion` and the "did not say which
+ * versions" half of the sentence both survived with the whole suite green. Both
+ * now have a case. The third — `initialized = true` — is still ungated: it is
+ * observable only through a LATER failure's exit code, and it sits inside the
+ * `onNegotiated` callback whose invocation the new header case does gate. So a
+ * callback that stops firing is caught; a callback that fires and drops that one
+ * assignment is not. Said here rather than left for someone to assume otherwise.
+ */
+function reconcileInitialize(message: JSONRPCMessage, session: InitializeReconciliation): string | undefined {
+    if (isJSONRPCResultResponse(message)) {
+        const served = readProtocolVersion(message.result);
+        if (served === undefined) {
+            return undefined;
+        }
+        session.onNegotiated(served);
+        if (session.requested !== undefined && served !== session.requested) {
+            session.warn(
+                `viafrei: ${session.url} speaks MCP protocol ${served}, this client asked for ${session.requested}; relaying the server's answer unchanged`
+            );
+        }
+        return undefined;
+    }
+    if (isJSONRPCErrorResponse(message)) {
+        const supported = readSupportedVersions(message.error.data);
+        const spoken =
+            supported.length > 0 ? `the server speaks ${supported.join(', ')}` : `the server did not say which versions it speaks`;
+        return `viafrei: ${session.url} rejected MCP protocol version ${session.requested ?? '(unspecified)'}; ${spoken}`;
+    }
+    return undefined;
+}
+
 export async function startBridge(options: Options, hooks: BridgeHooks): Promise<BridgeHandle> {
     const remote = new StreamableHTTPClientTransport(new URL(options.url), {
         fetch: createFetch(options.timeoutMs),
@@ -190,22 +243,15 @@ export async function startBridge(options: Options, hooks: BridgeHooks): Promise
 
         if (pending !== undefined && id !== undefined) {
             pendingInitialize.delete(id);
-            if (isJSONRPCResultResponse(message)) {
-                const served = readProtocolVersion(message.result);
-                if (served !== undefined) {
+            fatalAfterRelay = reconcileInitialize(message, {
+                requested: pending.requested,
+                url: options.url,
+                onNegotiated: served => {
                     remote.setProtocolVersion?.(served);
                     initialized = true;
-                    if (pending.requested !== undefined && served !== pending.requested) {
-                        hooks.warn(
-                            `viafrei: ${options.url} speaks MCP protocol ${served}, this client asked for ${pending.requested}; relaying the server's answer unchanged`
-                        );
-                    }
-                }
-            } else if (isJSONRPCErrorResponse(message)) {
-                const supported = readSupportedVersions(message.error.data);
-                const spoken = supported.length > 0 ? `the server speaks ${supported.join(', ')}` : `the server did not say which versions it speaks`;
-                fatalAfterRelay = `viafrei: ${options.url} rejected MCP protocol version ${pending.requested ?? '(unspecified)'}; ${spoken}`;
-            }
+                },
+                warn: hooks.warn
+            });
         }
 
         void local.send(message).then(

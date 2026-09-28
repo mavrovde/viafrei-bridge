@@ -132,6 +132,119 @@ function validateUrl(raw: string, source: string): string {
  * Precedence is the one people expect: a flag beats an environment variable,
  * an environment variable beats the built-in default.
  */
+/**
+ * Flags that take no value, and which boolean each one sets.
+ *
+ * A table rather than a chain of `===` comparisons, so an alias is a KEY: adding
+ * `-?` is one line and cannot be added to one spelling and forgotten in another.
+ * The risk a table carries is the opposite one - a key silently absent - so the
+ * aliases are pinned in `config.test.ts` as equivalences to their long forms
+ * rather than one case each. `-h` had no case at all before this table existed,
+ * and deleting it from the old chain left the whole suite green.
+ */
+const BOOLEAN_FLAGS: ReadonlyMap<string, 'showHelp' | 'showVersion'> = new Map([
+    ['--help', 'showHelp'],
+    ['-h', 'showHelp'],
+    ['--version', 'showVersion'],
+    ['-V', 'showVersion']
+]);
+
+/**
+ * A flag that takes a value, in either `--flag value` or `--flag=value` form.
+ *
+ * `names[0]` is the canonical spelling and is what an error message names, which
+ * is the existing behaviour rather than a new decision: `parseHeader` already
+ * defaulted its `source` to `--header`, so a reader who typed `-H` was already
+ * told `--header`. Changing that here would have been a behaviour change smuggled
+ * in under a refactor.
+ *
+ * The `=value` form is offered on `names[0]` ONLY, because that is what the chain
+ * did: `--header=X: 1` is accepted and `-H=X: 1` is an unknown argument. Deriving
+ * a prefix per alias is the obvious way to write this and would have newly
+ * ACCEPTED the short form - a refactor that widens what a CLI takes is not a
+ * refactor, so a case now pins the refusal.
+ */
+interface ValueFlag {
+    readonly names: readonly [string, ...string[]];
+    readonly apply: (options: Options, value: string, source: string) => void;
+}
+
+const VALUE_FLAGS: readonly ValueFlag[] = [
+    {
+        names: ['--url'],
+        apply: (options, value, source) => {
+            options.url = validateUrl(value, source);
+        }
+    },
+    {
+        names: ['--header', '-H'],
+        apply: (options, value, source) => {
+            const [name, headerValue] = parseHeader(value, source);
+            options.headers[name] = headerValue;
+        }
+    },
+    {
+        names: ['--timeout'],
+        apply: (options, value, source) => {
+            options.timeoutMs = parseTimeout(value, source);
+        }
+    }
+];
+
+/**
+ * The environment, applied before argv so that a flag beats a variable by
+ * POSITION rather than by a rule — and so a `--header` of the same name
+ * overwrites this one while a `--header` of a different name joins it.
+ */
+function applyEnvironment(options: Options, env: NodeJS.ProcessEnv): void {
+    const url = env[URL_ENV_VAR]?.trim();
+    if (url !== undefined && url !== '') {
+        options.url = validateUrl(url, URL_ENV_VAR);
+    }
+    const timeout = env[TIMEOUT_ENV_VAR]?.trim();
+    if (timeout !== undefined && timeout !== '') {
+        options.timeoutMs = parseTimeout(timeout, TIMEOUT_ENV_VAR);
+    }
+    const headers = env[HEADER_ENV_VAR];
+    if (headers === undefined || headers.trim() === '') {
+        return;
+    }
+    for (const line of headers.split(HEADER_ENV_SEPARATOR)) {
+        // A blank line is skipped rather than refused, so a trailing newline in
+        // the variable is not an error.
+        if (line.trim() !== '') {
+            const [name, value] = parseHeader(line, HEADER_ENV_VAR);
+            options.headers[name] = value;
+        }
+    }
+}
+
+/**
+ * One argument. `readValue` consumes the NEXT argv entry and is called only for a
+ * flag that needs it, so `--url` at the end of argv still refuses by the same
+ * route it always did.
+ */
+function applyArgument(options: Options, argument: string, readValue: () => string): void {
+    const booleanTarget = BOOLEAN_FLAGS.get(argument);
+    if (booleanTarget !== undefined) {
+        options[booleanTarget] = true;
+        return;
+    }
+    for (const flag of VALUE_FLAGS) {
+        const [canonical] = flag.names;
+        if (flag.names.includes(argument)) {
+            flag.apply(options, readValue(), canonical);
+            return;
+        }
+        const inline = `${canonical}=`;
+        if (argument.startsWith(inline)) {
+            flag.apply(options, argument.slice(inline.length), canonical);
+            return;
+        }
+    }
+    throw new UsageError(`unknown argument ${JSON.stringify(argument)} - run "viafrei --help" for the list`);
+}
+
 export function parseOptions(argv: readonly string[], env: NodeJS.ProcessEnv = process.env): Options {
     const options: Options = {
         url: DEFAULT_MCP_URL,
@@ -141,60 +254,18 @@ export function parseOptions(argv: readonly string[], env: NodeJS.ProcessEnv = p
         showHelp: false
     };
 
-    const urlFromEnv = env[URL_ENV_VAR];
-    if (urlFromEnv !== undefined && urlFromEnv.trim() !== '') {
-        options.url = validateUrl(urlFromEnv.trim(), URL_ENV_VAR);
-    }
-    const timeoutFromEnv = env[TIMEOUT_ENV_VAR];
-    if (timeoutFromEnv !== undefined && timeoutFromEnv.trim() !== '') {
-        options.timeoutMs = parseTimeout(timeoutFromEnv.trim(), TIMEOUT_ENV_VAR);
-    }
-    // Before the argv loop, so a --header of the same name overwrites this one
-    // and a --header of a different name joins it — the same precedence --url
-    // has over VIAFREI_MCP_URL, established by position rather than by a rule.
-    const headersFromEnv = env[HEADER_ENV_VAR];
-    if (headersFromEnv !== undefined && headersFromEnv.trim() !== '') {
-        for (const line of headersFromEnv.split(HEADER_ENV_SEPARATOR)) {
-            if (line.trim() === '') {
-                continue;
-            }
-            const [name, value] = parseHeader(line, HEADER_ENV_VAR);
-            options.headers[name] = value;
-        }
-    }
+    applyEnvironment(options, env);
 
     for (let index = 0; index < argv.length; index += 1) {
         const argument = argv[index] as string;
-        const next = (): string => {
+        applyArgument(options, argument, () => {
             const value = argv[index + 1];
             if (value === undefined || value.startsWith('--')) {
                 throw new UsageError(`${argument} expects a value`);
             }
             index += 1;
             return value;
-        };
-
-        if (argument === '--help' || argument === '-h') {
-            options.showHelp = true;
-        } else if (argument === '--version' || argument === '-V') {
-            options.showVersion = true;
-        } else if (argument === '--url') {
-            options.url = validateUrl(next(), '--url');
-        } else if (argument.startsWith('--url=')) {
-            options.url = validateUrl(argument.slice('--url='.length), '--url');
-        } else if (argument === '--header' || argument === '-H') {
-            const [name, value] = parseHeader(next());
-            options.headers[name] = value;
-        } else if (argument.startsWith('--header=')) {
-            const [name, value] = parseHeader(argument.slice('--header='.length));
-            options.headers[name] = value;
-        } else if (argument === '--timeout') {
-            options.timeoutMs = parseTimeout(next(), '--timeout');
-        } else if (argument.startsWith('--timeout=')) {
-            options.timeoutMs = parseTimeout(argument.slice('--timeout='.length), '--timeout');
-        } else {
-            throw new UsageError(`unknown argument ${JSON.stringify(argument)} - run "viafrei --help" for the list`);
-        }
+        });
     }
 
     return options;

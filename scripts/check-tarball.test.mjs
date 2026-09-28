@@ -441,7 +441,21 @@ const DEPENDENCY_SPECS = [
     { name: 'a-file-path', dependency: 'helper', spec: 'file:../helper', expectation: 'dependencies.*not a registry semver range' },
     { name: 'a-workspace-link', dependency: 'helper', spec: 'workspace:*', expectation: 'dependencies.*not a registry semver range' },
     { name: 'a-github-shorthand', dependency: 'helper', spec: 'github:example/example', expectation: 'dependencies.*not a registry semver range' },
-    { name: 'an-alias-onto-a-git-url', dependency: 'helper', spec: 'npm:other@git+ssh://git@github.com/example/example.git', expectation: 'dependencies.*not a registry semver range' }
+    { name: 'an-alias-onto-a-git-url', dependency: 'helper', spec: 'npm:other@git+ssh://git@github.com/example/example.git', expectation: 'dependencies.*not a registry semver range' },
+    {
+        // The private scope AND an unusable range, which is the ONE input that
+        // separates the two checks: the scope finding is raised and the range check
+        // is skipped, so this must produce exactly ONE finding and not two.
+        //
+        // Every other private-scope case above uses `*`, which is a perfectly good
+        // registry range, so the skip could be deleted with all 109 cases green -
+        // measured, which is why this exists. The expectation pins the COUNT line
+        // for that reason; naming the message alone would pass either way.
+        name: 'the-private-scope-behind-an-unusable-range',
+        dependency: '@viafrei/mcp',
+        spec: 'git+ssh://git@github.com/example/example.git#main',
+        expectation: 'FAIL - 1 finding[\\s\\S]*scope carries the platform'
+    }
 ];
 for (const entry of DEPENDENCY_SPECS) {
     add('dependencies', entry.name, entry.expectation, directory => {
