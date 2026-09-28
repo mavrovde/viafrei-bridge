@@ -7,6 +7,81 @@ a Changelog and the versions follow Semantic Versioning.
 
 Nothing yet.
 
+## [1.3.22] - 2026-09-28
+
+**A fresh snapshot of the production server, and the version number that goes with it.
+Nothing else, and the diff is the evidence: outside this entry the release is nine
+insertions and nine deletions, every one of them a version string or a date** — four in
+`API.md`, two in the snapshot, one in the manifest and two in the lockfile.
+
+The service moved from 1.3.16 to 1.3.22 in six patch releases while this package sat at
+1.3.16 — one of which carried no runtime code and was never deployed, so five
+deployments. **None of them changed the LISTED surface**: the tools, resources, templates
+and prompts a client is offered, which is what this package documents and all a list
+method can show. It is not a claim about what a read returns, and one of the five did
+change that — 1.3.19 corrected an attribution resource's contents. That is why nothing in
+`API.md` moves except its header. Measured rather than assumed: the live server was asked to
+describe itself again and the answer was compared, field by field, against the snapshot
+shipped in 1.3.16 — every tool name, title, description and annotation, every input
+schema including each parameter's type, bounds and pattern, all ten resources, both
+resource templates, all nine prompts, the server's own instructions, and the advertised
+capabilities. **Zero differences.** The five deployed releases were server-side data and
+rendering fixes: a Bundesland decided by the order map extracts had been loaded in, an
+attribution resource that claimed we hold nothing from a source we serve, a batch of
+defects closing the 1.3 milestone, and a place answer for "Munich" restored. The sixth,
+1.3.17, says in its own block that it carries no runtime code and is not deployed.
+
+So this release is worth exactly one thing to a reader, and it is worth being plain about
+which: the document in the package now says it was captured on 2026-09-28 from server
+1.3.22, rather than on 2026-09-27 from 1.3.16 — one day and six version numbers. A dated
+snapshot whose version is behind invites the reader to wonder what has changed since, and
+here the answer is nothing, which they can only know if the snapshot says so.
+
+**No behaviour changes.** `dist/` is built rather than committed and no file under `src/`
+has changed since the 1.3.16 tag, which is the evidence for the claim. No flag, default
+or exit code moves. Two of the seven `files` entries change — `API.md` and
+`CHANGELOG.md` — and the tarball still holds 21 paths.
+
+### Changed
+
+- **`catalogue.json` re-captured** from the production server on 2026-09-28 over protocol
+  `2025-06-18`: `initialize` plus `tools/list`, `resources/list`,
+  `resources/templates/list` and `prompts/list`. **No tool was invoked**, so no upstream
+  provider was contacted — listing is metadata, calling is traffic, and one provider
+  behind this service puts the access itself at risk if queried needlessly. The same two
+  substitutions its own `$comment` documents were applied again and asserted rather than
+  trusted: 18 per-tool `$schema` declarations dropped, and the two 288-character
+  ISO-8601 date patterns stored as their length, at `get_train_departures.when` and
+  `watch_situation.until`. Both counts were asserted by the one-off script that made the
+  capture, which refused to write the file unless they came out exactly so — **not** by
+  anything this repository carries. An earlier draft of this sentence said "the capture is
+  refused", present tense, which reads as a standing property of the tooling and would
+  send a reader looking for a gate that is not there. There is no capture script here, and
+  re-capturing is a deliberate act performed by hand.
+
+- **`API.md` regenerated**, which under `npm run check:docs` it has to be. The only lines
+  that differ are the capture date in the header paragraph, the server version in the
+  table, the captured-from line, and the footer — because the server said the same thing
+  it said the day before.
+
+### A note on version matching, because 1.3.16 made a promise this release cannot keep
+
+1.3.16 argued its number should match the running service so that "somebody comparing the
+two now reads one number instead of wondering which is behind". That argument does not
+survive contact with how fast the service ships: production went 1.3.16 → 1.3.18 → 1.3.22
+in under two hours, twice while this release was being measured. A package cannot track
+that, and pretending otherwise means every publish is stale on arrival.
+
+What this package can honestly say is what it now says: the snapshot carries the version
+and date of the server it was taken from, and the document names the running server as the
+source of truth for anything newer. The numbers agree today because this release chose
+once more to make them agree — it stepped over 1.3.17 to 1.3.21 to land on production's
+number, which a reader comparing this version with the previous one in the registry can
+see for themselves. Calling that a coincidence would be the same overclaim in a smaller
+font. It is the last time alignment is a reason to cut a release: from here the snapshot's
+own version and date carry that information, and no release should be cut for the sole
+purpose of making the numbers agree.
+
 ## [1.3.16] - 2026-09-27
 
 **This is the release that delivers the licence corrections to the people the
@@ -948,6 +1023,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.3.22]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.22
 [1.3.16]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.16
 [1.3.15]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.15
 [1.3.12]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.12
