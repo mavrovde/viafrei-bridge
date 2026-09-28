@@ -9,8 +9,15 @@ name: CI
 # start their own stub server; the network is not part of the contract.
 
 on:
+  # `main` on push, everything else through its pull request. Both triggers used to fire
+  # for a branch with an open PR, so one push ran the whole matrix TWICE (#23).
+  #
+  # The cost of this shape, named rather than discovered later: a branch pushed with no
+  # pull request gets no CI. That is the right trade here - this repository's flow is
+  # push-then-open-immediately, the reviewer reads local commits before the push, and
+  # the publish workflow re-runs every gate against the tag regardless.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
 

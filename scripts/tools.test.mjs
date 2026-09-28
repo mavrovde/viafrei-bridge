@@ -193,7 +193,8 @@ check('npmCliPath() ignores an npm_execpath of the wrong shape', () => {
 // silent `return []` now disarms EVERY self-test that relies on it at once and
 // restores the wrong-reason pass that started the whole thread — a sweep that
 // cannot start reporting no findings. No count of those callers is written here,
-// because there was one more of them within the week and the sentence that said
+// because a third caller arrived the SAME DAY the module was written, and the sentence
+// that said
 // "both" went stale unnoticed. On every ordinary run they exercise only the
 // COMPLETE-fixture path, so without these the "missing" branch had no automated
 // proof at all; it was checked by hand-mutating a file list, which is not a thing

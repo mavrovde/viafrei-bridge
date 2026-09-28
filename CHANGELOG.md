@@ -80,6 +80,55 @@ has been kept in step by hand at every release since 1.3.15.
   the exact tarball uploaded. Recorded so "no rule needed" is distinguishable from
   "nobody looked".
 
+### Fixed
+
+- **Every push ran CI twice** (#23). `push: branches: ['**']` and `pull_request` both
+  fired for a branch with an open pull request, so one push ran the whole matrix twice —
+  four `build-and-test` jobs for two Node versions, doubling the wait and the minutes for
+  no added signal. `push` is now `main` only; everything else arrives through its pull
+  request. The cost is named in the workflow rather than discovered later: a branch pushed
+  with **no** pull request now gets no CI. That is the right trade here — the flow is
+  push-then-open-immediately, the reviewer reads local commits before the push, and the
+  publish workflow re-runs every gate against the tag regardless.
+
+- **Four README links resolved on the package page but not inside the tarball** (#23).
+  `README.md` ships and linked to `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md`, `SECURITY.md`
+  and `SUPPORT.md`, none of which do. Three were pre-existing — verified in the published
+  1.3.15 tarball — and `SUPPORT.md` was added by 1.3.16, so that release made an existing
+  condition one worse. npm rewrites relative links in the rendered README to the
+  repository, so it only bit someone reading an unpacked tarball. All four are now
+  absolute, which is the honest form: a link that means "the repository" says so, and it
+  survives any packaging change. The two that remain relative, `API.md` and `SOURCES.md`,
+  are files the tarball carries, and that is now asserted rather than assumed.
+
+- **Two comments carried counts that read as inventories** (#23). `scripts/tools.mjs` said
+  "TWENTY sites were changed in all" where twenty was what one commit changed, not what
+  the tree holds; it now says so. `scripts/tools.test.mjs` said a third caller of the
+  shared precondition arrived "within the week" when it arrived the **same day**, which is
+  the harder version of its own point.
+
+### Deliberately not done
+
+- **`javascript:S2187` on the four self-tests** (#23, item 1) — *cannot be done from the
+  repository.* SonarCloud reads `scripts/*.test.mjs` as test files, finds no framework
+  assertions, and reports "add some tests to this file or delete it" at BLOCKER on each.
+  Measured: analysis here is **Automatic** (no scanner step in any workflow) and
+  `api/settings/values` returns no `sonar.tests` or `sonar.test.inclusions`, so the test
+  patterns live in SonarCloud's own UI and changing them needs a token this repository
+  does not hold. A `sonar-project.properties` was **not** added, because Automatic
+  Analysis may ignore it and a config file that silently does nothing is worse than the
+  finding. The two real options are a UI change to the test patterns, or renaming the
+  convention to `*.selftest.mjs` — which touches `package.json` scripts, CI steps and the
+  sweep that counts them. The quality gate passes on all five conditions either way.
+
+- **A shared assertion harness for the self-tests** (#23, item 5) — declined, on the
+  issue's own condition. Each self-test defines its own `check()`/`refuse()` pair, and the
+  issue says to unify them only if it can be done without weakening the per-file refusal
+  wording. It cannot, cheaply: the refusals deliberately name different builders and exit
+  by different routes, and that difference is load-bearing — it is what tells a reader
+  which fixture failed. The duplication is four small functions, not the eleven-line block
+  that caused the 3.1% duplication failure `fixture-root.mjs` was extracted to fix.
+
 ### Note on a count in the 1.3.16 entry below
 
 That entry says the tool sweep reads "thirty-two source files". It now reads **34**,

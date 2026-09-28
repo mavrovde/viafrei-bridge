@@ -10,10 +10,12 @@
  * registry. A gate whose implementation the caller can substitute is not a
  * gate. SonarCloud flagged seven of these call sites as `javascript:S4036` and
  * put the project's Security Rating on new code at B, which is the visible half
- * of the same fact. TWENTY sites were changed in all: the seven it named, plus
- * thirteen in the two self-tests, which it does not analyse. Leaving those would
- * have left the rule true of the code and false of the repository, and a rule
- * with a quiet exemption is the one nobody remembers when adding the next call.
+ * of the same fact. TWENTY sites were changed BY THAT COMMIT: the seven it named,
+ * plus thirteen in the self-tests, which it does not analyse. That is a count of what
+ * changed then, not an inventory of this tree - more call sites have been added since,
+ * and every one of them goes through this module. Leaving the self-tests out would have
+ * left the rule true of the code and false of the repository, and a rule with a quiet
+ * exemption is the one nobody remembers when adding the next call.
  * (The first count said nineteen. It was taken with a single-line grep, which
  * cannot see `scripts/check-leaks.test.mjs:34`, where the program argument sits
  * on a line of its own — the same blind spot the sweep below is careful not to

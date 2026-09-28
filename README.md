@@ -161,7 +161,7 @@ Restart the client and ask it one of the questions above.
 | **[API.md](API.md)** | Every tool with its parameters, types, defaults and constraints, plus the resources, resource templates and prompts. Generated from a dated snapshot of the running server, so the descriptions are the server's own words — which is what your assistant actually reads when it picks a tool. |
 | **[Wiki](https://github.com/mavrovde/viafrei-bridge/wiki)** | The prose half: [connecting your assistant](https://github.com/mavrovde/viafrei-bridge/wiki/Connecting-your-assistant), [tools at a glance](https://github.com/mavrovde/viafrei-bridge/wiki/Tools-at-a-glance), the [roadmap](https://github.com/mavrovde/viafrei-bridge/wiki/Roadmap) and an [FAQ](https://github.com/mavrovde/viafrei-bridge/wiki/FAQ). |
 | **[SOURCES.md](SOURCES.md)** | Every publisher, what it covers, its licence, and the attribution line to reproduce — including the conditions that are licence breaches rather than style problems. |
-| **[SUPPORT.md](SUPPORT.md)** | Where a question, a bad answer or a security report should go, and what makes a report easy to act on. |
+| **[SUPPORT.md](https://github.com/mavrovde/viafrei-bridge/blob/main/SUPPORT.md)** | Where a question, a bad answer or a security report should go, and what makes a report easy to act on. |
 
 ### Worked use cases
 
@@ -339,8 +339,8 @@ This is said plainly so nobody spends an evening looking for the server code.
 
 ## Contributing
 
-Yes, please — see [CONTRIBUTING.md](CONTRIBUTING.md) and
-[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Issues and discussions are open. The
+Yes, please — see [CONTRIBUTING.md](https://github.com/mavrovde/viafrei-bridge/blob/main/CONTRIBUTING.md) and
+[CODE_OF_CONDUCT.md](https://github.com/mavrovde/viafrei-bridge/blob/main/CODE_OF_CONDUCT.md). Issues and discussions are open. The
 bridge is small and self-contained, which is exactly what makes it a reasonable
 thing to send a first patch to.
 
@@ -352,7 +352,7 @@ cannot get any other way.
 ## Security
 
 Never open a public issue for a key, a token or anything that looks like one.
-See [SECURITY.md](SECURITY.md) for the private reporting path.
+See [SECURITY.md](https://github.com/mavrovde/viafrei-bridge/blob/main/SECURITY.md) for the private reporting path.
 
 ## Licence
 
