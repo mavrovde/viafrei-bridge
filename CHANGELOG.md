@@ -7,6 +7,39 @@ a Changelog and the versions follow Semantic Versioning.
 
 Nothing yet.
 
+## [1.4.8] - 2026-09-29
+
+**A version-sync release.** The bridge is published at the version the ViaFrei server
+is serving, so that `npx viafrei@X.Y.Z` and the endpoint it relays to are named by one
+number. `mcp.viafrei.de` moved to `1.4.8`, so the bridge follows. 1.4.7 is absent from
+the registry for the same reason 1.4.0–1.4.5 were: that platform version carried no
+bridge change.
+
+**Nothing in the bridge changed at all** — not the runtime, not the tooling, not a
+gate. The diff against 1.4.6 is the three version fields plus the re-captured API
+reference. If 1.4.6 works for you, this is the same code under a number that matches
+the server.
+
+### Changed
+
+- **The API reference is re-captured at 1.4.8** (`API.md`, `catalogue.json`). Unlike
+  1.4.6's re-capture, this one is only a date and a version string: the server's
+  surface did **not** change between 1.4.6 and 1.4.8. Verified rather than assumed —
+  the same 19 tools, 10 resources, 2 resource templates and 9 prompts, with no tool
+  added or removed, no description altered and no `required` list moved, compared
+  field-by-field against the stored snapshot before the new one was written.
+
+  That distinction is the whole reason this entry says so out loud. At 1.4.6 the
+  shipped reference was *wrong* — it omitted a tool the server exposed. Here it was
+  merely *old*. The two need different remedies and only one of them is honest in each
+  case, so which one applied is recorded rather than left for a reader to guess.
+
+  Captured read-only: `initialize`, `tools/list`, `resources/list`,
+  `resources/templates/list`, `prompts/list`. No tool was invoked, so no data provider
+  was contacted, and the session was deleted afterwards. The two substitutions the
+  snapshot documents are unchanged and asserted on the way in and out: 19 of 19
+  `$schema` URIs dropped, exactly 2 long patterns stored as `patternLength`.
+
 ## [1.4.6] - 2026-09-29
 
 **The version number is prod's, not this package's own count.** The bridge is released
