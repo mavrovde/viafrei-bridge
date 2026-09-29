@@ -5,7 +5,33 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **`SOURCES.md` claimed a measurement that stopped being true, and the stale half is
+  a licence condition.** The page said its status column was measured by calling
+  "fifteen of the server's sixteen read-only tools — every one except
+  `find_cheapest_fuel`". As of the 2026-09-29 capture shipped alongside it, the server
+  exposes nineteen tools, seventeen of them read-only, and — this is the part that
+  matters — a **second** fuel tool, `find_fuel_station`.
+
+  The exclusion of `find_cheapest_fuel` is not a convenience: MTS-K sets a minimum
+  interval per station and its terms make needless querying a real risk to the access
+  itself. That reasoning applies to `find_fuel_station` identically, and the page did
+  not name it, so a reader following the page's own method would have called a fuel
+  tool the page meant to exclude.
+
+  The measurement is now scoped to the date and the server it was taken against, the
+  growth since is stated, and **both** fuel tools are named as excluded. It is
+  deliberately **not** re-run: that would still cost **fifteen** live calls against
+  real providers to re-confirm statuses already known — the same fifteen as at the
+  original measurement, because the one read-only tool the server gained is the
+  second fuel tool and is excluded. Sixteen minus one was fifteen; seventeen minus
+  two is fifteen again. Dated on purpose, and said out loud — a measurement carried forward under a present-tense sentence is
+  the failure that section exists to avoid.
+
+  Not released on its own. The bridge is versioned to mirror the server, and prod is
+  at 1.4.8, which is already published; this rides the next version sync rather than
+  putting the package a patch ahead of the endpoint it relays to.
 
 ## [1.4.8] - 2026-09-29
 

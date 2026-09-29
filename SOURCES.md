@@ -134,13 +134,32 @@ one labelled `not re-measured`** was checked by calling the public endpoint on
 **2026-09-27** and reading which source the answer named. A source can be licensed, cleared and loaded and still not answer
 a question today; where that is so, this page says it.
 
-The measurement was taken by calling **fifteen of the server's sixteen read-only
-tools — every one except `find_cheapest_fuel`** — once each, and reading
-`_meta.sources` out of the result: not by reading the code, and not by asking
-whether a feed was running. Thirteen sources were named by at least one answer.
-The tool not called is the one whose row is deliberately not re-measured, and
-the count above says so rather than absorbing it: a status this page cannot stand behind is
-worse than an honest gap.
+The measurement was taken **on 2026-09-27**, when the server exposed sixteen
+read-only tools, by calling **fifteen of them — every one except
+`find_cheapest_fuel`** — once each, and reading `_meta.sources` out of the result:
+not by reading the code, and not by asking whether a feed was running. Thirteen
+sources were named by at least one answer. The tool not called is the one whose row
+is deliberately not re-measured, and the count says so rather than absorbing it: a
+status this page cannot stand behind is worse than an honest gap.
+
+**The server has grown since that measurement, and this page has not re-run it.**
+As of the 2026-09-29 capture shipped alongside this page it exposes nineteen tools,
+seventeen of them read-only, including a SECOND fuel tool, `find_fuel_station`.
+That one is excluded from any spot check for exactly the same reason
+`find_cheapest_fuel` is, and the reason is a licence condition rather
+than a convenience: MTS-K sets a minimum interval per station and its terms make
+needless querying a real risk to the access itself. **Both fuel tools are excluded,
+not one.**
+
+The sentence above therefore describes what was measured on 2026-09-27 and not what
+the server offers today. Re-running it would still mean **fifteen** live calls
+against real providers — the same fifteen, because the one read-only tool the server
+gained is the second fuel tool, and that one is excluded. Sixteen read-only minus one
+fuel tool was fifteen; seventeen minus two is fifteen again. Those calls would
+re-confirm statuses this page already knows, so it is dated on purpose rather than
+refreshed on a schedule — and dated is said out loud, because a measurement silently
+carried forward under a present-tense sentence is the failure this section exists to
+avoid.
 
 - **live** — an answer came back naming it when this page was checked;
 - **in the service** — licensed and loaded, and the spot check produced no
