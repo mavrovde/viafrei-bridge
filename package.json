@@ -1,6 +1,6 @@
 {
   "name": "viafrei",
-  "version": "1.4.6",
+  "version": "1.4.8",
   "description": "German traffic, rail, parking, charging, fuel, address and weather data in your AI assistant - MCP, no API key. stdio bridge to the hosted ViaFrei MCP server.",
   "keywords": [
     "mcp",
