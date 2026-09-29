@@ -9,7 +9,7 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
-**It is a dated snapshot, taken on 2026-09-28.** Generating this file makes
+**It is a dated snapshot, taken on 2026-09-29.** Generating this file makes
 it impossible for the document and the snapshot to disagree — CI regenerates and
 compares — but it cannot keep the snapshot from ageing against the live server,
 because a capture is a point in time. **The source of truth is the running
@@ -17,12 +17,12 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.3.22 |
+| Server | `viafrei` 1.4.6 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
-| Captured from | `https://mcp.viafrei.de/mcp` on 2026-09-28 |
-| Surface | 18 tools, 10 resources, 2 resource templates, 9 prompts |
+| Captured from | `https://mcp.viafrei.de/mcp` on 2026-09-29 |
+| Surface | 19 tools, 10 resources, 2 resource templates, 9 prompts |
 | Parameter schemas | JSON Schema draft-07 |
 | Capabilities | `tools`, `resources`, `prompts`, `logging` |
 
@@ -31,7 +31,7 @@ No API key. No account. No sign-up.
 ## Contents
 
 - [How to read a result](#how-to-read-a-result)
-- [Tools](#tools) — 18
+- [Tools](#tools) — 19
 - [Resources](#resources) — 10
 - [Resource templates](#resource-templates) — 2
 - [Prompts](#prompts) — 9
@@ -86,7 +86,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Reaches a third-party source (open world). Idempotent: true. Destructive: false.
 
-> Returns the cheapest petrol stations for one fuel grade around a place or coordinate, with price per litre, brand, address, distance and open state. Use when the user asks where to fill up, what fuel costs nearby, or for a cheap stop on a drive. Do NOT use for charging an electric car (call find_charging_station), for price history, or for motorway traffic (call check_autobahn_traffic). Radius ≤ 25 km, at most 10 stations. The result names the age of any price over an hour old. Prices are for consumer information only; the result's attribution line and the MTS-K note must be shown to the user.
+> Returns the cheapest stations for one fuel grade near a place or coordinate: price per litre, brand, address, distance, open state. Use when the user asks where to fill up or what fuel costs. Do NOT use for charging an electric car (call find_charging_station), price history, or traffic (call check_autobahn_traffic). Radius ≤ 25 km, at most 10 stations. For a brand, a name, open now or at a named time, or nearest-first, call find_fuel_station. Each line names the age of its price and opening-hours claim. Prices are consumer information only; the attribution line and MTS-K note must be shown.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -105,6 +105,42 @@ The server's own instructions to a connecting client, verbatim:
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
 - **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around the place in kilometres (1–25, default 5). The provider's terms cap it at 25 km — a larger circle is a dataset request, not a consumer question.
+
+### `find_fuel_station` — Find a filling station
+
+**Read-only** — it changes nothing. Reaches a third-party source (open world). Idempotent: true. Destructive: false.
+
+> Finds filling stations around a place or coordinate under any combination of filters — grade, brand, name, open now, open at a time you name, open 24 h — sorted by distance, price or name. Use when the question is WHICH station: the closest diesel to a stop, an ARAL open tonight, what one forecourt sells. Do NOT use for the plain "where is fuel cheapest" question (call find_cheapest_fuel) or for charging an electric car (call find_charging_station). Every result carries the attribution and the MTS-K note, and says how old each price and opening-hours claim is.
+
+| parameter | type | required | default | constraints |
+| --- | --- | --- | --- | --- |
+| `brand` | string | no | — | min length 1 |
+| `fuel` | string | no | — | one of `"e5"`, `"e10"`, `"diesel"` |
+| `language` | string | no | `"de"` | one of `"de"`, `"en"` |
+| `lat` | number | no | — | min -90; max 90 |
+| `limit` | integer | no | `5` | min 1; max 10 |
+| `lon` | number | no | — | min -180; max 180 |
+| `name` | string | no | — | min length 1 |
+| `open_at` | string | no | — | pattern `^(?:\d{1,2}:\d{2}\|\d{4}-\d{2}-\d{2}[T ]\d{1,2}:\d{2})$` |
+| `open_now` | boolean | no | `false` | — |
+| `place` | string | no | — | min length 1 |
+| `radius_km` | number | no | `5` | min 1; max 25 |
+| `sort` | string | no | `"distance"` | one of `"distance"`, `"price"`, `"name"` |
+| `whole_day` | boolean | no | `false` | — |
+
+- **`brand`** — Only stations of this brand, matched case-insensitively anywhere in the brand field: "ARAL", "Shell", "TotalEnergies", "JET". Use it when the person named a chain ("die ARAL an der B1"). Free stations often carry no brand at all and are then not matched by any brand.
+- **`fuel`** — Only stations with a current price for this grade: "e5" (Super E5), "e10" (Super E10) or "diesel". Omit to get every station near the place whatever it sells — the answer then lists all the grades it holds a price for. Required when sort is "price", because a price ordering needs a grade.
+- **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
+- **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
+- **`limit`** — How many stations to return (1–10, default 5).
+- **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
+- **`name`** — Part of the station's own name or brand, case-insensitive: "Autohof", "Raststätte Fulda". Use it when the person named a specific forecourt rather than a chain. Combine with place to keep the search local.
+- **`open_at`** — Only stations open at that time in Germany (Europe/Berlin): "23:30" means the next time the clock shows 23:30, and "2026-09-30 06:15" a specific local date and time. Use it for "is it still open tonight". Do not pass it together with open_now — they ask the same question about two different clocks.
+- **`open_now`** — When true, only stations the published opening hours say are open at this moment. Default false. A station whose hours we have never read is NOT returned by this filter and is counted in the answer instead — the result never guesses that an unknown station is open.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`radius_km`** — Search radius around the place in kilometres (1–25, default 5). 25 km is the provider's own ceiling — a larger circle is a dataset request, not a consumer question.
+- **`sort`** — Order of the answer: "distance" (nearest first, the default — use it for "closest diesel to Hamburg Hbf"), "price" (cheapest first, needs fuel), or "name" (alphabetical, for a person scanning a list of a brand's forecourts).
+- **`whole_day`** — When true, only stations the provider flags as open around the clock (24/7). Default false. Use it for a night drive; it is a stricter filter than open_now, which is satisfied by a station that closes at 22:00.
 
 ### `find_parking` — Parking nearby
 
@@ -334,7 +370,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns how punctual public transport is right now in one German region: the share of distinct trips more than 5 minutes late at least once, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is not available; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 minutes. CC BY-SA 4.0: show the attribution line to the user.
+> Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is unavailable; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 min. CC BY-SA (share-alike): show the attribution line to the user.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -619,5 +655,5 @@ single call.
 ---
 
 Generated from `catalogue.json` by `scripts/gen-api-doc.mjs`. The snapshot was
-read from `https://mcp.viafrei.de/mcp` on 2026-09-28; no tool was invoked to
+read from `https://mcp.viafrei.de/mcp` on 2026-09-29; no tool was invoked to
 produce it, so no data provider was contacted.
