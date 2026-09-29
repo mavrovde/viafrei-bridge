@@ -15,6 +15,10 @@ at the version the ViaFrei server is actually serving — `mcp.viafrei.de` repor
 one number. That is why this release skips from 1.3.22 to 1.4.6 with no 1.4.0 through
 1.4.5 on the registry: those platform versions carried no bridge change.
 
+The shipped API reference is re-captured from that same server, so the package, the
+endpoint and the documentation all name 1.4.6. It had been left at a 1.3.22 capture,
+which review caught.
+
 Nothing in the bridge's own runtime behaviour changed. Every flag, every environment
 variable, every exit code and every message is what 1.3.22 shipped. What changed is the
 machinery around it — two gates the 1.3.22 release wanted and could not have, one because
@@ -115,6 +119,27 @@ by hand since 1.3.15 — plus seven refactors and one documentation fix.
   "nobody looked".
 
 ### Fixed
+
+- **The shipped API reference described the wrong server.** `API.md` and
+  `catalogue.json` both ship, and both still said `viafrei 1.3.22` from a 2026-09-28
+  capture — in a package published as 1.4.6, whose whole point is that the package and
+  the endpoint are named by one number. Found in review, and it was not merely dated:
+  re-capturing from `mcp.viafrei.de` shows the surface genuinely moved. The server
+  exposes a nineteenth tool, `find_fuel_station`, that the reference did not mention at
+  all, and `find_cheapest_fuel` and `check_transit_disruption` have new descriptions.
+
+  Re-captured read-only — `initialize`, `tools/list`, `resources/list`,
+  `resources/templates/list`, `prompts/list`, no tool invoked, so no data provider was
+  contacted — and the session was closed afterwards. The two substitutions the snapshot
+  documents are unchanged and were asserted rather than assumed: every tool's `$schema`
+  URI is dropped (19 of 19), and the two 288-character date patterns are stored as
+  `patternLength`.
+
+  **No gate could have caught this**, which is the part worth keeping. `check:docs`
+  passed throughout: it proves `API.md` matches `catalogue.json`, so a stale pair passes
+  together. Nothing in this repository compares the snapshot against the running server,
+  and `npm ci`-style version agreement cannot see it either. The reference's currency is
+  checked by a person at the cut, and that is now a step rather than a habit.
 
 - **`SOURCES.md` printed an attribution string the server had stopped sending** (#332).
   The shipped document is what a reader consults to know whose data they are looking at,

@@ -1,11 +1,11 @@
 {
   "$comment": "Captured from the PRODUCTION ViaFrei MCP server with initialize, tools/list, resources/list, resources/templates/list and prompts/list. No tool was invoked, so no data provider was contacted. ONE field is removed rather than stored: every tool's inputSchema carried a $schema URI naming the JSON Schema draft-07 dialect. It is dropped because storing it would put a host on this repository's allow-list that nothing else needs, and the dialect is a property of every draft-07 schema rather than a fact about this catalogue - API.md states it in words instead. Nothing else is altered: every tool, parameter, constraint, resource, template and prompt is as the server returned it. A SECOND substitution, for a different reason: two input schemas carried a 288-character regular expression validating an ISO-8601 date including leap years. Each is stored as patternLength rather than as its text, because such a regex spells its arithmetic as character classes of selected digits, and the leak sweep that guards this repository cannot tell a class of five digits from a five-digit internal value. The two ways to keep the text would both have been falsehoods - narrowing the sweep for every file, or an allow-list entry claiming a character class is a number this project publishes - so the text is not kept. Nothing about the constraint is hidden by this: API.md already summarised a pattern of over 60 characters by its length, which is what a reader gets either way, and the server hands anyone the full expression in tools/list.",
-  "capturedAt": "2026-09-28",
+  "capturedAt": "2026-09-29",
   "source": "https://mcp.viafrei.de/mcp",
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.3.22"
+    "version": "1.4.6"
   },
   "capabilities": {
     "tools": {
@@ -94,7 +94,7 @@
     },
     {
       "name": "find_cheapest_fuel",
-      "description": "Returns the cheapest petrol stations for one fuel grade around a place or coordinate, with price per litre, brand, address, distance and open state. Use when the user asks where to fill up, what fuel costs nearby, or for a cheap stop on a drive. Do NOT use for charging an electric car (call find_charging_station), for price history, or for motorway traffic (call check_autobahn_traffic). Radius ≤ 25 km, at most 10 stations. The result names the age of any price over an hour old. Prices are for consumer information only; the result's attribution line and the MTS-K note must be shown to the user.",
+      "description": "Returns the cheapest stations for one fuel grade near a place or coordinate: price per litre, brand, address, distance, open state. Use when the user asks where to fill up or what fuel costs. Do NOT use for charging an electric car (call find_charging_station), price history, or traffic (call check_autobahn_traffic). Radius ≤ 25 km, at most 10 stations. For a brand, a name, open now or at a named time, or nearest-first, call find_fuel_station. Each line names the age of its price and opening-hours claim. Prices are consumer information only; the attribution line and MTS-K note must be shown.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -152,6 +152,109 @@
       },
       "annotations": {
         "title": "Cheapest fuel nearby",
+        "readOnlyHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "find_fuel_station",
+      "description": "Finds filling stations around a place or coordinate under any combination of filters — grade, brand, name, open now, open at a time you name, open 24 h — sorted by distance, price or name. Use when the question is WHICH station: the closest diesel to a stop, an ARAL open tonight, what one forecourt sells. Do NOT use for the plain \"where is fuel cheapest\" question (call find_cheapest_fuel) or for charging an electric car (call find_charging_station). Every result carries the attribution and the MTS-K note, and says how old each price and opening-hours claim is.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "type": "string",
+            "minLength": 1
+          },
+          "lat": {
+            "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lon": {
+            "description": "Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "language": {
+            "default": "de",
+            "description": "Set this on every call to the language the person is writing in: \"en\" if they wrote English, \"de\" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.",
+            "type": "string",
+            "enum": [
+              "de",
+              "en"
+            ]
+          },
+          "fuel": {
+            "description": "Only stations with a current price for this grade: \"e5\" (Super E5), \"e10\" (Super E10) or \"diesel\". Omit to get every station near the place whatever it sells — the answer then lists all the grades it holds a price for. Required when sort is \"price\", because a price ordering needs a grade.",
+            "type": "string",
+            "enum": [
+              "e5",
+              "e10",
+              "diesel"
+            ]
+          },
+          "radius_km": {
+            "default": 5,
+            "description": "Search radius around the place in kilometres (1–25, default 5). 25 km is the provider's own ceiling — a larger circle is a dataset request, not a consumer question.",
+            "type": "number",
+            "minimum": 1,
+            "maximum": 25
+          },
+          "brand": {
+            "description": "Only stations of this brand, matched case-insensitively anywhere in the brand field: \"ARAL\", \"Shell\", \"TotalEnergies\", \"JET\". Use it when the person named a chain (\"die ARAL an der B1\"). Free stations often carry no brand at all and are then not matched by any brand.",
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "description": "Part of the station's own name or brand, case-insensitive: \"Autohof\", \"Raststätte Fulda\". Use it when the person named a specific forecourt rather than a chain. Combine with place to keep the search local.",
+            "type": "string",
+            "minLength": 1
+          },
+          "open_now": {
+            "default": false,
+            "description": "When true, only stations the published opening hours say are open at this moment. Default false. A station whose hours we have never read is NOT returned by this filter and is counted in the answer instead — the result never guesses that an unknown station is open.",
+            "type": "boolean"
+          },
+          "open_at": {
+            "description": "Only stations open at that time in Germany (Europe/Berlin): \"23:30\" means the next time the clock shows 23:30, and \"2026-09-30 06:15\" a specific local date and time. Use it for \"is it still open tonight\". Do not pass it together with open_now — they ask the same question about two different clocks.",
+            "type": "string",
+            "pattern": "^(?:\\d{1,2}:\\d{2}|\\d{4}-\\d{2}-\\d{2}[T ]\\d{1,2}:\\d{2})$"
+          },
+          "whole_day": {
+            "default": false,
+            "description": "When true, only stations the provider flags as open around the clock (24/7). Default false. Use it for a night drive; it is a stricter filter than open_now, which is satisfied by a station that closes at 22:00.",
+            "type": "boolean"
+          },
+          "sort": {
+            "default": "distance",
+            "description": "Order of the answer: \"distance\" (nearest first, the default — use it for \"closest diesel to Hamburg Hbf\"), \"price\" (cheapest first, needs fuel), or \"name\" (alphabetical, for a person scanning a list of a brand's forecourts).",
+            "type": "string",
+            "enum": [
+              "distance",
+              "price",
+              "name"
+            ]
+          },
+          "limit": {
+            "default": 5,
+            "description": "How many stations to return (1–10, default 5).",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          }
+        }
+      },
+      "annotations": {
+        "title": "Find a filling station",
         "readOnlyHint": true,
         "idempotentHint": true,
         "openWorldHint": true,
@@ -804,7 +907,7 @@
     },
     {
       "name": "check_transit_disruption",
-      "description": "Returns how punctual public transport is right now in one German region: the share of distinct trips more than 5 minutes late at least once, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is not available; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 minutes. CC BY-SA 4.0: show the attribution line to the user.",
+      "description": "Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is unavailable; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 min. CC BY-SA (share-alike): show the attribution line to the user.",
       "inputSchema": {
         "type": "object",
         "properties": {
