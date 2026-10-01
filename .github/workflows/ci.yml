@@ -26,7 +26,11 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`. That label becomes Ubuntu 26 from 2026-10-19, and a
+    # runner image that changes under a workflow is a change nobody reviewed. publish.yml
+    # already pins this image, so pinning here also stops the push gate and the publish
+    # gate drifting onto different operating systems.
+    runs-on: ubuntu-24.04
     # Observed: a successful build-and-test job is ~100 s. Fifteen minutes is nine
     # times that, so it never fires on a slow-but-working run - and it ends a HUNG
     # one in minutes. On 2026-09-28 the Node 24 job of this workflow stopped
@@ -38,13 +42,13 @@ jobs:
       matrix:
         node: ['22', '24']
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The leak sweep reads history; a shallow clone cannot answer what is
           # in it, and a check that cannot run has not passed.
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
