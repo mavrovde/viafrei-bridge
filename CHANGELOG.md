@@ -72,6 +72,65 @@ a Changelog and the versions follow Semantic Versioning.
 
 ### Fixed
 
+- **Both CI deprecation warnings, in both workflows.** `build-and-test` was emitting two
+  notices: the Node-20 runtime of `actions/checkout@v4` and `actions/setup-node@v4` is
+  deprecated and GitHub is already forcing those actions onto Node 24, and the
+  `ubuntu-latest` label migrates to Ubuntu 26 from 2026-10-19.
+
+  **The warning named one workflow; the measurement named two.** `publish.yml` pinned both
+  actions by commit sha, which looked like the careful half of the repository — but
+  `action.yml` at each of those pinned shas declares `using: node20`. So the workflow that
+  publishes to npm was on the deprecated runtime too and said nothing about it, because a
+  sha pin does not report its own age. A fix confined to `ci.yml` would have cleared the
+  log and left the publish path exactly where it was.
+
+  Both files now pin the same runner image, `ubuntu-24.04`, and the same two actions by
+  sha: checkout **v7.0.1** and setup-node **v7.0.0**, resolved from the API rather than
+  transcribed, and each verified to declare `using: node24` at the sha actually pinned —
+  which is what closes the notice rather than deferring it. That also leaves one version
+  of each action in the repository instead of two.
+
+  **v7, not v5, and it is a three-major move.** v5 clears today's warning and leaves this
+  repository two majors behind the same deadline. The first draft of this entry described
+  v7.0.0's release notes and called them the only behaviour change — true of that release,
+  false of the upgrade, and the paragraph's whole job is to justify the size of the jump.
+
+  The jump was therefore checked mechanically instead, which is shorter and re-runnable:
+  **diff the declared input sets at the two shas.** Across v4.4.0 → v7.0.0 setup-node
+  removes exactly one input, `always-auth`, and adds `package-manager-cache`; checkout
+  removes and adds none. Between them the two workflows pass four inputs — `node-version`,
+  `registry-url`, `cache` and `fetch-depth` — and all four are still declared, so the
+  `registry-url` → `.npmrc` path the publish depends on is intact.
+
+  The breaking changes the intervening majors do declare are inert here, by enumeration
+  rather than by assumption: setup-node v5's automatic package-manager detection and v6's
+  narrowing of it to npm cannot apply, because both jobs pass `cache: npm` explicitly and
+  this `package.json` has no `packageManager` field; checkout v5's minimum runner version
+  (2.327.1) is far below what GitHub-hosted runners run; checkout v7's refusal to check out
+  a fork's head applies to `pull_request_target` and `workflow_run`, neither of which
+  appears anywhere under `.github/`; and setup-node v7's removal of the dummy
+  `NODE_AUTH_TOKEN` export is an **improvement** on this path — that variable appears
+  nowhere in either workflow, and upstream's own pull request says the dummy value could
+  corrupt an `.npmrc` during an OIDC publish, which is how publishing here works.
+
+  One is named rather than waved past, because it touches the publish gate. checkout v6
+  moved the persisted git credential into a separate file, and `publish.yml` runs one git
+  command that touches the remote after checkout: the `git fetch origin main` the
+  tag-containment guard needs (the step's other two, a `rev-parse` and a `merge-base`, are
+  local). This repository is public, so that fetch succeeds with or without a credential;
+  and if it ever did not, the guard exits **2** and refuses to publish rather than
+  publishing a commit `main` does not contain. Fail-closed, so the bad outcome is a blocked
+  release and never a wrong one. It is also the one step a `workflow_dispatch` dry run
+  cannot exercise, since the guard is gated on a tag.
+
+  A floating tag is what hid this, so nothing here floats: all four `- uses:` lines in the
+  repository are now `@<sha> # vX.Y.Z`, and neither `runs-on` is a label that can change
+  under a workflow nobody re-read.
+
+  No version bump. Not because nothing shipped — `CHANGELOG.md` is in the package's `files`
+  list, so this entry itself ships — but because there is no number to mirror: the bridge is
+  versioned to match the server it relays to, and prod and the registry are both at 1.4.8.
+
 - **`SOURCES.md` claimed a measurement that stopped being true, and the stale half is
   a licence condition.** The page said its status column was measured by calling
   "fifteen of the server's sixteen read-only tools — every one except

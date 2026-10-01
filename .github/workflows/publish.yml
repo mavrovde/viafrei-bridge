@@ -83,13 +83,20 @@ jobs:
     environment: npm
     steps:
       # Pinned to a commit, not a tag: a tag is mutable and this workflow
-      # publishes. Both are v4.4.0, which is where each action's `v4` tag
-      # pointed on 2026-09-21; v4 is deliberately not the newest major.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # publishes. ci.yml pins the same two shas, so there is one version of
+      # each action in this repository rather than two.
+      #
+      # These were v4.4.0, held there deliberately because v4 was not the
+      # newest major. That reason has EXPIRED rather than been overruled:
+      # v4 runs on Node 20, which GitHub has deprecated and is already
+      # forcing onto Node 24, so staying is no longer the conservative
+      # choice. The CHANGELOG entry for this change lists all three majors
+      # crossed per action and what each one does here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
