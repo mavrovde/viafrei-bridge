@@ -5,6 +5,15 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.4.9] - 2026-10-01
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server
+it relays to, and prod moved to 1.4.9; this release carries the three changes
+that had been waiting under `[Unreleased]` for a number to mirror. The shipped
+reference was re-captured from the running server at the cut, and the probe that
+did it reported the surface **unchanged** — only the version string and the
+capture date moved.
+
 ### Added
 
 - **The sources page is now checked against the catalogue snapshot** (`scripts/check-sources.mjs`,
@@ -127,9 +136,9 @@ a Changelog and the versions follow Semantic Versioning.
   repository are now `@<sha> # vX.Y.Z`, and neither `runs-on` is a label that can change
   under a workflow nobody re-read.
 
-  No version bump. Not because nothing shipped — `CHANGELOG.md` is in the package's `files`
-  list, so this entry itself ships — but because there is no number to mirror: the bridge is
-  versioned to match the server it relays to, and prod and the registry are both at 1.4.8.
+  Written while prod and the registry were both at 1.4.8, so this said "no version bump:
+  there is no number to mirror". Prod moved to 1.4.9 before the cut, so the number now
+  exists and this ships under it.
 
 - **`SOURCES.md` claimed a measurement that stopped being true, and the stale half is
   a licence condition.** The page said its status column was measured by calling
@@ -153,9 +162,9 @@ a Changelog and the versions follow Semantic Versioning.
   two is fifteen again. Dated on purpose, and said out loud — a measurement carried forward under a present-tense sentence is
   the failure that section exists to avoid.
 
-  Not released on its own. The bridge is versioned to mirror the server, and prod is
-  at 1.4.8, which is already published; this rides the next version sync rather than
-  putting the package a patch ahead of the endpoint it relays to.
+  Not released on its own: when it was written prod was at 1.4.8, already published, and
+  putting the package a patch ahead of the endpoint it relays to would have been worse than
+  waiting. It rode the next version sync, which is this one.
 
 ## [1.4.8] - 2026-09-29
 
@@ -1442,6 +1451,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.4.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.4.9
 [1.3.22]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.22
 [1.3.16]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.16
 [1.3.15]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.15
