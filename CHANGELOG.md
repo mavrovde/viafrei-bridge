@@ -5,6 +5,80 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- **A scheduled freshness probe: is the service alive, not merely answering?**
+  (`scripts/probe-freshness.mjs`, `npm run probe:freshness`, and the `Freshness`
+  workflow every six hours.)
+
+  The gap it closes was real and nothing here could see it. A server can return
+  `200` with a correctly shaped body for days while an ingest worker is dead, and
+  every existing check survives that: the stub tests prove the bridge's
+  **transport**, `check:docs` proves the document matches the **snapshot**, and the
+  cut-time probe proves the **surface** still matches. None of them reads the age
+  of the data in an answer.
+
+  This asks the running server and judges `_meta.asOf`, which every real-time tool
+  carries, against a limit **per tool**. That is not a detail: measured against
+  prod on 2026-10-01, autobahn, transit, weather and departures all answered within
+  a minute while `check_road_status` was **7.5 h** old, because it blends the BASt
+  roadworks feed, which the Mobilithek catalogue declares as **twice daily**. One
+  global limit would be either useless for the fast feeds or permanently red for the
+  slow one — and a check that is permanently red is a check that gets switched off.
+
+  Each limit sits about an order of magnitude above the source's own **declared
+  cadence** rather than above the single reading this was written against, so it
+  catches a dead worker and cannot fire on normal variation. 72 h for roadworks is
+  roughly six times a twice-daily interval and clears a weekend; 90 min for the
+  other four is many times their providers' own floors.
+
+  **The callable set is an allow-list, not a deny-rule**, and the direction is the
+  point: with a deny-rule a new entry runs unless it matches, and here the failure
+  mode is a licence breach against a provider that can revoke access. Fail-closed is
+  the right default on that path, so a tool nobody named is refused.
+
+  **No fuel tool is ever called**, stated separately because it carries the reason
+  the allow-list does not: `find_cheapest_fuel` and `find_fuel_station` answer from
+  MTS-K / Tankerkönig, which sets a minimum interval per station and limits use to
+  answering a consumer's question. A monitoring query is not that. Both guards
+  **refuse before any request**, and the fuel arm is not redundant — a self-test
+  case adds a fuel tool to **both** lists, which is the realistic way the exclusion
+  would be lost, and it is still refused on licence grounds.
+
+  **Scheduled, not on push**, because CI here reaches nothing by design: a
+  freshness failure is news about the service, not about the commit, and reddening
+  a contributor's push for it would teach people to ignore red.
+
+  **The instrument is proved before it is trusted**, and the workflow runs the two
+  steps in that order. The self-test is hermetic — every case against a local stub
+  on loopback — and it is the only place the staleness verdict is ever exercised,
+  because a healthy endpoint cannot produce a stale payload. So the self-test runs
+  **first**: if it fails the instrument is broken, and if the live step fails the
+  service is. A monitor whose verdict is never proved reports success about a dead
+  service exactly as convincingly as about a live one.
+
+  Three exit codes, because "could not check" and "checked and it is wrong" are
+  different answers: `0` every feed inside its limit, `1` a real defect (stale, or
+  no `asOf`, or no attribution, or `isError`, or an `asOf` in the future — a clock
+  fault must not read as very fresh), and `2` could not check (endpoint, session,
+  or a response shape nobody recognises). An unparsable body is deliberately `2`
+  rather than `1`.
+
+  Found by its own self-test and fixed: `--json` printed the human summary to
+  stdout after the document, so the stream did not parse. Both streams are now
+  pinned by a case.
+
+  **Found in review, and it is the case the first draft had no test for.** A
+  JSON-RPC *error* — what the server returns for a retired tool or a renamed
+  argument, and this watch list hard-codes seven argument names — fell through to
+  the no-result branch: **exit 1, every feed printed `STALE`, on a healthy
+  service**, and `error.message`, the entire diagnosis, discarded. It is now exit
+  **2** with the server's code and message printed, a distinct `?????` label
+  because `STALE` is a claim about the *data* rather than about our ability to
+  measure it, and a refusal sentence that no longer says the body failed to parse —
+  it parsed perfectly. Four assertions cover it, and removing the guard turns all
+  four red.
+
 ## [1.4.9] - 2026-10-01
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server

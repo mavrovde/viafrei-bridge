@@ -129,6 +129,15 @@ jobs:
       - name: Cut-time probe self-test (offline, against a local stub)
         run: npm run test:probe
 
+      # The freshness probe runs on a SCHEDULE, not here - it asks prod, and a
+      # contributor's push must not depend on the service being up. What belongs here
+      # is its self-test, which is hermetic: a STALE payload the healthy endpoint
+      # cannot produce, so this is the only place the staleness verdict is ever
+      # exercised. A monitor whose verdict is never proved reports success about a
+      # dead service just as convincingly as about a live one.
+      - name: Freshness probe self-test (offline, against a local stub)
+        run: npm run test:freshness
+
       # The version gate above compares three fields. This proves it can say NO, with
       # the mutant #18 asks for, and that "could not read the lockfile" (exit 2) never
       # looks like "read it and was satisfied" (exit 0).

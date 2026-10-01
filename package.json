@@ -79,6 +79,8 @@
     "test:sources": "node scripts/check-sources.test.mjs",
     "probe:catalogue": "node scripts/probe-catalogue.mjs",
     "test:probe": "node scripts/probe-catalogue.test.mjs",
+    "probe:freshness": "node scripts/probe-freshness.mjs",
+    "test:freshness": "node scripts/probe-freshness.test.mjs",
     "rules:show": "node scripts/show-rules.mjs"
   },
   "dependencies": {
