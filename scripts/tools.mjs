@@ -35,7 +35,7 @@
  * `process.execPath <npm-cli.js> …` and never as a program named "npm".
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { accessSync, constants, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, sep } from 'node:path';
 
@@ -129,6 +129,65 @@ export function runTool(file, args = [], options = {}) {
             'if the machine is genuinely that slow.'
         );
     }
+}
+
+/**
+ * `runTool`, asynchronously — same deadline, same refusal, same passthrough.
+ *
+ * WHY A SECOND ONE EXISTS. `execFileSync` blocks the calling process's event loop, so a
+ * caller that is itself serving the child cannot use it: the probe's self-test runs a
+ * stub HTTP server in-process and spawns the probe against it, and with the synchronous
+ * runner the server could not accept the connection while the parent was blocked. Every
+ * case timed out, which looked exactly like a broken probe and was a deadlock.
+ *
+ * The deadline is `TOOL_TIMEOUT_MS`, a timeout becomes a `ToolError` naming the program
+ * and the limit, and every other failure is rejected with `status`, `stdout` and
+ * `stderr` on it, because that is what callers read to decide whether a gate refused.
+ *
+ * `status` IS NORMALISED HERE, and the reason is the whole point: `execFileSync` sets
+ * `status` to the exit code, while `execFile` sets `code` and leaves `status` undefined.
+ * Measured on the same failing command, the sync runner gave `status: 3` and this one
+ * gave `status: undefined, code: 3`. A caller that read `status` — which this docstring
+ * told it to — would have got undefined and stopped telling a refusal from a failure,
+ * silently. The first caller written against this hit exactly that and worked around it
+ * at the call site, which left the promise here untrue; so the exit code is copied onto
+ * `status` and the two runners are genuinely interchangeable.
+ *
+ * The `typeof` guard is not decoration: on a spawn failure `code` is a STRING (`ENOENT`),
+ * and copying that into `status` would be worse than leaving it unset.
+ *
+ * ONE THING THAT STILL DIFFERS, because it cannot be normalised away: with no `encoding`
+ * option `runTool` returns a Buffer and this resolves a String, since `execFile` defaults
+ * to utf8. Pass `encoding` and they agree.
+ */
+export function runToolAsync(file, args = [], options = {}) {
+    return new Promise((resolve, reject) => {
+        execFile(file, args, { timeout: TOOL_TIMEOUT_MS, killSignal: 'SIGKILL', ...options }, (error, stdout, stderr) => {
+            if (error === null) {
+                resolve(stdout);
+                return;
+            }
+            const timedOut = error.code === 'ETIMEDOUT' || error.killed === true;
+            if (!timedOut) {
+                // See the docstring: execFile reports the exit code as `code`, and a
+                // caller reading `status` would get undefined. Guarded, because `code`
+                // is a string on a spawn failure.
+                if (typeof error.code === 'number') {
+                    error.status = error.code;
+                }
+                error.stdout = stdout;
+                error.stderr = stderr;
+                reject(error);
+                return;
+            }
+            const limit = options.timeout ?? TOOL_TIMEOUT_MS;
+            reject(new ToolError(
+                `timed out after ${limit} ms and was killed: ${file} ${args.join(' ')}. ` +
+                'This is a hang, not a failing assertion - see issue #25. Raise VF_TOOL_TIMEOUT_MS only ' +
+                'if the machine is genuinely that slow.'
+            ));
+        });
+    });
 }
 
 const resolved = new Map();

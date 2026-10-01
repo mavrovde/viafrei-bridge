@@ -5,6 +5,71 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- **The sources page is now checked against the catalogue snapshot** (`scripts/check-sources.mjs`,
+  `npm run check:sources`), in CI and in the publish workflow (#32).
+
+  `SOURCES.md` states counts *about the server* — how many tools it exposes, how many are
+  read-only, which are fuel and therefore excluded from its spot check. Nothing compared
+  them with `catalogue.json`, which ships in the same tarball and holds the answers, and
+  the page spent two releases describing a server it no longer matched.
+
+  **Offline on purpose, and that is what makes it worth having.** Both files already ship
+  together, so this needs no network and runs on every push rather than at the cut. It
+  would have caught all three defects of the previous entry, including the one that got
+  past a first review round: the **derived** call count is computed as read-only minus the
+  excluded fuel tools, never read from the prose, because that is the one number on the
+  page a reader might act on.
+
+  The licence arm is the one that matters: a fuel tool present in the snapshot and not
+  named by the page is a failure, because that exclusion is an MTS-K condition rather
+  than a convenience, and a tool counts as fuel-constrained if its NAME says so **or**
+  its DESCRIPTION names the provider — measured on this snapshot, both fuel tools name
+  theirs in prose and no other tool does, so a rename alone cannot hide one. `npm run
+  test:sources` prints the case count; no number is written here, because this entry's
+  first draft stated one and it was stale within the round.
+
+  Two limits are pinned rather than assumed. A fuel rule gone inert REFUSES (exit 2)
+  instead of reporting an empty excluded set. And a tool renamed away from `fuel` *whose
+  description also stops naming the provider* matches neither arm and is not on the floor,
+  so that one still fails through the arithmetic, with a message about a call count rather
+  than about an unprotected tool. That is the honest reach of two text rules, and the
+  weaker behaviour is asserted rather than hoped for.
+
+- **A cut-time probe that compares the shipped reference with the running server**
+  (`scripts/probe-catalogue.mjs`, `npm run probe:catalogue`; `--write` re-captures) (#33).
+
+  At the 1.4.6 cut the shipped reference described server 1.3.22 and omitted a tool the
+  server exposed. `check:docs` passed throughout — it proves `API.md` matches
+  `catalogue.json`, so **a stale pair passes together**. Nothing compared either with the
+  server.
+
+  **It is deliberately not a CI step.** This repository's test posture is that CI reaches
+  nothing, which is why every other check here is offline; a comparison with the running
+  server needs a network call, so this is run by a person at the cut and is the only
+  script here that touches the network. It is named `probe:` rather than `check:` so that
+  distinction is visible in `package.json`.
+
+  Read-only: `initialize` and the four list calls, **no tool invoked**, session deleted
+  afterwards. That is a licence requirement and not courtesy — the fuel source sets a
+  per-station floor.
+
+  **Its report distinguishes WRONG from DATED**, because those are the two real histories
+  and they need different remedies: 1.4.6's reference omitted a tool, which misleads a
+  reader about what they are holding; 1.4.8's had only a stale version string. Reporting
+  one as the other would be worse than no probe. Ten self-test cases, none of which touch
+  the network — every one runs against a local stub — including both halves of that
+  distinction, an empty list refused rather than compared equal, and `--write` proved to
+  produce a snapshot the comparator then accepts.
+
+- **`runToolAsync`** in `scripts/tools.mjs`, with the same deadline and refusal as
+  `runTool`. The synchronous runner blocks the caller's event loop, so a caller that is
+  itself serving the child cannot use it — the probe's self-test serves a stub in-process
+  and spawns the probe against it, and every case deadlocked until this existed. Added to
+  the one `SPAWNERS` array the bare-name sweep derives from, so it is covered by the same
+  rule as its sibling rather than being a quiet exemption.
+
 ### Fixed
 
 - **`SOURCES.md` claimed a measurement that stopped being true, and the stale half is

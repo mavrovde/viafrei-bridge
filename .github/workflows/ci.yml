@@ -96,6 +96,35 @@ jobs:
       - name: API-reference generator self-test
         run: npm run test:docs
 
+      # SOURCES.md states counts ABOUT THE SERVER - how many tools, how many read-only,
+      # which are fuel and therefore excluded from its spot check. Nothing compared them
+      # with the snapshot, and the page spent two releases describing a server it no
+      # longer matched. The unnamed fuel tool was the serious half: that exclusion is an
+      # MTS-K licence condition, not a convenience (#32).
+      #
+      # Offline on purpose. Both files already ship together, so this needs no network
+      # and belongs on every push rather than at the cut. The snapshot's currency against
+      # the RUNNING server is the other half and cannot be a CI step (#33).
+      - name: Sources page agrees with the catalogue snapshot
+        run: npm run check:sources
+
+      # And the proof it can say no, including the three defects it exists for - a stale
+      # count, an unnamed fuel tool, and a derived call count that disagrees with
+      # read-only minus the excluded tools.
+      - name: Sources-consistency self-test
+        run: npm run test:sources
+
+      # The cut-time probe compares the snapshot with the RUNNING server, so it is the
+      # one script here that makes a network call and it is deliberately NOT a CI step
+      # (#33) - this repository's whole test posture is that CI reaches nothing.
+      #
+      # Its SELF-TEST is offline: every case runs against a local stub on loopback, so
+      # the thing CI can check is that the probe can still say no - and in particular
+      # that it tells a snapshot that is WRONG about the server from one that is merely
+      # DATED, which are the two real histories and need different remedies.
+      - name: Cut-time probe self-test (offline, against a local stub)
+        run: npm run test:probe
+
       # The version gate above compares three fields. This proves it can say NO, with
       # the mutant #18 asks for, and that "could not read the lockfile" (exit 2) never
       # looks like "read it and was satisfied" (exit 0).

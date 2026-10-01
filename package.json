@@ -75,6 +75,10 @@
     "check:versions": "node scripts/check-versions.mjs",
     "docs:api": "node scripts/gen-api-doc.mjs",
     "check:docs": "node scripts/gen-api-doc.mjs --check",
+    "check:sources": "node scripts/check-sources.mjs",
+    "test:sources": "node scripts/check-sources.test.mjs",
+    "probe:catalogue": "node scripts/probe-catalogue.mjs",
+    "test:probe": "node scripts/probe-catalogue.test.mjs",
     "rules:show": "node scripts/show-rules.mjs"
   },
   "dependencies": {
