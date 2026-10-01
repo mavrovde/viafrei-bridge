@@ -292,7 +292,7 @@ check('missingFixtureImports() returns an empty list for a complete fixture', ()
 // sweep learned the new name and the precondition did not - so the precondition
 // found zero spawning files and refused, which is the only reason this is not a
 // silent hole. Deriving both from one array is what stops that recurring.
-const SPAWNERS = ['execFileSync', 'execFile', 'spawnSync', 'spawn', 'execSync', 'runTool'];
+const SPAWNERS = ['execFileSync', 'execFile', 'spawnSync', 'spawn', 'execSync', 'runTool', 'runToolAsync'];
 const BARE_CALL = new RegExp(
     `(?:\\b(?:${SPAWNERS.join('|')})|(?<![.\\w])exec)\\s*\\(\\s*(['"])([^'"\\n/\\\\]+)\\1`,
     'gu'

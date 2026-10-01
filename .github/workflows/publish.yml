@@ -170,6 +170,12 @@ jobs:
       # <sha>` says which branch it is; delete or fix that branch and re-run.
       # Do not reach for removing --all-refs as the remedy -- for a published
       # artefact, a finding anywhere is worth stopping for.
+      # SOURCES.md ships in the tarball and states counts about the server; this is the
+      # offline half of keeping it honest (#32). Here as well as in CI because the thing
+      # being published is what matters.
+      - name: Sources page agrees with the catalogue snapshot
+        run: npm run check:sources
+
       - name: Repository leak sweep
         run: node scripts/check-leaks.mjs --history --all-refs
 
