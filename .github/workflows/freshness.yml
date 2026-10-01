@@ -1,0 +1,60 @@
+name: Freshness
+
+# Is the service ALIVE, not merely answering?
+#
+# Every other workflow here is offline by design, and that is deliberate: CI
+# reaches nothing, so a contributor's push never depends on prod being up. This
+# one is the exception, and it is on a SCHEDULE rather than on push for exactly
+# that reason — a freshness failure is news about the service, not about the
+# commit, and reddening someone's push for it would teach people to ignore red.
+#
+# What it catches that nothing else can: the server returning 200 with a
+# correctly shaped body while an ingest worker is dead. The stub tests prove the
+# bridge's transport, `check:docs` proves the document matches the snapshot, and
+# the cut-time probe proves the surface still matches. None of them reads the age
+# of the data in an answer.
+
+on:
+  schedule:
+    # Every six hours. Four reads a day of five tools is negligible load, and six
+    # hours is well inside the slowest feed's own limit, so a dead worker is
+    # noticed within one cycle rather than at the next release.
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A run that overlaps its predecessor would double the load for no extra
+  # information. The newer one waits rather than cancelling, so a scheduled
+  # reading is never silently dropped.
+  group: freshness
+  cancel-in-progress: false
+
+jobs:
+  freshness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # No `npm ci`. The probe and its self-test use only Node built-ins, so
+      # there is nothing to install and nothing to resolve — one less moving part
+      # between a reading and the conclusion drawn from it.
+
+      # THE INSTRUMENT IS PROVED BEFORE IT IS TRUSTED, and that ordering is the
+      # point rather than tidiness. A probe that cannot fail reports success
+      # about a dead service exactly as convincingly as about a live one, so the
+      # hermetic self-test — which includes a STALE payload the healthy endpoint
+      # cannot produce — runs first. If this step fails, the instrument is
+      # broken; if the next one fails, the service is.
+      - name: Prove the probe can fail (offline, local stub)
+        run: node scripts/probe-freshness.test.mjs
+
+      - name: Ask the real server and judge the age of its answers
+        run: node scripts/probe-freshness.mjs
