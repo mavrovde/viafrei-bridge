@@ -160,7 +160,7 @@ const CLAIMS = [
     },
     {
         label: 'live calls a re-run would cost',
-        pattern: new RegExp(`would still mean \\*\\*(${WORD_ALTERNATION})\\*\\* live calls`, 'u'),
+        pattern: new RegExp(`would (?:still|now) mean \\*\\*(${WORD_ALTERNATION})\\*\\* live calls`, 'u'),
         actual: () => expected.callable,
         hint: 'the sentence costing a re-run, which must equal read-only minus the excluded fuel tools'
     }

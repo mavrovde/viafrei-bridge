@@ -174,10 +174,18 @@ jobs:
           FILES: ${{ steps.prepare.outputs.files }}
         run: |
           set -eu
+          # The sweep lists paths with `git ls-files` and reads the working tree, so
+          # for today's five files — all tracked — this `add` changes nothing. It is
+          # insurance for a prepared file that is new to the index.
           IFS=',' read -r -a files <<< "$FILES"
           git add -- "${files[@]}"
-          node scripts/check-leaks.mjs 2>&1 | tee "$RUNNER_TEMP/leaks.log"
-          exit "${PIPESTATUS[0]}"
+          # The exit status is captured directly, not read back from a pipeline:
+          # PIPESTATUS is rewritten by every command, so one innocent line between
+          # the pipe and the exit would turn a failed sweep into a green step.
+          status=0
+          node scripts/check-leaks.mjs > "$RUNNER_TEMP/leaks.log" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/leaks.log"
+          exit "$status"
 
       # Only the five files the script declares are staged — never `add -A`.
       # A DRAFT when a gate failed, the surface changed or the sweep found

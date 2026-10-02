@@ -121,11 +121,15 @@ function wordFor(n) {
     if (word === undefined) refuse(`the page's word table has no entry for ${n}`);
     return word;
 }
-/** Replace, and refuse if nothing changed: an inert mutation is a case that cannot fail. */
+/**
+ * Replace exactly one occurrence, and refuse otherwise: an inert mutation is a case that
+ * cannot fail, and a phrase that occurs twice would be changed in one place and read in
+ * the other.
+ */
 function mutatePage(state, from, to) {
-    const next = state.page.replace(from, to);
-    if (next === state.page) refuse(`the page does not contain ${JSON.stringify(from)}, so this case would mutate nothing`);
-    state.page = next;
+    const occurrences = state.page.split(from).length - 1;
+    if (occurrences !== 1) refuse(`the page contains ${JSON.stringify(from)} ${occurrences} time(s), not once, so this case cannot mutate it cleanly`);
+    state.page = state.page.replace(from, to);
 }
 
 // --- The green case, and it must prove it READ something ----------------------------
@@ -181,7 +185,7 @@ function mutatePage(state, from, to) {
     // Wrong in the direction that matters: toward "we would have to query the fuel endpoint".
     const wrong = COUNTS.callable + COUNTS.fuel;
     const result = run(fixture(state => {
-        mutatePage(state, `would still mean **${wordFor(COUNTS.callable)}** live calls`, `would still mean **${wordFor(wrong)}** live calls`);
+        mutatePage(state, `would now mean **${wordFor(COUNTS.callable)}** live calls`, `would now mean **${wordFor(wrong)}** live calls`);
     }));
     check(
         'a wrong derived call count is caught, computed rather than read',

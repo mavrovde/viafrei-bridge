@@ -38,23 +38,6 @@ What that means, written by a person after reading the diff and asking the serve
   seventeen to those numbers, and the live calls a re-measurement would cost from
   fifteen to sixteen, because the tool gained is read-only and not fuel.
 
-### Fixed
-
-- **The `Version sync` workflow runs the leak sweep on the tree it prepares.** Its
-  first real run was this release, and the proposal it pushed carried two bare
-  numbers from the new tool's schema text — a minutes-per-day maximum and an example
-  stop id — that the public-repo sweep refuses; the pull request's own CI was the
-  first thing to say so. The three gates the script ran compare the shipped files
-  with each other; none asked whether the re-captured snapshot may be published. The
-  sweep now runs after the files are staged, and a finding makes the proposal a
-  **draft** with the findings in the pull-request body. The two numbers are on
-  `numbers.allowed` as the harmless values they are.
-- **`check-sources`' self-test reads its counts off the check's own summary line**
-  instead of carrying them: three of its cases said "seventeen" and "fifteen", and
-  when the page correctly moved to eighteen and sixteen they went inert — one passed
-  without mutating anything — or asserted the previous release's numbers. A mutation
-  that changes nothing is now a refusal.
-
 ### Added
 
 - **A scheduled freshness probe: is the service alive, not merely answering?**
@@ -188,6 +171,33 @@ What that means, written by a person after reading the diff and asking the serve
   and the pass/fail counter both self-tests print through to `scripts/check-harness.mjs`,
   so this self-test shares them rather than carrying copies; the probe's own case
   count is unchanged.
+
+### Fixed
+
+- **The `Version sync` workflow runs the leak sweep on the tree it prepares.** Its
+  first real run was this release, and the proposal it pushed carried two bare
+  numbers from the new tool's schema text — a minutes-per-day maximum and an example
+  stop id — that the public-repo sweep refuses. Nothing in the workflow had asked:
+  its three gates compare the shipped files with each other, not whether the
+  snapshot may be published. What caught it was the CI run the workflow itself
+  dispatched — the pull request's own `pull_request` run never executed, it sat at
+  `action_required` — and the step that failed was the publish-hygiene gate on the
+  **built tarball**, because `API.md` ships in the package: the numbers were on their
+  way into the published artefact, not only into the repository. The sweep now runs
+  after the five files are staged, and a finding makes the proposal a **draft** with
+  the findings in the pull-request body. That job builds nothing, so it cannot run
+  the tarball gate itself: it covers this class of finding, not the exact gate that
+  fired. The two numbers are on `numbers.allowed` as the harmless values they are;
+  both exist only in text the server controls, so a re-wording upstream makes the
+  sweep refuse them as unused — loudly, which is the right direction.
+- **`check-sources`' self-test reads its counts off the check's own summary line**
+  instead of carrying them: three of its cases said "seventeen" and "fifteen", and
+  when the page correctly moved to eighteen and sixteen they went inert — one passed
+  without mutating anything — or asserted the previous release's numbers. A mutation
+  that changes nothing, or that would change one of two occurrences, is now a
+  refusal. The check's own pattern for the re-run sentence accepts "would now mean"
+  beside "would still mean", because the count did move this time and the page says
+  so.
 
 ## [1.4.9] - 2026-10-01
 

@@ -66,7 +66,16 @@ function refuse(message) {
 }
 
 if (!/^\d+\.\d+\.\d+$/u.test(PUBLISHED)) refuse(`package.json's version ${PUBLISHED} is not X.Y.Z, so the fixtures cannot be built from it`);
-if (PUBLISHED === NEXT || PUBLISHED === OLDER) refuse(`the fixture versions ${NEXT}/${OLDER} collide with the real one ${PUBLISHED}`);
+// An ORDERING, not an equality: the constant this replaced was `1.5.0`, and at 1.5.4 it was
+// unequal to the manifest and yet below it, so two cases quietly flipped to `behind`.
+const compareVersions = (a, b) => {
+    const [left, right] = [a, b].map(v => v.split('.').map(Number));
+    for (let i = 0; i < 3; i += 1) if (left[i] !== right[i]) return left[i] - right[i];
+    return 0;
+};
+if (!(compareVersions(OLDER, PUBLISHED) < 0 && compareVersions(PUBLISHED, NEXT) < 0)) {
+    refuse(`the fixture versions must bracket the real one, and ${OLDER} < ${PUBLISHED} < ${NEXT} does not hold`);
+}
 
 // --- the registry stub ---------------------------------------------------------------
 function startRegistry({ latest = PUBLISHED, status = 200, raw = null } = {}) {

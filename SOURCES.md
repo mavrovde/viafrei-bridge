@@ -144,7 +144,8 @@ status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
 As of the 2026-10-02 capture shipped alongside this page it exposes twenty tools,
-eighteen of them read-only. Two of the four it gained matter here. One is a SECOND
+eighteen of them read-only. Both of the two it gained since that measurement matter
+here. One is a SECOND
 fuel tool, `find_fuel_station`, excluded from any spot check for exactly the same
 reason `find_cheapest_fuel` is, and the reason is a licence condition rather than a
 convenience: MTS-K sets a minimum interval per station and its terms make needless
@@ -156,7 +157,7 @@ page had listed as *read* with nothing using it. Something uses it now, and on
 below says exactly that rather than promoting it.
 
 The sentence above therefore describes what was measured on 2026-09-27 and not what
-the server offers today. Re-running it would still mean **sixteen** live calls against
+the server offers today. Re-running it would now mean **sixteen** live calls against
 real providers: eighteen read-only tools minus the two fuel tools. The count moved
 by one because `get_departures` is read-only and not fuel, so a re-run would call
 it. Those calls would mostly re-confirm statuses this page already knows, so it is
@@ -194,7 +195,7 @@ status somebody could still be relying on.
 | FaSta — Facility Status | Deutsche Bahn AG (DB API Marketplace) | Live state of lifts and escalators at stations | live status | CC BY 4.0 | live |
 | Geocoding (addresses and points of interest) | OpenStreetMap contributors | Street and house-number points and mapped points of interest in Germany | refreshed from the OSM extract | **ODbL 1.0** | live |
 | Timetable data (static GTFS) | DELFI e.V. | Germany-wide scheduled public transport | weekly release | CC BY 4.0 | read — asked by `get_departures` since server 1.5.4; on 2026-10-02 the server answered that the timetable is not loaded yet, and said so rather than inventing a board |
-| Stop directory (zHV) | DELFI e.V. | Every public-transport stop in Germany with its identifier and coordinates | weekly release | CC BY 4.0 | read |
+| Stop directory (zHV) | DELFI e.V. | Every public-transport stop in Germany with its identifier and coordinates | weekly release | CC BY 4.0 | read — `get_departures` resolves stop names against it since server 1.5.4; the 2026-10-02 answer named no stop and said only that the timetable is not loaded, so whether the directory answered cannot be read off it |
 | Disruption reports (Störungsmeldungen) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide public-transport disruption messages | real time | **CC BY-SA 4.0** | read |
 | Station car parks (DB BahnPark) | Deutsche Bahn AG (DB API Marketplace) | Car parks at railway stations, with their operator and access details | continuous | **dl-de/by-2-0** | read |
 | Administrative units and place names | Bundesamt für Kartographie und Geodäsie (BKG), product GN250 | Länder, Regierungsbezirke, Kreise, Gemeinden with their official keys and names | yearly release | **dl-de/by-2-0** | live |
