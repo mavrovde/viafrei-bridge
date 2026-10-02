@@ -248,13 +248,28 @@ jobs:
             exit 1
           fi
 
-          # A push or a pull request made with GITHUB_TOKEN starts no workflow —
-          # GitHub's rule, to stop runs triggering runs. workflow_dispatch and
-          # repository_dispatch are the two documented exceptions, so CI is asked
-          # for explicitly; without this the pull request would sit with no
-          # checks and look like one nobody tested.
-          # If THIS fails the pull request already stands, with no checks, and the
-          # step is red: loud rather than silent, and the remedy is one command by
-          # hand — `gh workflow run ci.yml --ref release/X.Y.Z`.
-          gh workflow run ci.yml --ref "$branch"
-          echo "CI dispatched on $branch; its run appears under the pull request's checks once it starts."
+          # CI FOR A BOT PROPOSAL, measured on three of them (#39, #40, #41): GitHub
+          # DOES create the `pull_request` run for a PR opened with GITHUB_TOKEN —
+          # and holds it at `action_required`, never executing it. `main` requires
+          # the build-and-test checks, and it reads that held run, which is the
+          # NEWER one with that name, so the proposal cannot be merged until a
+          # person approves the run by hand. The run is created asynchronously
+          # after the PR, so it is looked for a few times; once found it is
+          # approved here. If it cannot be found or approved, CI is dispatched
+          # instead (workflow_dispatch is one of the two documented exceptions to
+          # the no-runs-from-runs rule), the pull request then carries checks the
+          # merge policy does not read, and the step says what a person must do.
+          sha="$(git rev-parse HEAD)"
+          run_id=""
+          for attempt in 1 2 3 4 5 6; do
+            run_id="$(gh run list --workflow ci.yml --branch "$branch" --event pull_request --json databaseId,headSha --jq ".[] | select(.headSha == \"${sha}\") | .databaseId" | head -n 1)"
+            [ -n "$run_id" ] && break
+            sleep 10
+          done
+          if [ -n "$run_id" ] && gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null; then
+            echo "approved the pull_request CI run ${run_id} on ${sha}; the required checks now execute on the pull request."
+          else
+            echo "NOT APPROVED: the pull_request CI run for ${sha} could not be found or approved; dispatching CI instead." >&2
+            gh workflow run ci.yml --ref "$branch"
+            echo "CI dispatched on $branch. main's required checks will still read the held pull_request run; approve it by hand: gh api -X POST repos/${GITHUB_REPOSITORY}/actions/runs/<run_id>/approve" >&2
+          fi

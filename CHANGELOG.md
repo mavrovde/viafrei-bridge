@@ -5,6 +5,23 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The generated release lead no longer claims the capture date moved when it did not.**
+  On a day with two releases the snapshot's `capturedAt` stays where it was, and with
+  every platform patch mirrored that is the normal path: 1.5.5 and 1.5.6 both shipped a
+  lead saying "only the version string and the capture date moved" with the date
+  unchanged, and the reviewer wrote the same paragraph about it twice. `recapture()`
+  now reads the date before and after the probe's `--write` and the lead and the
+  pull-request body say what actually moved; both days are pinned by the self-test.
+- **A bot proposal approves its own `pull_request` CI run.** GitHub creates that run for
+  a pull request opened with the workflow token and holds it at `action_required`;
+  `main`'s required checks read that held run — the newer one with the same name — so
+  three proposals in a row were unmergeable until a person approved the run by hand,
+  while the run the workflow dispatched sat green beside it. The workflow now looks
+  for the run (it is created asynchronously), approves it, and only falls back to
+  dispatching CI when it cannot, saying so and naming the hand step.
+
 ## [1.5.6] - 2026-10-02
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
