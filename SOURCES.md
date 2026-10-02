@@ -144,13 +144,13 @@ status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
 As of the 2026-10-02 capture shipped alongside this page it exposes twenty tools,
-eighteen of them read-only. Between that measurement and that capture it gained two
-tools, and both matter here. One is a SECOND fuel tool, `find_fuel_station`, excluded
-from any spot check for exactly the same reason `find_cheapest_fuel` is, and the
-reason is a licence condition rather than a convenience: MTS-K sets a minimum
-interval per station and its terms make needless querying a real risk to the access
-itself. **Both fuel tools are excluded, not one.** The other is `get_departures`
-(server 1.5.4): scheduled departures from any
+eighteen of them read-only. Between that measurement and the 2026-10-02 capture it
+gained two tools, and both matter here. One is a SECOND fuel tool,
+`find_fuel_station`, excluded from any spot check for exactly the same reason
+`find_cheapest_fuel` is, and the reason is a licence condition rather than a
+convenience: MTS-K sets a minimum interval per station and its terms make needless
+querying a real risk to the access itself. **Both fuel tools are excluded, not one.**
+The other is `get_departures` (server 1.5.4): scheduled departures from any
 public-transport stop, answering from the DELFI static timetable — a source this
 page had listed as *read* with nothing using it. Something uses it now, and on
 2026-10-02 the server's own answer was that the timetable is not loaded yet; the row
@@ -170,8 +170,8 @@ failure this section exists to avoid.
   answer that named it, so it is reported as unconfirmed rather than as live;
 - **read** — the licence is read and cleared, and no answer has been seen from it:
   because nothing asks it, because what asks it is told the data is not loaded, or
-  because what asks it has not been seen to get an answer either way. The row says
-  which.
+  because what asks it has not been seen to get an answer either way. Where it is not
+  simply that nothing asks it, the row says so.
 
 There used to be a fourth value, **not on the public service today**, and no row
 carries it any more: the three rows that did now answer. It is removed from this
