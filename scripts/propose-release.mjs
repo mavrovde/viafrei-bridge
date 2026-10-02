@@ -44,8 +44,9 @@
  * pull request must carry, and the PR is opened as a DRAFT in that case, as it is when
  * the probe reports the surface CHANGED.
  *
- * Exit 0 = decided (in-sync, awaiting-tag, drift, or prepared). 1 = decided and it is
- * wrong (behind; or `--prepare` on a state that has nothing to prepare). 2 = could not
+ * Exit 0 = decided (in-sync, awaiting-tag, drift, or prepared). 1 = decided, and the
+ * decision is not one to act on: `behind`, or `--prepare` asked on a state with nothing
+ * to prepare — `state=` in the `--out` file says which. 2 = could not
  * decide — the server, the registry or a file could not be read, or a value read was
  * not the shape it must be. Every version string read from the network is checked
  * against `X.Y.Z` before it is used anywhere, because it ends up in a branch name, a
@@ -326,9 +327,13 @@ async function runGates() {
     const results = [];
     for (const gate of GATES) {
         const run = await runScript(gate.script, gate.args);
-        results.push({ name: gate.name, status: run.status, output: tail(`${run.stdout}\n${run.stderr}`, 8) });
+        results.push({ name: gate.name, status: run.status, output: tail(`${run.stdout}\n${run.stderr}`, 20) });
     }
     return results;
+}
+
+function gateVerdict(gate) {
+    return gate.status === 0 ? 'PASS' : `**FAIL** (exit ${gate.status})`;
 }
 
 function pullRequestBody(reading, date, gates, waitingLines) {
@@ -353,7 +358,7 @@ function pullRequestBody(reading, date, gates, waitingLines) {
         '',
         '| gate | result |',
         '|---|---|',
-        ...gates.map(gate => `| \`${gate.name}\` | ${gate.status === 0 ? 'PASS' : `**FAIL** (exit ${gate.status})`} |`),
+        ...gates.map(gate => `| \`${gate.name}\` | ${gateVerdict(gate)} |`),
         ''
     ];
     for (const gate of failed) {
@@ -404,7 +409,9 @@ function digest(files) {
 // --- main -----------------------------------------------------------------------------
 
 const options = parseArguments(process.argv.slice(2));
-const before = digest(FILES);
+// Detect must write nothing, and that is asserted rather than trusted: the five files
+// prepare may touch are hashed before the reads and compared after them.
+const before = options.prepare ? null : digest(FILES);
 
 const live = await readServer();
 const npm = await readRegistry();

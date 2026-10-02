@@ -59,6 +59,36 @@ jobs:
       # No `npm ci`: the proposer, the probe, the generator and the three gates
       # use Node built-ins only, and `npm version` needs no node_modules.
 
+      # TWO PRECONDITIONS, asserted before anything is read, because each failure
+      # would otherwise be self-concealing.
+      #
+      # 1. The run must be on the default branch. `workflow_dispatch` lets any ref
+      #    be chosen, and a run from another ref would read ITS manifest, branch
+      #    off IT, and open a pull request against main carrying its commits —
+      #    while printing "main carries X", which would be false.
+      # 2. The repository must allow Actions to create pull requests (Settings →
+      #    Actions → General → "Allow GitHub Actions to create and approve pull
+      #    requests"; OFF by default, and off when this workflow was written).
+      #    Without it `gh pr create` fails AFTER the branch is pushed, the
+      #    idempotence check below then finds the orphan branch and suppresses
+      #    every later run, and nothing says why. So it is checked here, first.
+      - name: Preconditions — default branch, and Actions may open pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]; then
+            echo "This workflow runs from ${DEFAULT_BRANCH} only; it was started on ${GITHUB_REF_NAME}." >&2
+            exit 2
+          fi
+          allowed="$(gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" --jq '.can_approve_pull_request_reviews')"
+          echo "can_approve_pull_request_reviews=${allowed}"
+          if [ "${allowed}" != "true" ]; then
+            echo "Actions may not open pull requests in this repository. Enable 'Allow GitHub Actions to create and approve pull requests' under Settings → Actions → General." >&2
+            exit 2
+          fi
+
       # The instrument is proved before it is trusted. The self-test drives the
       # real script against two local stubs and includes the refusals — a
       # proposer that cannot say no would open a pull request for anything the
@@ -75,8 +105,11 @@ jobs:
 
       # Idempotent across runs: a drift that is already proposed is left alone,
       # so a pull request waiting for its review is not joined by a twin every
-      # six hours. The version has passed the script's X.Y.Z check before it
-      # reaches this shell, and it arrives through the environment, not inline.
+      # six hours. The key is the BRANCH on origin, deliberately: close the pull
+      # request and keep the branch and the proposal stays quiet; delete the
+      # branch and the next run proposes again. The version has passed the
+      # script's X.Y.Z check before it reaches this shell, and it arrives
+      # through the environment, not inline.
       - name: Is this version already proposed?
         id: proposed
         if: steps.detect.outputs.state == 'drift'
@@ -132,15 +165,23 @@ jobs:
           EOF
           git push -u origin "$branch"
 
+          # If the pull request cannot be opened, the branch just pushed is taken
+          # back: left there, it would satisfy the idempotence check above and
+          # silence every later run about a proposal nobody can see.
           args=(--base main --head "$branch" --title "release: ${VERSION} - mirror the server" --body-file "$RUNNER_TEMP/body.md")
           if [ "$DRAFT" = "true" ]; then
             args+=(--draft)
           fi
-          gh pr create "${args[@]}"
+          if ! gh pr create "${args[@]}"; then
+            echo "gh pr create failed; removing origin/${branch} so the next run is not suppressed by it" >&2
+            git push origin --delete "$branch"
+            exit 1
+          fi
 
           # A push or a pull request made with GITHUB_TOKEN starts no workflow —
-          # GitHub's rule, to stop runs triggering runs. workflow_dispatch is the
-          # documented exception, so CI is asked for explicitly; without this the
-          # pull request would sit with no checks and look like one nobody tested.
+          # GitHub's rule, to stop runs triggering runs. workflow_dispatch and
+          # repository_dispatch are the two documented exceptions, so CI is asked
+          # for explicitly; without this the pull request would sit with no
+          # checks and look like one nobody tested.
           gh workflow run ci.yml --ref "$branch"
           echo "CI dispatched on $branch; its run appears under the pull request's checks once it starts."

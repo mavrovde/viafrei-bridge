@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createChecker } from './check-harness.mjs';
 import { liveAnswers as stubAnswers, startStub } from './mcp-stub.mjs';
 import { nodePath, runToolAsync } from './tools.mjs';
 
@@ -37,19 +38,8 @@ const PROBE = join(HERE, 'probe-catalogue.mjs');
  */
 const STUB_TIMEOUT_MS = '900';
 
-let passed = 0;
-const failures = [];
+const { check, failures, passed } = createChecker();
 const roots = [];
-
-function check(label, ok, detail = '') {
-    if (ok) {
-        passed += 1;
-        console.log(`  PASS  ${label}`);
-        return;
-    }
-    failures.push(`${label}${detail ? ` — ${detail}` : ''}`);
-    console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`);
-}
 
 function refuse(message) {
     console.error(`probe self-test: CANNOT RUN - ${message}`);
@@ -266,8 +256,8 @@ for (const root of roots) rmSync(root, { recursive: true, force: true });
 
 console.log('');
 if (failures.length > 0) {
-    console.error(`probe self-test: FAIL - ${failures.length} of ${passed + failures.length} case(s)`);
+    console.error(`probe self-test: FAIL - ${failures.length} of ${passed() + failures.length} case(s)`);
     for (const failure of failures) console.error(`  - ${failure}`);
     process.exit(1);
 }
-console.log(`probe self-test: PASS - ${passed} cases, every one against a local stub on loopback`);
+console.log(`probe self-test: PASS - ${passed()} cases, every one against a local stub on loopback`);

@@ -122,10 +122,18 @@ a Changelog and the versions follow Semantic Versioning.
   is left alone, so a pull request waiting for its review is not joined by a twin
   every six hours — and a CHANGELOG already carrying the block is a refusal. The
   workflow dispatches CI on the branch explicitly, because a push or a pull request
-  made with the workflow token starts no workflow by GitHub's rule.
+  made with the workflow token starts no workflow by GitHub's rule. **Two
+  preconditions are asserted before anything is read**, because each failure would
+  otherwise conceal itself: the run must be on the default branch (a dispatch from
+  another ref would branch off it and open a pull request carrying its commits), and
+  the repository must allow Actions to open pull requests — a setting that is OFF by
+  default, without which `gh pr create` fails after the branch is pushed and the
+  orphan branch then silences every later run. If the pull request still cannot be
+  opened, the branch just pushed is deleted again for the same reason.
 
-  The MCP stub the catalogue probe's self-test ran on moved to `scripts/mcp-stub.mjs`
-  so this self-test could share it rather than carry a copy; the probe's own case
+  The MCP stub the catalogue probe's self-test ran on moved to `scripts/mcp-stub.mjs`,
+  and the pass/fail counter both self-tests print through to `scripts/check-harness.mjs`,
+  so this self-test shares them rather than carrying copies; the probe's own case
   count is unchanged.
 
 ## [1.4.9] - 2026-10-01

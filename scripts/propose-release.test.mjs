@@ -36,6 +36,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createChecker } from './check-harness.mjs';
 import { missingFixtureImports } from './fixture-root.mjs';
 import { liveAnswers, startStub } from './mcp-stub.mjs';
 import { nodePath, runToolAsync } from './tools.mjs';
@@ -52,19 +53,8 @@ const PUBLISHED = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).v
 const NEXT = '1.5.0';
 const FILES = ['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'CHANGELOG.md'];
 
-let passed = 0;
-const failures = [];
+const { check, failures, passed } = createChecker();
 const roots = [];
-
-function check(label, ok, detail = '') {
-    if (ok) {
-        passed += 1;
-        console.log(`  PASS  ${label}`);
-        return;
-    }
-    failures.push(`${label}${detail ? ` — ${detail}` : ''}`);
-    console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`);
-}
 
 function refuse(message) {
     console.error(`propose self-test: CANNOT RUN - ${message}`);
@@ -182,7 +172,7 @@ async function scenario({ server = PUBLISHED, registry = {}, root: rootOptions =
 }
 
 function fileHashes(root) {
-    return FILES.map(file => readFileSync(join(root, file), 'utf8')).join(' ');
+    return FILES.map(file => readFileSync(join(root, file), 'utf8')).join('\n---\n');
 }
 
 const brief = text => JSON.stringify(text.slice(0, 300));
@@ -329,10 +319,11 @@ await scenario({
     check('the body carries the surface section with the difference',
         result.body !== null && /The surface changed/u.test(result.body) && /find_something_new/u.test(result.body));
     check(
-        'a new tool moves the count the sources page states, so check:sources fails on the COUNT and not on the licence arm',
+        'a new tool moves the count the sources page states, so check:sources fails on the COUNT sentence and not on the licence arm',
         result.out.gates === 'fail' && result.body !== null && /check:sources.*\*\*FAIL\*\*/u.test(result.body)
+        && /SOURCES\.md says .* but catalogue\.json gives/u.test(result.body)
         && !/reaches the rate-limited fuel source/u.test(result.body),
-        JSON.stringify(result.out)
+        `${JSON.stringify(result.out)} ${brief(result.body ?? '')}`
     );
 });
 
@@ -456,9 +447,13 @@ await scenario({ server: '1.5.0-rc.1' }, async ({ run, root }) => {
     if (!source.includes(marker)) refuse('the version guard is not the shape this case mutates, so it is untested');
     writeFileSync(path, source.replace(marker, 'if (false) {'));
     const result = await run();
+    // Positive and negative halves: the refusal sentence is gone AND the prerelease reached
+    // `compare()`, which cannot parse it and throws. A pure negative would also be satisfied
+    // by an unreachable stub, and would say nothing about where the string went instead.
     check(
-        'MUTANT: with the version guard removed, a prerelease is no longer refused by name — so the guard is live',
-        !/not a release version/u.test(result.text),
+        'MUTANT: with the version guard removed, the prerelease is not refused by name — it reaches compare() and crashes there, which is why the guard comes first',
+        !/not a release version/u.test(result.text) && result.status !== 0 && result.status !== 2
+        && /TypeError/u.test(result.text),
         `status ${result.status}, out ${brief(result.text)}`
     );
 });
@@ -472,12 +467,12 @@ if (process.env.PROPOSE_TEST_KEEP === '1') {
 }
 
 if (failures.length > 0) {
-    console.error(`\npropose self-test: FAIL - ${failures.length} of ${passed + failures.length} case(s)`);
+    console.error(`\npropose self-test: FAIL - ${failures.length} of ${passed() + failures.length} case(s)`);
     for (const failure of failures) console.error(`  - ${failure}`);
     process.exit(1);
 }
-if (passed < MIN_CASES) {
-    console.error(`propose self-test: CANNOT TRUST - only ${passed} case(s) ran, floor is ${MIN_CASES}`);
+if (passed() < MIN_CASES) {
+    console.error(`propose self-test: CANNOT TRUST - only ${passed()} case(s) ran, floor is ${MIN_CASES}`);
     process.exit(2);
 }
-console.log(`\npropose self-test: PASS - ${passed} cases, every one against two local stubs on loopback`);
+console.log(`\npropose self-test: PASS - ${passed()} cases, every one against two local stubs on loopback`);

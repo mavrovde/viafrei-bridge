@@ -8,8 +8,9 @@
  * self-tests failed a pull request on SonarCloud's duplication limit, and the fix was
  * `fixture-root.mjs`. So the stub lives here once and each test imports it.
  *
- * This module is NOT copied into any fixture root. The stub runs in the host process;
- * the scripts under test reach it over loopback and never import it.
+ * The stub runs in the HOST process; the scripts under test reach it over loopback and
+ * never import it. A fixture that copies every non-test script (`propose-release.test.mjs`
+ * does) carries a copy of this file too, where it is dead weight rather than a dependency.
  */
 
 import { createServer } from 'node:http';
