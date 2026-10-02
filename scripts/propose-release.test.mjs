@@ -453,7 +453,7 @@ await scenario({ server: '1.5.0-rc.1' }, async ({ run, root }) => {
     check(
         'MUTANT: with the version guard removed, the prerelease is not refused by name — it reaches compare() and crashes there, which is why the guard comes first',
         !/not a release version/u.test(result.text) && result.status !== 0 && result.status !== 2
-        && /TypeError/u.test(result.text),
+        && /TypeError/u.test(result.text) && /at compare \(/u.test(result.text),
         `status ${result.status}, out ${brief(result.text)}`
     );
 });

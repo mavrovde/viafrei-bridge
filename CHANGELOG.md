@@ -127,9 +127,12 @@ a Changelog and the versions follow Semantic Versioning.
   otherwise conceal itself: the run must be on the default branch (a dispatch from
   another ref would branch off it and open a pull request carrying its commits), and
   the repository must allow Actions to open pull requests — a setting that is OFF by
-  default, without which `gh pr create` fails after the branch is pushed and the
-  orphan branch then silences every later run. If the pull request still cannot be
-  opened, the branch just pushed is deleted again for the same reason.
+  default (and was, here, until 2026-10-02), without which `gh pr create` fails after
+  the branch is pushed and the orphan branch then silences every later run. That
+  read is administration-class and the workflow token may not be able to make it,
+  so it has **three outcomes**: a successful `false` refuses, a failed read is named
+  and the run continues, because if the pull request still cannot be opened the
+  branch just pushed is deleted again for the same reason.
 
   The MCP stub the catalogue probe's self-test ran on moved to `scripts/mcp-stub.mjs`,
   and the pass/fail counter both self-tests print through to `scripts/check-harness.mjs`,
