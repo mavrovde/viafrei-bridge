@@ -248,13 +248,38 @@ jobs:
             exit 1
           fi
 
-          # A push or a pull request made with GITHUB_TOKEN starts no workflow —
-          # GitHub's rule, to stop runs triggering runs. workflow_dispatch and
-          # repository_dispatch are the two documented exceptions, so CI is asked
-          # for explicitly; without this the pull request would sit with no
-          # checks and look like one nobody tested.
-          # If THIS fails the pull request already stands, with no checks, and the
-          # step is red: loud rather than silent, and the remedy is one command by
-          # hand — `gh workflow run ci.yml --ref release/X.Y.Z`.
-          gh workflow run ci.yml --ref "$branch"
-          echo "CI dispatched on $branch; its run appears under the pull request's checks once it starts."
+          # CI FOR A BOT PROPOSAL. Measured on #39-#41: GitHub DOES create the
+          # `pull_request` run for a PR opened with GITHUB_TOKEN, and holds it at
+          # `action_required` without executing it; `main` requires the two
+          # build-and-test checks and SonarCloud. Observed ONCE, on #40: with the
+          # dispatched run green and that held run unapproved, `gh pr merge` was
+          # refused by the base branch policy, and approving the held run is what
+          # made the pull request mergeable. Whether the held run itself blocks or
+          # the dispatched run simply does not count toward the required contexts
+          # is not distinguished by that observation; either way the approval is
+          # the act that cleared it, so it is done here. The run is created
+          # asynchronously after the PR and is looked for a few times. Whether
+          # GITHUB_TOKEN may call the approve endpoint at all is NOT yet measured
+          # (the hand approvals used a user token), which is why the two failure
+          # modes below are reported apart: the first run's log is the answer. On
+          # either, CI is dispatched as before and the hand step is named.
+          sha="$(git rev-parse HEAD)"
+          run_id=""
+          for attempt in 1 2 3 4 5 6; do
+            run_id="$(gh run list --workflow ci.yml --branch "$branch" --event pull_request --json databaseId,headSha --jq ".[] | select(.headSha == \"${sha}\") | .databaseId" | head -n 1)"
+            [ -n "$run_id" ] && break
+            [ "$attempt" -lt 6 ] && sleep 10
+          done
+          approved=0
+          if [ -z "$run_id" ]; then
+            echo "NOT APPROVED: no pull_request CI run for ${sha} appeared within a minute." >&2
+          elif gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/approve" >/dev/null; then
+            approved=1
+            echo "approved the pull_request CI run ${run_id} on ${sha}; the required checks now execute on the pull request."
+          else
+            echo "NOT APPROVED: the approve call for run ${run_id} was refused — most likely the workflow token may not approve a run; see the error above." >&2
+          fi
+          if [ "$approved" = "0" ]; then
+            gh workflow run ci.yml --ref "$branch"
+            echo "CI dispatched on $branch instead. If the merge is refused by the base branch policy, approve the held run by hand: gh api -X POST repos/${GITHUB_REPOSITORY}/actions/runs/<run_id>/approve" >&2
+          fi

@@ -82,6 +82,12 @@ const GATES = Object.freeze([
 
 const WRAP_AT = 88;
 
+/** What a DATED re-capture moved, in one place: the lead and the pull-request body both say it. */
+const DATED_MOVED = Object.freeze({
+    withDate: 'only the version string and the capture date moved',
+    sameDay: 'only the version string moved; the capture date is the same day'
+});
+
 /**
  * Nothing read from the network or from a child process reaches a log line carrying a
  * line break or a control character. A forged line in a workflow log is the attack
@@ -251,15 +257,18 @@ async function bumpManifest(live) {
  * is treated as DATED, because nothing on the surface moved either way.
  */
 async function recapture(live) {
+    const capturedBefore = readJson('catalogue.json').capturedAt;
     const probe = await runScript('probe-catalogue.mjs', ['--write']);
     if (probe.status === 2) refuse(`the catalogue probe could not re-capture the server:\n${tail(probe.stderr)}`);
     const wrong = /the snapshot is WRONG about this server/u.test(probe.stderr);
     const differences = [...probe.stderr.matchAll(/^ {2}! (.+)$/gmu)]
         .map(match => match[1])
         .filter(line => !line.startsWith('serverInfo.version:'));
-    const captured = readJson('catalogue.json').serverInfo?.version;
-    if (captured !== live) refuse(`the probe rewrote catalogue.json, but its serverInfo.version is ${captured}, not ${live}`);
-    return { verdict: wrong ? 'wrong' : 'dated', differences };
+    const after = readJson('catalogue.json');
+    if (after.serverInfo?.version !== live) refuse(`the probe rewrote catalogue.json, but its serverInfo.version is ${after.serverInfo?.version}, not ${live}`);
+    // Two releases on one day leave the capture date where it was, and with every patch
+    // mirrored that is the normal path, not a coincidence: the lead says so only when it is so.
+    return { verdict: wrong ? 'wrong' : 'dated', differences, captureMoved: after.capturedAt !== capturedBefore };
 }
 
 async function regenerateReference() {
@@ -282,16 +291,15 @@ function wrap(text, indent = '') {
     return lines;
 }
 
-function lead({ live, npm, verdict, differences }) {
+function lead({ live, npm, verdict, differences, captureMoved }) {
+    const datedTail = ` — ${captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay}.`;
     const lines = wrap(
         `**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it relays to. ` +
         `The running server reports ${live} while the registry's latest is ${npm}, so this release moves the ` +
         `package to the server's number and carries whatever had been waiting under \`[Unreleased]\`. Prepared by ` +
         `the \`Version sync\` workflow: the shipped reference was re-captured from the running server, and the ` +
         `probe reported the surface ${verdict === 'wrong' ? '**CHANGED**' : '**unchanged**'}` +
-        (verdict === 'wrong'
-            ? ' — the automation knows what moved, not what it means:'
-            : ' — only the version string and the capture date moved.')
+        (verdict === 'wrong' ? ' — the automation knows what moved, not what it means:' : datedTail)
     );
     if (verdict === 'wrong') {
         lines.push(
@@ -363,9 +371,10 @@ function gateVerdict(gate) {
 
 function pullRequestBody(reading, date, gates, waitingLines) {
     const failed = gates.filter(gate => gate.status !== 0);
+    const surfaceTail = reading.captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay;
     const surface = reading.verdict === 'wrong'
         ? `**CHANGED** — ${reading.differences.length} difference(s), listed below`
-        : '**unchanged** — only the version string and the capture date moved';
+        : `**unchanged** — ${surfaceTail}`;
     const out = [
         `Prepared by the **Version sync** workflow. The running server reports **${reading.live}**, the registry's ` +
         `\`latest\` is **${reading.npm}**, and \`main\` carried ${reading.manifest}.`,
@@ -462,9 +471,9 @@ if (decision.state !== 'drift') {
 
 const date = options.date ?? new Date().toISOString().slice(0, 10);
 await bumpManifest(live);
-const { verdict, differences } = await recapture(live);
+const { verdict, differences, captureMoved } = await recapture(live);
 await regenerateReference();
-const reading = { live, npm, manifest, verdict, differences };
+const reading = { live, npm, manifest, verdict, differences, captureMoved };
 const waitingLines = cutChangelog(reading, date);
 const gates = await runGates();
 const gatesPass = gates.every(gate => gate.status === 0);
