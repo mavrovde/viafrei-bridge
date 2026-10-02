@@ -443,17 +443,18 @@ await scenario({}, async ({ run }) => {
 await scenario({ server: '1.5.0-rc.1' }, async ({ run, root }) => {
     const path = join(root, 'scripts', 'propose-release.mjs');
     const source = readFileSync(path, 'utf8');
-    const marker = "if (typeof raw !== 'string' || !SEMVER.test(raw)) {";
+    const marker = 'if (match === null) {';
     if (!source.includes(marker)) refuse('the version guard is not the shape this case mutates, so it is untested');
     writeFileSync(path, source.replace(marker, 'if (false) {'));
     const result = await run();
-    // Positive and negative halves: the refusal sentence is gone AND the prerelease reached
-    // `compare()`, which cannot parse it and throws. A pure negative would also be satisfied
-    // by an unreachable stub, and would say nothing about where the string went instead.
+    // Positive and negative halves: the refusal sentence is gone AND the prerelease is then
+    // dereferenced as the match it did not produce, which throws inside version() itself. A
+    // pure negative would also be satisfied by an unreachable stub, and would say nothing
+    // about where the string went instead.
     check(
-        'MUTANT: with the version guard removed, the prerelease is not refused by name — it reaches compare() and crashes there, which is why the guard comes first',
+        'MUTANT: with the version guard removed, the prerelease is not refused by name — version() dereferences a match that is not there and crashes, which is why the guard comes first',
         !/not a release version/u.test(result.text) && result.status !== 0 && result.status !== 2
-        && /TypeError/u.test(result.text) && /at compare \(/u.test(result.text),
+        && /TypeError/u.test(result.text) && /at version \(/u.test(result.text),
         `status ${result.status}, out ${brief(result.text)}`
     );
 });

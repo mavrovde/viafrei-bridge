@@ -19,8 +19,9 @@ export function createChecker() {
             console.log(`  PASS  ${label}`);
             return;
         }
-        failures.push(`${label}${detail ? ` — ${detail}` : ''}`);
-        console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`);
+        const suffix = detail ? ` — ${detail}` : '';
+        failures.push(`${label}${suffix}`);
+        console.log(`  FAIL  ${label}${suffix}`);
     }
     return { check, failures, passed: () => passed };
 }

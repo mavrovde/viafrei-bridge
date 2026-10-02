@@ -82,8 +82,21 @@ const GATES = Object.freeze([
 
 const WRAP_AT = 88;
 
+/**
+ * Nothing read from the network or from a child process reaches a log line carrying a
+ * line break or a control character. A forged line in a workflow log is the attack
+ * (Sonar S5145), and `version()` already refuses anything but digits and dots — this is
+ * the same promise made visible on the one path a validator does not cover, the text
+ * of a refusal that quotes what it read. What it does not strip, named: the C1 controls
+ * and Unicode's own line and paragraph separators, which neither a shell nor an Actions
+ * log treats as a line break.
+ */
+function oneLine(text) {
+    return String(text).replace(/[\u0000-\u001f\u007f]+/gu, ' ').trim();
+}
+
 function refuse(message) {
-    console.error(`propose-release: CANNOT DECIDE - ${message}`);
+    console.error(`propose-release: CANNOT DECIDE - ${oneLine(message)}`);
     console.error('propose-release: this is a failure, not a pass: a run that read nothing has decided nothing');
     process.exit(2);
 }
@@ -107,12 +120,18 @@ function parseArguments(argv) {
     return options;
 }
 
-/** A version string that may be used in a branch name, a commit and an npm argument. */
+/**
+ * A version string that may be used in a branch name, a commit and an npm argument.
+ * What is RETURNED is rebuilt from the three digit groups the pattern captured, never
+ * the string that was read: the validator is then also the sanitiser, and nothing from
+ * the network reaches a branch name or a log line except digits and dots.
+ */
 function version(label, raw) {
-    if (typeof raw !== 'string' || !SEMVER.test(raw)) {
-        refuse(`${label} is ${JSON.stringify(raw)}, not a release version of the form X.Y.Z — a prerelease, a tag or a missing field is not a number this package mirrors`);
+    const match = typeof raw === 'string' ? SEMVER.exec(raw) : null;
+    if (match === null) {
+        refuse(`${label} is ${JSON.stringify(typeof raw === 'string' ? oneLine(raw) : raw)}, not a release version of the form X.Y.Z — a prerelease, a tag or a missing field is not a number this package mirrors`);
     }
-    return raw;
+    return `${match[1]}.${match[2]}.${match[3]}`;
 }
 
 function compare(a, b) {
@@ -148,8 +167,13 @@ function runScript(name, args = []) {
     return runChild(nodePath(), [join(HERE, name), ...args]);
 }
 
+/**
+ * The last lines of a child's output, each sanitised. The newlines between them survive
+ * only on the pull-request-body path, inside a fenced block; `refuse()` flattens the
+ * whole message to one line on purpose, so there they are gone again.
+ */
 function tail(text, lines = 12) {
-    return text.trim().split('\n').slice(-lines).join('\n');
+    return text.trim().split('\n').slice(-lines).map(oneLine).join('\n');
 }
 
 // --- the three readings ---------------------------------------------------------------
@@ -270,13 +294,15 @@ function lead({ live, npm, verdict, differences }) {
             : ' — only the version string and the capture date moved.')
     );
     if (verdict === 'wrong') {
-        lines.push('');
-        for (const difference of differences) lines.push(...wrap(`- ${difference}`));
-        lines.push('');
-        lines.push(...wrap(
-            '**A person must describe the change above before this merges.** A release note that lists a ' +
-            'tool name without saying what it does misleads the reader it exists for.'
-        ));
+        lines.push(
+            '',
+            ...differences.flatMap(difference => wrap(`- ${difference}`)),
+            '',
+            ...wrap(
+                '**A person must describe the change above before this merges.** A release note that lists a ' +
+                'tool name without saying what it does misleads the reader it exists for.'
+            )
+        );
     }
     return lines;
 }
@@ -323,13 +349,12 @@ function cutChangelog(reading, date) {
     return waiting.length;
 }
 
-async function runGates() {
-    const results = [];
-    for (const gate of GATES) {
+/** The three gates only read the prepared tree, so they run at once. */
+function runGates() {
+    return Promise.all(GATES.map(async gate => {
         const run = await runScript(gate.script, gate.args);
-        results.push({ name: gate.name, status: run.status, output: tail(`${run.stdout}\n${run.stderr}`, 20) });
-    }
-    return results;
+        return { name: gate.name, status: run.status, output: tail(`${run.stdout}\n${run.stderr}`, 20) };
+    }));
 }
 
 function gateVerdict(gate) {
@@ -418,8 +443,10 @@ const npm = await readRegistry();
 const manifest = readManifest();
 const decision = decide(live, npm, manifest);
 
-console.log(`propose-release: server ${live}, registry ${npm}, main ${manifest} → ${decision.state}`);
-console.log(`  ${decision.why}`);
+// `oneLine` again on values `version()` already rebuilt from digits: a no-op in effect, and
+// the construction a taint analyser recognises where it may not recognise the regex.
+console.log(oneLine(`propose-release: server ${live}, registry ${npm}, main ${manifest} → ${decision.state}`));
+console.log(`  ${oneLine(decision.why)}`);
 
 if (!options.prepare) {
     if (digest(FILES) !== before) refuse('detect changed a file in the tree, and detect must write nothing');
@@ -428,7 +455,7 @@ if (!options.prepare) {
 }
 
 if (decision.state !== 'drift') {
-    console.error(`propose-release: nothing to prepare — ${decision.why}`);
+    console.error(`propose-release: nothing to prepare — ${oneLine(decision.why)}`);
     writeOut(options.out, { state: decision.state, version: live, npm, manifest });
     process.exit(1);
 }
