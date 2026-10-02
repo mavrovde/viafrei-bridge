@@ -282,7 +282,7 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
         /\*\*Mirrors the server\.\*\*/u.test(lines.slice(block, block + 12).join(' ')) && /surface \*\*unchanged\*\*/u.test(flat));
     check(
         'a snapshot captured on an EARLIER day: the lead says the capture date moved, and the body agrees',
-        /only the version string and the capture date moved/u.test(flat) && /only the version string moved, and the capture date/u.test(result.body ?? ''),
+        /only the version string and the capture date moved/u.test(flat) && /surface \*\*unchanged\*\* — only the version string and the capture date moved/u.test(result.body ?? ''),
         brief(flat)
     );
     const waiting = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8').split('\n');
@@ -314,18 +314,24 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
 });
 
 // --- prepare: a second release on the SAME day — the capture date does not move -------------
-await scenario({ server: NEXT, root: { capturedAt: new Date().toISOString().slice(0, 10) } }, async ({ run, root }) => {
+const today = new Date().toISOString().slice(0, 10);
+await scenario({ server: NEXT, root: { capturedAt: today } }, async ({ run, root }) => {
     const result = await run(['--prepare', '--date', '2026-10-02']);
     // Judged on the LEAD alone: the carried [Unreleased] text below it may quote the old
     // sentence (this repository's own changelog does), so the whole file cannot be the oracle.
     const flat = readFileSync(join(root, 'CHANGELOG.md'), 'utf8').replace(/\s+/gu, ' ');
     const leadText = flat.split(`## [${NEXT}]`)[1]?.split('###')[0] ?? '';
+    // The expectation is read off what HAPPENED: the fixture was dated a few seconds before the
+    // probe wrote, so a run crossing UTC midnight between the two legitimately moves the date.
+    const written = JSON.parse(readFileSync(join(root, 'catalogue.json'), 'utf8')).capturedAt;
+    const sameDay = written === today;
+    const expected = sameDay ? 'only the version string moved; the capture date is the same day' : 'only the version string and the capture date moved';
+    const forbidden = sameDay ? 'capture date moved' : 'is the same day';
     check(
-        'a snapshot captured TODAY: the lead says only the version string moved and the date is the same day',
+        `a snapshot captured TODAY: the lead and the body say what happened (${sameDay ? 'same day' : 'the run crossed midnight'})`,
         result.status === 0 && result.out.verdict === 'dated'
-        && /only the version string moved; the capture date is the same day/u.test(leadText)
-        && !/capture date moved/u.test(leadText)
-        && /only the version string moved \|/u.test(result.body ?? ''),
+        && leadText.includes(expected) && !leadText.includes(forbidden)
+        && (result.body ?? '').includes(`surface **unchanged** — ${expected}`),
         `status ${result.status}, ${brief(leadText)} ${brief(result.body ?? '')}`
     );
 });

@@ -82,6 +82,12 @@ const GATES = Object.freeze([
 
 const WRAP_AT = 88;
 
+/** What a DATED re-capture moved, in one place: the lead and the pull-request body both say it. */
+const DATED_MOVED = Object.freeze({
+    withDate: 'only the version string and the capture date moved',
+    sameDay: 'only the version string moved; the capture date is the same day'
+});
+
 /**
  * Nothing read from the network or from a child process reaches a log line carrying a
  * line break or a control character. A forged line in a workflow log is the attack
@@ -286,17 +292,14 @@ function wrap(text, indent = '') {
 }
 
 function lead({ live, npm, verdict, differences, captureMoved }) {
+    const datedTail = ` — ${captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay}.`;
     const lines = wrap(
         `**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it relays to. ` +
         `The running server reports ${live} while the registry's latest is ${npm}, so this release moves the ` +
         `package to the server's number and carries whatever had been waiting under \`[Unreleased]\`. Prepared by ` +
         `the \`Version sync\` workflow: the shipped reference was re-captured from the running server, and the ` +
         `probe reported the surface ${verdict === 'wrong' ? '**CHANGED**' : '**unchanged**'}` +
-        (verdict === 'wrong'
-            ? ' — the automation knows what moved, not what it means:'
-            : captureMoved
-                ? ' — only the version string and the capture date moved.'
-                : ' — only the version string moved; the capture date is the same day.')
+        (verdict === 'wrong' ? ' — the automation knows what moved, not what it means:' : datedTail)
     );
     if (verdict === 'wrong') {
         lines.push(
@@ -370,7 +373,7 @@ function pullRequestBody(reading, date, gates, waitingLines) {
     const failed = gates.filter(gate => gate.status !== 0);
     const surface = reading.verdict === 'wrong'
         ? `**CHANGED** — ${reading.differences.length} difference(s), listed below`
-        : `**unchanged** — only the version string moved${reading.captureMoved ? ', and the capture date' : ''}`;
+        : `**unchanged** — ${reading.captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay}`;
     const out = [
         `Prepared by the **Version sync** workflow. The running server reports **${reading.live}**, the registry's ` +
         `\`latest\` is **${reading.npm}**, and \`main\` carried ${reading.manifest}.`,

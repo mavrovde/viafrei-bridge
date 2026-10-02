@@ -15,12 +15,16 @@ a Changelog and the versions follow Semantic Versioning.
   now reads the date before and after the probe's `--write` and the lead and the
   pull-request body say what actually moved; both days are pinned by the self-test.
 - **A bot proposal approves its own `pull_request` CI run.** GitHub creates that run for
-  a pull request opened with the workflow token and holds it at `action_required`;
-  `main`'s required checks read that held run — the newer one with the same name — so
-  three proposals in a row were unmergeable until a person approved the run by hand,
-  while the run the workflow dispatched sat green beside it. The workflow now looks
-  for the run (it is created asynchronously), approves it, and only falls back to
-  dispatching CI when it cannot, saying so and naming the hand step.
+  a pull request opened with the workflow token and holds it at `action_required`
+  without executing it (#39–#41). Observed once, on #40: with the run the workflow
+  had dispatched green and that held run unapproved, the merge was refused by the base
+  branch policy, and approving the held run by hand is what made the pull request
+  mergeable — whether the held run blocks or the dispatched run simply does not count
+  toward `main`'s required checks, that observation does not say. The workflow now
+  looks for the run (it is created asynchronously), approves it, and falls back to
+  dispatching CI when it cannot, reporting "no run appeared" and "the approve call
+  was refused" apart, because whether the workflow token may approve at all is not
+  yet measured and the first run's log is the answer.
 
 ## [1.5.6] - 2026-10-02
 
