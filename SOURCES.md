@@ -143,28 +143,35 @@ is deliberately not re-measured, and the count says so rather than absorbing it:
 status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
-As of the 2026-09-29 capture shipped alongside this page it exposes nineteen tools,
-seventeen of them read-only, including a SECOND fuel tool, `find_fuel_station`.
-That one is excluded from any spot check for exactly the same reason
-`find_cheapest_fuel` is, and the reason is a licence condition rather
-than a convenience: MTS-K sets a minimum interval per station and its terms make
-needless querying a real risk to the access itself. **Both fuel tools are excluded,
-not one.**
+As of the 2026-10-02 capture shipped alongside this page it exposes twenty tools,
+eighteen of them read-only. Between that measurement and the 2026-10-02 capture it
+gained two tools, and both matter here. One is a SECOND fuel tool,
+`find_fuel_station`, excluded from any spot check for exactly the same reason
+`find_cheapest_fuel` is, and the reason is a licence condition rather than a
+convenience: MTS-K sets a minimum interval per station and its terms make needless
+querying a real risk to the access itself. **Both fuel tools are excluded, not one.**
+The other is `get_departures` (server 1.5.4): scheduled departures from any
+public-transport stop, answering from the DELFI static timetable — a source this
+page had listed as *read* with nothing using it. Something uses it now, and on
+2026-10-02 the server's own answer was that the timetable is not loaded yet; the row
+below says exactly that rather than promoting it.
 
 The sentence above therefore describes what was measured on 2026-09-27 and not what
-the server offers today. Re-running it would still mean **fifteen** live calls
-against real providers — the same fifteen, because the one read-only tool the server
-gained is the second fuel tool, and that one is excluded. Sixteen read-only minus one
-fuel tool was fifteen; seventeen minus two is fifteen again. Those calls would
-re-confirm statuses this page already knows, so it is dated on purpose rather than
-refreshed on a schedule — and dated is said out loud, because a measurement silently
-carried forward under a present-tense sentence is the failure this section exists to
-avoid.
+the server offers today. Re-running it would now mean **sixteen** live calls against
+real providers: the read-only tools minus the two excluded fuel tools. The count moved
+by one because `get_departures` is read-only and not fuel, so a re-run would call
+it. Those calls would mostly re-confirm statuses this page already knows, so it is
+dated on purpose rather than refreshed on a schedule — and dated is said out loud,
+because a measurement silently carried forward under a present-tense sentence is the
+failure this section exists to avoid.
 
 - **live** — an answer came back naming it when this page was checked;
 - **in the service** — licensed and loaded, and the spot check produced no
   answer that named it, so it is reported as unconfirmed rather than as live;
-- **read** — the licence is read and cleared, and nothing uses it yet.
+- **read** — the licence is read and cleared, and no answer has been seen from it:
+  because nothing asks it, because what asks it is told the data is not loaded, or
+  because what asks it has not been seen to get an answer either way. Where it is not
+  simply that nothing asks it, the row says so.
 
 There used to be a fourth value, **not on the public service today**, and no row
 carries it any more: the three rows that did now answer. It is removed from this
@@ -188,8 +195,8 @@ status somebody could still be relying on.
 | Public-transport realtime (GTFS-RT Trip Updates) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide departure and arrival forecasts | real time | **CC BY-SA (version unstated)** | live |
 | FaSta — Facility Status | Deutsche Bahn AG (DB API Marketplace) | Live state of lifts and escalators at stations | live status | CC BY 4.0 | live |
 | Geocoding (addresses and points of interest) | OpenStreetMap contributors | Street and house-number points and mapped points of interest in Germany | refreshed from the OSM extract | **ODbL 1.0** | live |
-| Timetable data (static GTFS) | DELFI e.V. | Germany-wide scheduled public transport | weekly release | CC BY 4.0 | read |
-| Stop directory (zHV) | DELFI e.V. | Every public-transport stop in Germany with its identifier and coordinates | weekly release | CC BY 4.0 | read |
+| Timetable data (static GTFS) | DELFI e.V. | Germany-wide scheduled public transport | weekly release | CC BY 4.0 | read — asked by `get_departures` since server 1.5.4; on 2026-10-02 the server answered that the timetable is not loaded yet, and said so rather than inventing a board |
+| Stop directory (zHV) | DELFI e.V. | Every public-transport stop in Germany with its identifier and coordinates | weekly release | CC BY 4.0 | read — `get_departures` resolves stop names against it since server 1.5.4; the 2026-10-02 answer named no stop and said only that the timetable is not loaded, so whether the directory answered cannot be read off it |
 | Disruption reports (Störungsmeldungen) | DELFI e.V., via the national access point (Mobilithek) | Germany-wide public-transport disruption messages | real time | **CC BY-SA 4.0** | read |
 | Station car parks (DB BahnPark) | Deutsche Bahn AG (DB API Marketplace) | Car parks at railway stations, with their operator and access details | continuous | **dl-de/by-2-0** | read |
 | Administrative units and place names | Bundesamt für Kartographie und Geodäsie (BKG), product GN250 | Länder, Regierungsbezirke, Kreise, Gemeinden with their official keys and names | yearly release | **dl-de/by-2-0** | live |

@@ -92,11 +92,44 @@ function fixture(mutate) {
 //
 // If the repository were itself inconsistent, every red case below would pass for the
 // wrong reason and the green one would be the only real signal.
+let COUNTS;
 {
     const result = run(ROOT);
     if (result.status !== 0) {
         refuse(`this repository's own SOURCES.md and catalogue.json disagree:\n${result.out}`);
     }
+    // The numbers the red cases below mutate AWAY from are read off the check's own
+    // summary line, never written here. At 1.5.4 the server grew from nineteen tools to
+    // twenty and three cases that said "seventeen" and "fifteen" went inert or wrong
+    // against a page that had correctly moved on — a count without its instrument.
+    const summary = /(\d+) tool\(s\), (\d+) read-only, (\d+) fuel-constrained \(.*?\), (\d+) callable/u.exec(result.out);
+    if (summary === null) refuse('the check printed no summary line to read the live counts from');
+    COUNTS = { tools: Number(summary[1]), readOnly: Number(summary[2]), fuel: Number(summary[3]), callable: Number(summary[4]) };
+    if (COUNTS.callable !== COUNTS.readOnly - COUNTS.fuel) refuse('the summary line does not add up, so the cases cannot be derived from it');
+}
+
+/** Spelled-out numbers, the way the page writes them. The inverse is what the mutations need. */
+const WORDS = Object.freeze({
+    ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
+    sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20,
+    'twenty-one': 21, 'twenty-two': 22, 'twenty-three': 23, 'twenty-four': 24,
+    'twenty-five': 25, 'twenty-six': 26, 'twenty-seven': 27, 'twenty-eight': 28,
+    'twenty-nine': 29, thirty: 30
+});
+function wordFor(n) {
+    const word = Object.keys(WORDS).find(key => WORDS[key] === n);
+    if (word === undefined) refuse(`the page's word table has no entry for ${n}`);
+    return word;
+}
+/**
+ * Replace exactly one occurrence, and refuse otherwise: an inert mutation is a case that
+ * cannot fail, and a phrase that occurs twice would be changed in one place and read in
+ * the other.
+ */
+function mutatePage(state, from, to) {
+    const occurrences = state.page.split(from).length - 1;
+    if (occurrences !== 1) refuse(`the page contains ${JSON.stringify(from)} ${occurrences} time(s), not once, so this case cannot mutate it cleanly`);
+    state.page = state.page.replace(from, to);
 }
 
 // --- The green case, and it must prove it READ something ----------------------------
@@ -116,12 +149,14 @@ function fixture(mutate) {
 // 1. A stated count that drifted. This is the original #32 defect: the page said
 //    sixteen read-only tools after the server had grown to seventeen.
 {
+    const stale = COUNTS.readOnly - 1;
     const result = run(fixture(state => {
-        state.page = state.page.replace('seventeen of them read-only', 'sixteen of them read-only');
+        mutatePage(state, `${wordFor(COUNTS.readOnly)} of them read-only`, `${wordFor(stale)} of them read-only`);
     }));
     check(
         'a stale read-only count is caught, naming both numbers',
-        result.status === 1 && /read-only tools:.*"sixteen" \(16\).*gives 17/su.test(result.out),
+        result.status === 1
+        && new RegExp(`read-only tools:.*"${wordFor(stale)}" \\(${stale}\\).*gives ${COUNTS.readOnly}`, 'su').test(result.out),
         `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 200))}`
     );
 }
@@ -147,12 +182,15 @@ function fixture(mutate) {
 //    endpoint", which is what the licence condition prevents. This is the arm that
 //    computes rather than reads.
 {
+    // Wrong in the direction that matters: toward "we would have to query the fuel endpoint".
+    const wrong = COUNTS.callable + COUNTS.fuel;
     const result = run(fixture(state => {
-        state.page = state.page.replace('would still mean **fifteen** live calls', 'would still mean **seventeen** live calls');
+        mutatePage(state, `would now mean **${wordFor(COUNTS.callable)}** live calls`, `would now mean **${wordFor(wrong)}** live calls`);
     }));
     check(
         'a wrong derived call count is caught, computed rather than read',
-        result.status === 1 && /live calls a re-run would cost:.*"seventeen" \(17\).*gives 15/su.test(result.out),
+        result.status === 1
+        && new RegExp(`live calls a re-run would cost:.*"${wordFor(wrong)}" \\(${wrong}\\).*gives ${COUNTS.callable}`, 'su').test(result.out),
         `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 200))}`
     );
 }
@@ -195,8 +233,8 @@ function fixture(mutate) {
         'a NEW fuel tool is caught as unnamed, and the callable count stays put',
         result.status === 1
         && /excluded fuel tools: find_fuel_price_history/u.test(result.out)
-        && /18 read-only, 3 fuel-constrained/u.test(result.out)
-        && /15 callable/u.test(result.out),
+        && new RegExp(`${COUNTS.readOnly + 1} read-only, ${COUNTS.fuel + 1} fuel-constrained`, 'u').test(result.out)
+        && new RegExp(`${COUNTS.callable} callable`, 'u').test(result.out),
         `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 300))}`
     );
 }

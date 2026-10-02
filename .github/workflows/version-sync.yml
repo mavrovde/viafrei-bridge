@@ -158,9 +158,39 @@ jobs:
           node scripts/propose-release.mjs --prepare --out "$RUNNER_TEMP/prepare.env" --body "$RUNNER_TEMP/body.md"
           cat "$RUNNER_TEMP/prepare.env" >> "$GITHUB_OUTPUT"
 
+      # THE LEAK SWEEP, on the prepared tree. The script's three gates compare the
+      # files with each other; this one asks whether the re-captured snapshot may
+      # be PUBLISHED at all. It was missing from the first run of this workflow:
+      # the server's new tool carried two bare numbers in its schema text, the
+      # snapshot was pushed with them, and the pull request's own CI was the
+      # first thing to say so. The sweep reads TRACKED paths, so the five files
+      # are staged first; a failure makes the proposal a DRAFT and puts the
+      # findings in the pull request, where the person who must act reads them.
+      - name: Leak sweep on the prepared tree
+        id: leaks
+        if: steps.prepare.outputs.state == 'proposed'
+        continue-on-error: true
+        env:
+          FILES: ${{ steps.prepare.outputs.files }}
+        run: |
+          set -eu
+          # The sweep lists paths with `git ls-files` and reads the working tree, so
+          # for today's five files — all tracked — this `add` changes nothing. It is
+          # insurance for a prepared file that is new to the index.
+          IFS=',' read -r -a files <<< "$FILES"
+          git add -- "${files[@]}"
+          # The exit status is captured directly, not read back from a pipeline:
+          # PIPESTATUS is rewritten by every command, so one innocent line between
+          # the pipe and the exit would turn a failed sweep into a green step.
+          status=0
+          node scripts/check-leaks.mjs > "$RUNNER_TEMP/leaks.log" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/leaks.log"
+          exit "$status"
+
       # Only the five files the script declares are staged — never `add -A`.
-      # A DRAFT when a gate failed or the surface changed: both mean a person
-      # has writing to do before the review, and a draft says so in the title.
+      # A DRAFT when a gate failed, the surface changed or the sweep found
+      # something: each means a person has writing to do before the review, and
+      # a draft says so in the title.
       - name: Push the branch and open the pull request
         if: steps.prepare.outputs.state == 'proposed'
         env:
@@ -171,8 +201,22 @@ jobs:
           GATES: ${{ steps.prepare.outputs.gates }}
           DRAFT: ${{ steps.prepare.outputs.draft }}
           FILES: ${{ steps.prepare.outputs.files }}
+          LEAKS: ${{ steps.leaks.outcome }}
         run: |
           set -eu
+          if [ "$LEAKS" != "success" ]; then
+            DRAFT=true
+            {
+              echo
+              echo '## The leak sweep failed on the prepared tree'
+              echo
+              echo 'The re-captured snapshot carries something the public-repo sweep refuses. Read the findings, decide whether each is harmless (then `numbers.allowed` in `scripts/rules.json`) or a value that must not be published, and fix it before the review.'
+              echo
+              echo '```'
+              tail -n 20 "$RUNNER_TEMP/leaks.log"
+              echo '```'
+            } >> "$RUNNER_TEMP/body.md"
+          fi
           branch="release/${VERSION}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'

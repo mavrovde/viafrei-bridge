@@ -5,6 +5,39 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.5.4] - 2026-10-02
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
+relays to. The running server reports 1.5.4 while the registry's latest is 1.4.9, so
+this release moves the package to the server's number and carries whatever had been
+waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
+reference was re-captured from the running server, and the probe reported the surface
+**CHANGED** — the automation knows what moved, not what it means:
+
+- tools: the server has get_departures, the snapshot does not
+- tools: get_train_departures differs between the server and the snapshot
+
+What that means, written by a person after reading the diff and asking the server:
+
+- **`get_departures` is new**: scheduled departures from any German public-transport
+  stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination and
+  platform, planned times only, a 48 h window and 15 per call, answering from the
+  DELFI static timetable (CC BY 4.0). It is the tool for "when does the next bus go",
+  for another day, or for a clock time more than two hours away. Asked on 2026-10-02,
+  prod answered that the timetable is **not loaded yet** and said so plainly instead
+  of inventing a board; `SOURCES.md` records that on the static-GTFS row rather than
+  promoting the source to *live*.
+- **`get_train_departures` was re-described, not re-shaped**: its description now
+  draws the line against the new tool (buses, trams, a non-railway stop, another day
+  or a time over two hours away go to `get_departures`), keeps vague later-today
+  wording for itself, and sends "is the S1 punctual?" to `check_transit_disruption`
+  even though it is rail and about delay. The `station` argument's text adds that a
+  bare "Hauptbahnhof" should be sent as-is because the server lists the candidates.
+  No argument was added, removed or re-typed.
+- The catalogue is **20 tools, 18 read-only**; `SOURCES.md` moves from nineteen /
+  seventeen to those numbers, and the live calls a re-measurement would cost from
+  fifteen to sixteen, because the tool gained is read-only and not fuel.
+
 ### Added
 
 - **A scheduled freshness probe: is the service alive, not merely answering?**
@@ -138,6 +171,33 @@ a Changelog and the versions follow Semantic Versioning.
   and the pass/fail counter both self-tests print through to `scripts/check-harness.mjs`,
   so this self-test shares them rather than carrying copies; the probe's own case
   count is unchanged.
+
+### Fixed
+
+- **The `Version sync` workflow runs the leak sweep on the tree it prepares.** Its
+  first real run was this release, and the proposal it pushed carried two bare
+  numbers from the new tool's schema text — a minutes-per-day maximum and an example
+  stop id — that the public-repo sweep refuses. Nothing in the workflow had asked:
+  its three gates compare the shipped files with each other, not whether the
+  snapshot may be published. What caught it was the CI run the workflow itself
+  dispatched — the pull request's own `pull_request` run never executed, it sat at
+  `action_required` — and the step that failed was the publish-hygiene gate on the
+  **built tarball**, because `API.md` ships in the package: the numbers were on their
+  way into the published artefact, not only into the repository. The sweep now runs
+  after the five files are staged, and a finding makes the proposal a **draft** with
+  the findings in the pull-request body. That job builds nothing, so it cannot run
+  the tarball gate itself: it covers this class of finding, not the exact gate that
+  fired. The two numbers are on `numbers.allowed` as the harmless values they are;
+  both exist only in text the server controls, so a re-wording upstream makes the
+  sweep refuse them as unused — loudly, which is the right direction.
+- **`check-sources`' self-test reads its counts off the check's own summary line**
+  instead of carrying them: three of its cases said "seventeen" and "fifteen", and
+  when the page correctly moved to eighteen and sixteen they went inert — one passed
+  without mutating anything — or asserted the previous release's numbers. A mutation
+  that changes nothing, or that would change one of two occurrences, is now a
+  refusal. The check's own pattern for the re-run sentence accepts "would now mean"
+  beside "would still mean", because the count did move this time and the page says
+  so.
 
 ## [1.4.9] - 2026-10-01
 
@@ -1585,6 +1645,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.5.4]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.4
 [1.4.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.4.9
 [1.3.22]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.22
 [1.3.16]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.16
