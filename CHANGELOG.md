@@ -17,8 +17,43 @@ reference was re-captured from the running server, and the probe reported the su
 - tools: the server has get_departures, the snapshot does not
 - tools: get_train_departures differs between the server and the snapshot
 
-**A person must describe the change above before this merges.** A release note that
-lists a tool name without saying what it does misleads the reader it exists for.
+What that means, written by a person after reading the diff and asking the server:
+
+- **`get_departures` is new**: scheduled departures from any German public-transport
+  stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination and
+  platform, planned times only, a 48 h window and 15 per call, answering from the
+  DELFI static timetable (CC BY 4.0). It is the tool for "when does the next bus go",
+  for another day, or for a clock time more than two hours away. Asked on 2026-10-02,
+  prod answered that the timetable is **not loaded yet** and said so plainly instead
+  of inventing a board; `SOURCES.md` records that on the static-GTFS row rather than
+  promoting the source to *live*.
+- **`get_train_departures` was re-described, not re-shaped**: its description now
+  draws the line against the new tool (buses, trams, a non-railway stop, another day
+  or a time over two hours away go to `get_departures`), keeps vague later-today
+  wording for itself, and sends "is the S1 punctual?" to `check_transit_disruption`
+  even though it is rail and about delay. The `station` argument's text adds that a
+  bare "Hauptbahnhof" should be sent as-is because the server lists the candidates.
+  No argument was added, removed or re-typed.
+- The catalogue is **20 tools, 18 read-only**; `SOURCES.md` moves from nineteen /
+  seventeen to those numbers, and the live calls a re-measurement would cost from
+  fifteen to sixteen, because the tool gained is read-only and not fuel.
+
+### Fixed
+
+- **The `Version sync` workflow runs the leak sweep on the tree it prepares.** Its
+  first real run was this release, and the proposal it pushed carried two bare
+  numbers from the new tool's schema text — a minutes-per-day maximum and an example
+  stop id — that the public-repo sweep refuses; the pull request's own CI was the
+  first thing to say so. The three gates the script ran compare the shipped files
+  with each other; none asked whether the re-captured snapshot may be published. The
+  sweep now runs after the files are staged, and a finding makes the proposal a
+  **draft** with the findings in the pull-request body. The two numbers are on
+  `numbers.allowed` as the harmless values they are.
+- **`check-sources`' self-test reads its counts off the check's own summary line**
+  instead of carrying them: three of its cases said "seventeen" and "fifteen", and
+  when the page correctly moved to eighteen and sixteen they went inert — one passed
+  without mutating anything — or asserted the previous release's numbers. A mutation
+  that changes nothing is now a refusal.
 
 ### Added
 

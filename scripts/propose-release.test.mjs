@@ -50,7 +50,11 @@ const MIN_CASES = 30;
 
 const real = JSON.parse(readFileSync(join(ROOT, 'catalogue.json'), 'utf8'));
 const PUBLISHED = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
-const NEXT = '1.5.0';
+// Derived from the manifest so the fixtures stay ahead of it whatever version ships here:
+// the next minor is the server moving on, and the version BEHIND is the registry ahead.
+const [MAJOR, MINOR] = PUBLISHED.split('.').map(Number);
+const NEXT = `${MAJOR}.${MINOR + 1}.0`;
+const OLDER = `${MAJOR}.${MINOR}.0` === PUBLISHED ? `${Math.max(MAJOR - 1, 0)}.0.1` : `${MAJOR}.${MINOR}.0`;
 const FILES = ['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'CHANGELOG.md'];
 
 const { check, failures, passed } = createChecker();
@@ -62,7 +66,7 @@ function refuse(message) {
 }
 
 if (!/^\d+\.\d+\.\d+$/u.test(PUBLISHED)) refuse(`package.json's version ${PUBLISHED} is not X.Y.Z, so the fixtures cannot be built from it`);
-if (PUBLISHED === NEXT) refuse(`the fixture's "next" version ${NEXT} equals the real one; move NEXT`);
+if (PUBLISHED === NEXT || PUBLISHED === OLDER) refuse(`the fixture versions ${NEXT}/${OLDER} collide with the real one ${PUBLISHED}`);
 
 // --- the registry stub ---------------------------------------------------------------
 function startRegistry({ latest = PUBLISHED, status = 200, raw = null } = {}) {
@@ -224,11 +228,11 @@ await scenario({ server: NEXT, root: { manifestVersion: NEXT } }, async ({ run }
 });
 
 // --- state: behind -----------------------------------------------------------------------
-await scenario({ server: '1.4.0', registry: { latest: PUBLISHED } }, async ({ run }) => {
+await scenario({ server: OLDER, registry: { latest: PUBLISHED } }, async ({ run }) => {
     const result = await run();
     check(
         'a server BEHIND the registry is exit 1 and names both numbers; no downgrade is proposed',
-        result.status === 1 && result.out.state === 'behind' && /1\.4\.0/u.test(result.text) && /AHEAD of the service/u.test(result.text),
+        result.status === 1 && result.out.state === 'behind' && result.text.includes(OLDER) && /AHEAD of the service/u.test(result.text),
         `status ${result.status}, out ${brief(result.text)}`
     );
 });
