@@ -1,0 +1,146 @@
+name: Version sync
+
+# Does the registry still match the server? If not, PREPARE the release — and stop.
+#
+# This package is versioned to match the ViaFrei MCP server it relays to, so
+# `npx viafrei@X.Y.Z` and the endpoint are one number. Prod moves on its own
+# schedule, and until this workflow the only thing that noticed the registry
+# falling behind was a person checking by hand. Every step of catching up was
+# mechanical and identical each time, so `scripts/propose-release.mjs` does it:
+# bump the manifest and lockfile, re-capture the snapshot, regenerate API.md,
+# write the CHANGELOG block, run the offline gates — and this workflow pushes
+# the result as a branch and opens the pull request.
+#
+# WHAT IT WILL NOT DO, by design rather than by omission: merge, tag, or publish.
+# The merge needs a reviewer verdict covering HEAD, which a bot merging through
+# the API would bypass; an npm version is immutable, so a wrong one is forever;
+# and when the server's SURFACE changed, the release note needs a sentence
+# about what the change means, which nothing here can write. Those three acts
+# stay with a person. The tag then publishes, as it always has.
+#
+# Like `Freshness`, this reaches the network and is therefore on a schedule and
+# never on push: a drift is news about the service, not about a commit.
+
+on:
+  schedule:
+    # Every six hours, offset half an hour from Freshness so the two never read
+    # the server in the same minute. One `initialize` plus the four list calls
+    # per run — no tool is invoked, which is a licence condition, not courtesy.
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+
+# Wider than every other workflow here, and each grant is used: `contents` to
+# push the branch, `pull-requests` to open the PR, `actions` to dispatch CI on
+# it (see the last step for why that is necessary).
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: version-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The push below needs the branch's history, and `gh pr create` needs
+          # a base to compare against.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # No `npm ci`: the proposer, the probe, the generator and the three gates
+      # use Node built-ins only, and `npm version` needs no node_modules.
+
+      # The instrument is proved before it is trusted. The self-test drives the
+      # real script against two local stubs and includes the refusals — a
+      # proposer that cannot say no would open a pull request for anything the
+      # network handed it.
+      - name: Prove the proposer can refuse (offline, local stubs)
+        run: node scripts/propose-release.test.mjs
+
+      - name: Compare the server, the registry and main
+        id: detect
+        run: |
+          set -eu
+          node scripts/propose-release.mjs --out "$RUNNER_TEMP/detect.env"
+          cat "$RUNNER_TEMP/detect.env" >> "$GITHUB_OUTPUT"
+
+      # Idempotent across runs: a drift that is already proposed is left alone,
+      # so a pull request waiting for its review is not joined by a twin every
+      # six hours. The version has passed the script's X.Y.Z check before it
+      # reaches this shell, and it arrives through the environment, not inline.
+      - name: Is this version already proposed?
+        id: proposed
+        if: steps.detect.outputs.state == 'drift'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -eu
+          if git ls-remote --exit-code --heads origin "refs/heads/release/${VERSION}" >/dev/null; then
+            echo "release/${VERSION} already exists on origin — nothing is proposed twice"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare the release in the working tree
+        id: prepare
+        if: steps.detect.outputs.state == 'drift' && steps.proposed.outputs.exists == 'false'
+        run: |
+          set -eu
+          node scripts/propose-release.mjs --prepare --out "$RUNNER_TEMP/prepare.env" --body "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/prepare.env" >> "$GITHUB_OUTPUT"
+
+      # Only the five files the script declares are staged — never `add -A`.
+      # A DRAFT when a gate failed or the surface changed: both mean a person
+      # has writing to do before the review, and a draft says so in the title.
+      - name: Push the branch and open the pull request
+        if: steps.prepare.outputs.state == 'proposed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          NPM_LATEST: ${{ steps.prepare.outputs.npm }}
+          VERDICT: ${{ steps.prepare.outputs.verdict }}
+          GATES: ${{ steps.prepare.outputs.gates }}
+          DRAFT: ${{ steps.prepare.outputs.draft }}
+          FILES: ${{ steps.prepare.outputs.files }}
+        run: |
+          set -eu
+          branch="release/${VERSION}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          IFS=',' read -r -a files <<< "$FILES"
+          git add -- "${files[@]}"
+          git commit -q -F - <<EOF
+          release: ${VERSION} - mirror the server
+
+          Prepared by the Version sync workflow. The running server reports ${VERSION}
+          and the registry's latest is ${NPM_LATEST}. Manifest and lockfile bumped,
+          catalogue.json re-captured (surface ${VERDICT}), API.md regenerated, the
+          CHANGELOG block written; offline gates: ${GATES}.
+
+          Nothing published. The verdict, the merge and the tag are a person's.
+          EOF
+          git push -u origin "$branch"
+
+          args=(--base main --head "$branch" --title "release: ${VERSION} - mirror the server" --body-file "$RUNNER_TEMP/body.md")
+          if [ "$DRAFT" = "true" ]; then
+            args+=(--draft)
+          fi
+          gh pr create "${args[@]}"
+
+          # A push or a pull request made with GITHUB_TOKEN starts no workflow —
+          # GitHub's rule, to stop runs triggering runs. workflow_dispatch is the
+          # documented exception, so CI is asked for explicitly; without this the
+          # pull request would sit with no checks and look like one nobody tested.
+          gh workflow run ci.yml --ref "$branch"
+          echo "CI dispatched on $branch; its run appears under the pull request's checks once it starts."

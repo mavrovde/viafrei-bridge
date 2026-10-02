@@ -81,6 +81,8 @@
     "test:probe": "node scripts/probe-catalogue.test.mjs",
     "probe:freshness": "node scripts/probe-freshness.mjs",
     "test:freshness": "node scripts/probe-freshness.test.mjs",
+    "propose:release": "node scripts/propose-release.mjs",
+    "test:propose": "node scripts/propose-release.test.mjs",
     "rules:show": "node scripts/show-rules.mjs"
   },
   "dependencies": {

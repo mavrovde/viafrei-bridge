@@ -79,6 +79,55 @@ a Changelog and the versions follow Semantic Versioning.
   it parsed perfectly. Four assertions cover it, and removing the guard turns all
   four red.
 
+- **The registry is compared with the server every six hours, and a release that
+  would close the gap is PREPARED — never performed** (`scripts/propose-release.mjs`,
+  `npm run propose:release`, and the `Version sync` workflow).
+
+  The bridge is versioned to match the server it relays to, and until now the only
+  thing that noticed the registry falling behind was a person checking by hand: 1.4.9
+  sat on prod while npm said 1.4.8 until somebody asked. Every step of catching up
+  was mechanical and identical each time — `npm version`, the probe's `--write`,
+  `docs:api`, the `## [X.Y.Z]` block, the gates — so the workflow does them and
+  pushes the result as `release/X.Y.Z` with a pull request.
+
+  **What it will not do, by design.** It does not merge, tag or publish, for three
+  reasons each sufficient alone: the merge needs a reviewer verdict covering HEAD,
+  which a bot merging through the API would bypass; an npm version is immutable, so
+  a wrong one is forever; and when the server's **surface** changed rather than its
+  number, the release note needs a sentence about what the change means, which
+  nothing here can write — the 1.4.9 cut carried a licence-relevant fix for exactly
+  that case. So the verdict, the merge and the tag stay with a person, and the tag
+  publishes as it always has.
+
+  **Four states, each named in the output**, because the workflow branches on them:
+  `in-sync`, `awaiting-tag` (main already carries the server's version; the tag is
+  the missing step), `drift` (the one that is prepared), and `behind` — the server
+  BEHIND the registry, which is exit 1 and proposes nothing, because a downgrade is
+  a decision about whether prod rolled back or a publish was premature.
+
+  **Every version string read from the network is checked against `X.Y.Z` before it
+  is used anywhere**, since it ends up in a branch name, a commit and an `npm
+  version` argument; a prerelease on either side is a refusal. A mutant with the
+  guard removed is part of the self-test, so the guard is proved live rather than
+  present. Detect **writes nothing**, asserted by hashing the five files it may
+  later touch. The server is read through the catalogue probe — one reader of that
+  endpoint, `initialize` and the four list calls, no tool invoked — and the probe's
+  own WRONG/DATED verdict decides the lead of the CHANGELOG block: DATED says the
+  surface is unchanged; WRONG lists what moved and says **a person must describe it
+  before this merges**, and the pull request is opened as a **draft**. A failing
+  offline gate is also a draft rather than a lost run: the gate's output goes into
+  the pull request, where the person who has to act on it will read it.
+
+  A proposal is idempotent across runs — a `release/X.Y.Z` branch already on origin
+  is left alone, so a pull request waiting for its review is not joined by a twin
+  every six hours — and a CHANGELOG already carrying the block is a refusal. The
+  workflow dispatches CI on the branch explicitly, because a push or a pull request
+  made with the workflow token starts no workflow by GitHub's rule.
+
+  The MCP stub the catalogue probe's self-test ran on moved to `scripts/mcp-stub.mjs`
+  so this self-test could share it rather than carry a copy; the probe's own case
+  count is unchanged.
+
 ## [1.4.9] - 2026-10-01
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server
