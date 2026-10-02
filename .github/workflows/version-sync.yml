@@ -1,0 +1,216 @@
+name: Version sync
+
+# Does the registry still match the server? If not, PREPARE the release — and stop.
+#
+# This package is versioned to match the ViaFrei MCP server it relays to, so
+# `npx viafrei@X.Y.Z` and the endpoint are one number. Prod moves on its own
+# schedule, and until this workflow the only thing that noticed the registry
+# falling behind was a person checking by hand. Every step of catching up was
+# mechanical and identical each time, so `scripts/propose-release.mjs` does it:
+# bump the manifest and lockfile, re-capture the snapshot, regenerate API.md,
+# write the CHANGELOG block, run the offline gates — and this workflow pushes
+# the result as a branch and opens the pull request.
+#
+# WHAT IT WILL NOT DO, by design rather than by omission: merge, tag, or publish.
+# The merge needs a reviewer verdict covering HEAD, which a bot merging through
+# the API would bypass; an npm version is immutable, so a wrong one is forever;
+# and when the server's SURFACE changed, the release note needs a sentence
+# about what the change means, which nothing here can write. Those three acts
+# stay with a person. The tag then publishes, as it always has.
+#
+# Like `Freshness`, this reaches the network and is therefore on a schedule and
+# never on push: a drift is news about the service, not about a commit.
+
+on:
+  schedule:
+    # Every six hours, offset half an hour from Freshness so the two never read
+    # the server in the same minute. One `initialize` plus the four list calls
+    # per run — no tool is invoked, which is a licence condition, not courtesy.
+    - cron: '30 */6 * * *'
+  workflow_dispatch:
+
+# Wider than every other workflow here, and each grant is used: `contents` to
+# push the branch, `pull-requests` to open the PR, `actions` to dispatch CI on
+# it (see the last step for why that is necessary).
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: version-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The push below needs the branch's history, and `gh pr create` needs
+          # a base to compare against.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # No `npm ci`: the proposer, the probe, the generator and the three gates
+      # use Node built-ins only, and `npm version` needs no node_modules.
+
+      # TWO PRECONDITIONS, asserted before anything is read, because each failure
+      # would otherwise be self-concealing.
+      #
+      # 1. The run must be on the default branch. `workflow_dispatch` lets any ref
+      #    be chosen, and a run from another ref would read ITS manifest, branch
+      #    off IT, and open a pull request against main carrying its commits —
+      #    while printing "main carries X", which would be false. The default
+      #    branch is READ from the repository (`contents: read` suffices) and an
+      #    empty answer is a refusal, not a comparison against nothing.
+      # 2. The repository must allow Actions to create pull requests (Settings →
+      #    Actions → General → "Allow GitHub Actions to create and approve pull
+      #    requests"). OFF by default; measured off here on 2026-10-02 while this
+      #    was written and switched on by the owner the same day. The check stays
+      #    because a setting is a thing somebody can switch back: without it
+      #    `gh pr create` fails AFTER the branch is pushed, the idempotence check
+      #    below then finds the orphan branch and suppresses every later run.
+      #
+      #    THREE OUTCOMES, not two. Reading that setting is an administration-class
+      #    call, and `administration` is not a permission GITHUB_TOKEN can hold, so
+      #    the read may well be a 403 — which is "could not check", not "checked
+      #    and it is off". A failed read is NAMED and the run continues, because
+      #    the post-push rollback in the last step is the net for exactly that
+      #    case; only a successful read of `false` refuses.
+      - name: Preconditions — default branch, and Actions may open pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          # `if !` around the assignment, not a bare one: under `set -e` a failed
+          # substitution exits the step before any message below it can print.
+          if ! default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.default_branch')"; then
+            echo "Could not read the repository's default branch, so the branch pin cannot be checked." >&2
+            exit 2
+          fi
+          if [ -z "${default_branch}" ]; then
+            echo "The repository read answered an empty default branch, so the branch pin cannot be checked." >&2
+            exit 2
+          fi
+          if [ "${GITHUB_REF_NAME}" != "${default_branch}" ]; then
+            echo "This workflow runs from ${default_branch} only; it was started on ${GITHUB_REF_NAME}." >&2
+            exit 2
+          fi
+          echo "on ${default_branch}"
+          if allowed="$(gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" --jq '.can_approve_pull_request_reviews' 2>"$RUNNER_TEMP/settings.err")"; then
+            echo "can_approve_pull_request_reviews=${allowed}"
+            if [ "${allowed}" = "false" ]; then
+              echo "Actions may not open pull requests in this repository. Enable 'Allow GitHub Actions to create and approve pull requests' under Settings → Actions → General." >&2
+              exit 2
+            fi
+            if [ "${allowed}" != "true" ]; then
+              echo "NOT CHECKED: the setting read as '${allowed}', neither true nor false; continuing — if the pull request cannot be opened, the last step deletes the pushed branch again." >&2
+            fi
+          else
+            echo "NOT CHECKED: could not read the Actions pull-request setting — $(head -n 1 "$RUNNER_TEMP/settings.err") — most likely because GITHUB_TOKEN cannot hold the administration permission that read needs; continuing — if the pull request cannot be opened, the last step deletes the pushed branch again." >&2
+          fi
+
+      # The instrument is proved before it is trusted. The self-test drives the
+      # real script against two local stubs and includes the refusals — a
+      # proposer that cannot say no would open a pull request for anything the
+      # network handed it.
+      - name: Prove the proposer can refuse (offline, local stubs)
+        run: node scripts/propose-release.test.mjs
+
+      - name: Compare the server, the registry and main
+        id: detect
+        run: |
+          set -eu
+          node scripts/propose-release.mjs --out "$RUNNER_TEMP/detect.env"
+          cat "$RUNNER_TEMP/detect.env" >> "$GITHUB_OUTPUT"
+
+      # Idempotent across runs: a drift that is already proposed is left alone,
+      # so a pull request waiting for its review is not joined by a twin every
+      # six hours. The key is the BRANCH on origin, deliberately: close the pull
+      # request and keep the branch and the proposal stays quiet; delete the
+      # branch and the next run proposes again. The version has passed the
+      # script's X.Y.Z check before it reaches this shell, and it arrives
+      # through the environment, not inline.
+      - name: Is this version already proposed?
+        id: proposed
+        if: steps.detect.outputs.state == 'drift'
+        env:
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -eu
+          if git ls-remote --exit-code --heads origin "refs/heads/release/${VERSION}" >/dev/null; then
+            echo "release/${VERSION} already exists on origin — nothing is proposed twice"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Prepare the release in the working tree
+        id: prepare
+        if: steps.detect.outputs.state == 'drift' && steps.proposed.outputs.exists == 'false'
+        run: |
+          set -eu
+          node scripts/propose-release.mjs --prepare --out "$RUNNER_TEMP/prepare.env" --body "$RUNNER_TEMP/body.md"
+          cat "$RUNNER_TEMP/prepare.env" >> "$GITHUB_OUTPUT"
+
+      # Only the five files the script declares are staged — never `add -A`.
+      # A DRAFT when a gate failed or the surface changed: both mean a person
+      # has writing to do before the review, and a draft says so in the title.
+      - name: Push the branch and open the pull request
+        if: steps.prepare.outputs.state == 'proposed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          NPM_LATEST: ${{ steps.prepare.outputs.npm }}
+          VERDICT: ${{ steps.prepare.outputs.verdict }}
+          GATES: ${{ steps.prepare.outputs.gates }}
+          DRAFT: ${{ steps.prepare.outputs.draft }}
+          FILES: ${{ steps.prepare.outputs.files }}
+        run: |
+          set -eu
+          branch="release/${VERSION}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$branch"
+          IFS=',' read -r -a files <<< "$FILES"
+          git add -- "${files[@]}"
+          git commit -q -F - <<EOF
+          release: ${VERSION} - mirror the server
+
+          Prepared by the Version sync workflow. The running server reports ${VERSION}
+          and the registry's latest is ${NPM_LATEST}. Manifest and lockfile bumped,
+          catalogue.json re-captured (surface ${VERDICT}), API.md regenerated, the
+          CHANGELOG block written; offline gates: ${GATES}.
+
+          Nothing published. The verdict, the merge and the tag are a person's.
+          EOF
+          git push -u origin "$branch"
+
+          # If the pull request cannot be opened, the branch just pushed is taken
+          # back: left there, it would satisfy the idempotence check above and
+          # silence every later run about a proposal nobody can see.
+          args=(--base main --head "$branch" --title "release: ${VERSION} - mirror the server" --body-file "$RUNNER_TEMP/body.md")
+          if [ "$DRAFT" = "true" ]; then
+            args+=(--draft)
+          fi
+          if ! gh pr create "${args[@]}"; then
+            echo "gh pr create failed; removing origin/${branch} so the next run is not suppressed by it" >&2
+            git push origin --delete "$branch"
+            exit 1
+          fi
+
+          # A push or a pull request made with GITHUB_TOKEN starts no workflow —
+          # GitHub's rule, to stop runs triggering runs. workflow_dispatch and
+          # repository_dispatch are the two documented exceptions, so CI is asked
+          # for explicitly; without this the pull request would sit with no
+          # checks and look like one nobody tested.
+          # If THIS fails the pull request already stands, with no checks, and the
+          # step is red: loud rather than silent, and the remedy is one command by
+          # hand — `gh workflow run ci.yml --ref release/X.Y.Z`.
+          gh workflow run ci.yml --ref "$branch"
+          echo "CI dispatched on $branch; its run appears under the pull request's checks once it starts."

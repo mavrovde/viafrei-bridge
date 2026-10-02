@@ -17,12 +17,13 @@
  *   node scripts/probe-catalogue.test.mjs
  */
 
-import { createServer } from 'node:http';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { createChecker } from './check-harness.mjs';
+import { liveAnswers as stubAnswers, startStub } from './mcp-stub.mjs';
 import { nodePath, runToolAsync } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -37,19 +38,8 @@ const PROBE = join(HERE, 'probe-catalogue.mjs');
  */
 const STUB_TIMEOUT_MS = '900';
 
-let passed = 0;
-const failures = [];
+const { check, failures, passed } = createChecker();
 const roots = [];
-
-function check(label, ok, detail = '') {
-    if (ok) {
-        passed += 1;
-        console.log(`  PASS  ${label}`);
-        return;
-    }
-    failures.push(`${label}${detail ? ` — ${detail}` : ''}`);
-    console.log(`  FAIL  ${label}${detail ? ` — ${detail}` : ''}`);
-}
 
 function refuse(message) {
     console.error(`probe self-test: CANNOT RUN - ${message}`);
@@ -62,101 +52,8 @@ for (const key of ['tools', 'resources', 'resourceTemplates', 'prompts', 'server
     if (real[key] === undefined) refuse(`the real catalogue.json has no ${key}, so the stubs cannot mirror it`);
 }
 
-/**
- * A stub MCP endpoint answering from `answers`, which the caller may distort.
- * `$schema` is put BACK on every tool, because that is what a real server sends and
- * the probe's job includes dropping it again.
- */
-async function startStub(answers) {
-    const server = createServer((request, response) => {
-        const chunks = [];
-        request.on('data', chunk => chunks.push(chunk));
-        request.on('end', () => {
-            if (request.method === 'DELETE') {
-                response.writeHead(200).end();
-                return;
-            }
-            let method = '';
-            try {
-                method = JSON.parse(Buffer.concat(chunks).toString('utf8')).method ?? '';
-            } catch {
-                method = '';
-            }
-            if (method === 'notifications/initialized') {
-                response.writeHead(202).end();
-                return;
-            }
-            const result = answers[method];
-            const payload = result === undefined
-                ? { jsonrpc: '2.0', id: 1, error: { code: -32601, message: `no stub for ${method}` } }
-                : { jsonrpc: '2.0', id: 1, ...result };
-            response.writeHead(200, { 'content-type': 'application/json', 'mcp-session-id': 'stub-session' });
-            response.end(JSON.stringify(payload));
-        });
-    });
-    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const { port } = server.address();
-    return {
-        url: `http://127.0.0.1:${port}/mcp`,
-        close: () => new Promise(resolve => {
-            server.closeAllConnections();
-            server.close(() => resolve());
-        })
-    };
-}
-
-/**
- * Default answers: the real surface as a SERVER would send it, not as the snapshot
- * stores it. Two things are therefore put back, and both matter:
- *
- *   - `$schema` on every tool, which the snapshot drops on purpose;
- *   - the long `pattern` TEXT wherever the snapshot holds a `patternLength` stand-in.
- *
- * Without the second, the probe's substitution never fires and its own precondition
- * refuses the capture — correctly. The first draft of this stub replayed the normalised
- * schemas and every case failed on that refusal, which is the precondition working
- * rather than the probe being broken.
- */
-function unnormalise(value) {
-    if (Array.isArray(value)) return value.map(unnormalise);
-    if (value === null || typeof value !== 'object') return value;
-    const out = {};
-    for (const [key, inner] of Object.entries(value)) {
-        if (key === 'patternLength' && typeof inner === 'number') {
-            out.pattern = 'x'.repeat(inner);
-            continue;
-        }
-        out[key] = unnormalise(inner);
-    }
-    return out;
-}
-
-function liveAnswers(overrides = {}) {
-    const tools = real.tools.map(tool => ({
-        ...unnormalise(tool),
-        // A STAND-IN, not the real draft URI. The real one names a host, and
-        // catalogue.json's own $comment records that the host is dropped so it never
-        // reaches this repository's allow-list — putting it in a fixture would do the
-        // thing the snapshot avoids. The probe only cares that the key is present and
-        // gets removed, so its value is irrelevant to every assertion here.
-        inputSchema: { $schema: 'a-schema-dialect-uri', ...unnormalise(tool.inputSchema) }
-    }));
-    return {
-        initialize: {
-            result: {
-                protocolVersion: real.protocolVersion,
-                capabilities: real.capabilities,
-                serverInfo: real.serverInfo,
-                instructions: real.instructions
-            }
-        },
-        'tools/list': { result: { tools } },
-        'resources/list': { result: { resources: real.resources } },
-        'resources/templates/list': { result: { resourceTemplates: real.resourceTemplates } },
-        'prompts/list': { result: { prompts: real.prompts } },
-        ...overrides
-    };
-}
+/** The stub lives in `mcp-stub.mjs`; this binds it to the real snapshot read above. */
+const liveAnswers = overrides => stubAnswers(real, overrides);
 
 /** A throwaway root whose catalogue.json points at `url`, optionally distorted. */
 function rootFor(url, mutate = () => {}) {
@@ -359,8 +256,8 @@ for (const root of roots) rmSync(root, { recursive: true, force: true });
 
 console.log('');
 if (failures.length > 0) {
-    console.error(`probe self-test: FAIL - ${failures.length} of ${passed + failures.length} case(s)`);
+    console.error(`probe self-test: FAIL - ${failures.length} of ${passed() + failures.length} case(s)`);
     for (const failure of failures) console.error(`  - ${failure}`);
     process.exit(1);
 }
-console.log(`probe self-test: PASS - ${passed} cases, every one against a local stub on loopback`);
+console.log(`probe self-test: PASS - ${passed()} cases, every one against a local stub on loopback`);

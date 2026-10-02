@@ -138,6 +138,12 @@ jobs:
       - name: Freshness probe self-test (offline, against a local stub)
         run: npm run test:freshness
 
+      # The release proposer's self-test: it drives the real script against two local
+      # stubs and includes every refusal, so the Version sync workflow cannot open a pull
+      # request for a value it should have refused. Offline, like everything else here.
+      - name: Release proposer self-test (offline, two local stubs)
+        run: npm run test:propose
+
       # The version gate above compares three fields. This proves it can say NO, with
       # the mutant #18 asks for, and that "could not read the lockfile" (exit 2) never
       # looks like "read it and was satisfied" (exit 0).
