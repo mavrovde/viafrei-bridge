@@ -9,7 +9,7 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
-**It is a dated snapshot, taken on 2026-10-01.** Generating this file makes
+**It is a dated snapshot, taken on 2026-10-02.** Generating this file makes
 it impossible for the document and the snapshot to disagree — CI regenerates and
 compares — but it cannot keep the snapshot from ageing against the live server,
 because a capture is a point in time. **The source of truth is the running
@@ -17,12 +17,12 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.4.9 |
+| Server | `viafrei` 1.5.4 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
-| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-01 |
-| Surface | 19 tools, 10 resources, 2 resource templates, 9 prompts |
+| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-02 |
+| Surface | 20 tools, 10 resources, 2 resource templates, 9 prompts |
 | Parameter schemas | JSON Schema draft-07 |
 | Capabilities | `tools`, `resources`, `prompts`, `logging` |
 
@@ -31,7 +31,7 @@ No API key. No account. No sign-up.
 ## Contents
 
 - [How to read a result](#how-to-read-a-result)
-- [Tools](#tools) — 19
+- [Tools](#tools) — 20
 - [Resources](#resources) — 10
 - [Resource templates](#resource-templates) — 2
 - [Prompts](#prompts) — 9
@@ -410,7 +410,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Reaches a third-party source (open world). Idempotent: true. Destructive: false.
 
-> Return the next departures from a German railway station: time, line, destination, platform, delay and cancellations. Use when someone asks when their train, S-Bahn or ICE leaves, whether it is late, or what is leaving a station now — give the station name as the person said it ("Hamburg Hbf", "Munich Central"); an ambiguous name comes back as a list. Do NOT use for buses or trams (punctuality: check_transit_disruption), for tickets, fares or journey planning, or for motorway traffic — call check_autobahn_traffic. At most 15 departures, window 120 min. Results carry their attribution line.
+> Next departures from a German railway station, with platform, delay and cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or whether THAT departure is late; vague later-today wording ("heute Abend") stays here. Whether ONE line is punctual ("ist die S1 pünktlich?") is NOT this tool, though it is rail and about delay — call check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. No destination filter: read the board. Max 15 departures, window 120 min. Results carry their attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -425,8 +425,32 @@ The server's own instructions to a connecting client, verbatim:
 - **`eva_no`** — The station's EVA number (6–8 digits, e.g. 8002549 for Hamburg Hbf), when a previous result gave you one. It skips the name lookup and is exact — use it to answer a follow-up about a station this tool has already named.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — How many departures to return, earliest first (1–15, default 10). More than 15 is refused — that is a board a person can read, not a dataset.
-- **`station`** — The railway station, as the person says it: "Hamburg Hbf", "Köln Hbf", "Munich Central", "Frankfurt (Main) Hbf". Pass their words — English names and "central station" are understood. If the name fits several stations the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.
+- **`station`** — The railway station, as the person says it: "Hamburg Hbf", "Köln Hbf", "Munich Central", "Frankfurt (Main) Hbf". Pass their words — English names and "central station" are understood. If the name fits several stations (a bare "Hauptbahnhof"), call anyway: the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.
 - **`when`** — Start of the window as an ISO-8601 instant with an offset ("2026-09-20T18:30:00+02:00"). Leave it out for "now", which is what almost every question means. Times in the answer are Europe/Berlin whatever you pass.
+
+### `get_departures` — Scheduled departures (bus, tram, train)
+
+**Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
+
+> Scheduled departures from any German public-transport stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination, platform. Use when someone asks when a bus, tram, U-Bahn or ferry goes, or for another DAY or a clock time over 2 h away: "Wann fährt der nächste Bus ab Fulda Bahnhof?" Do NOT use for a railway station's trains now or later today — get_train_departures. Planned times only: for "is my bus late?" give the plan and say so; regional punctuality check_transit_disruption. No destination filter: read the board. Window 48 h, 15 per call. Results carry their attribution line.
+
+| parameter | type | required | default | constraints |
+| --- | --- | --- | --- | --- |
+| `duration_min` | integer | no | `60` | min 5; max 1440 |
+| `language` | string | no | `"de"` | one of `"de"`, `"en"` |
+| `limit` | integer | no | `10` | min 1; max 15 |
+| `modes` | array of string | no | — | min 1 item(s); each item: one of `"rail"`, `"subway"`, `"tram"`, `"bus"`, `"ferry"` |
+| `stop` | string | no | — | min length 2 |
+| `stop_id` | string | no | — | min length 3 |
+| `when` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
+
+- **`duration_min`** — How far past that moment to look, in minutes (5–1440, default 60). Small for "what goes now", a few hours for an evening. To reach the far end of the 48 h timetable, move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.
+- **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
+- **`limit`** — How many departures to return, earliest first (1–15, default 10). The result always says how many more were in the window.
+- **`modes`** — Keep only these kinds of service: "bus", "tram", "subway" (U-Bahn), "rail" (every train, including S-Bahn and regional) or "ferry". Omit it unless the person named a kind — "nur Busse", "welche Tram". Several are allowed, which is what "die Busse und Bahnen vor dem Hbf" means. An S-Bahn is "rail": the feed does not always distinguish it, and the line name ("S 6") says which it is.
+- **`stop`** — The stop, as the person says it: "Fulda, Bahnhof", "München, Marienplatz", "Köln, Hbf", "Hamburg, Rathausmarkt" (town first). Include the town when the person did — half the names in Germany exist in twenty towns, and a bare "Bahnhof" or "Hauptbahnhof" comes back as a list of candidates to choose from, so call it and let the result ask. Pass their words; do not guess an id. Give either stop OR the stop id, never both.
+- **`stop_id`** — The stop's timetable id, exactly as a previous result of this tool gave it ("de:06631:1234"). It skips the name lookup and is exact — use it for a follow-up about a stop this tool has already named, and for one the person picked out of a candidate list.
+- **`when`** — Start of the window as an ISO-8601 instant with an offset ("2026-10-02T07:30:00+02:00"). Leave it out for "now". Convert the person's words yourself — "morgen früh", "tonight" — and pass the instant; the answer is always rendered in Europe/Berlin.
 
 ### `check_station_facilities` — Station lifts and escalators
 
@@ -655,5 +679,5 @@ single call.
 ---
 
 Generated from `catalogue.json` by `scripts/gen-api-doc.mjs`. The snapshot was
-read from `https://mcp.viafrei.de/mcp` on 2026-10-01; no tool was invoked to
+read from `https://mcp.viafrei.de/mcp` on 2026-10-02; no tool was invoked to
 produce it, so no data provider was contacted.
