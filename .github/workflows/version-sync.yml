@@ -87,9 +87,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.default_branch')"
-          if [ -z "${default_branch}" ]; then
+          # `if !` around the assignment, not a bare one: under `set -e` a failed
+          # substitution exits the step before any message below it can print.
+          if ! default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.default_branch')"; then
             echo "Could not read the repository's default branch, so the branch pin cannot be checked." >&2
+            exit 2
+          fi
+          if [ -z "${default_branch}" ]; then
+            echo "The repository read answered an empty default branch, so the branch pin cannot be checked." >&2
             exit 2
           fi
           if [ "${GITHUB_REF_NAME}" != "${default_branch}" ]; then
@@ -97,7 +102,7 @@ jobs:
             exit 2
           fi
           echo "on ${default_branch}"
-          if allowed="$(gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" --jq '.can_approve_pull_request_reviews' 2>/dev/null)"; then
+          if allowed="$(gh api "repos/${GITHUB_REPOSITORY}/actions/permissions/workflow" --jq '.can_approve_pull_request_reviews' 2>"$RUNNER_TEMP/settings.err")"; then
             echo "can_approve_pull_request_reviews=${allowed}"
             if [ "${allowed}" = "false" ]; then
               echo "Actions may not open pull requests in this repository. Enable 'Allow GitHub Actions to create and approve pull requests' under Settings → Actions → General." >&2
@@ -107,7 +112,7 @@ jobs:
               echo "NOT CHECKED: the setting read as '${allowed}', neither true nor false; continuing — if the pull request cannot be opened, the last step deletes the pushed branch again." >&2
             fi
           else
-            echo "NOT CHECKED: could not read the Actions pull-request setting (GITHUB_TOKEN cannot hold the administration permission that read needs); continuing — if the pull request cannot be opened, the last step deletes the pushed branch again." >&2
+            echo "NOT CHECKED: could not read the Actions pull-request setting — $(head -n 1 "$RUNNER_TEMP/settings.err") — most likely because GITHUB_TOKEN cannot hold the administration permission that read needs; continuing — if the pull request cannot be opened, the last step deletes the pushed branch again." >&2
           fi
 
       # The instrument is proved before it is trusted. The self-test drives the
