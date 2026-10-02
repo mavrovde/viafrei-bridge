@@ -371,9 +371,10 @@ function gateVerdict(gate) {
 
 function pullRequestBody(reading, date, gates, waitingLines) {
     const failed = gates.filter(gate => gate.status !== 0);
+    const surfaceTail = reading.captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay;
     const surface = reading.verdict === 'wrong'
         ? `**CHANGED** — ${reading.differences.length} difference(s), listed below`
-        : `**unchanged** — ${reading.captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay}`;
+        : `**unchanged** — ${surfaceTail}`;
     const out = [
         `Prepared by the **Version sync** workflow. The running server reports **${reading.live}**, the registry's ` +
         `\`latest\` is **${reading.npm}**, and \`main\` carried ${reading.manifest}.`,
