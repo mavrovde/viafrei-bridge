@@ -315,26 +315,43 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
 
 // --- prepare: a second release on the SAME day — the capture date does not move -------------
 const today = new Date().toISOString().slice(0, 10);
-await scenario({ server: NEXT, root: { capturedAt: today } }, async ({ run, root }) => {
-    const result = await run(['--prepare', '--date', '2026-10-02']);
-    // Judged on the LEAD alone: the carried [Unreleased] text below it may quote the old
-    // sentence (this repository's own changelog does), so the whole file cannot be the oracle.
-    const flat = readFileSync(join(root, 'CHANGELOG.md'), 'utf8').replace(/\s+/gu, ' ');
-    const leadText = flat.split(`## [${NEXT}]`)[1]?.split('###')[0] ?? '';
-    // The expectation is read off what HAPPENED: the fixture was dated a few seconds before the
-    // probe wrote, so a run crossing UTC midnight between the two legitimately moves the date.
-    const written = JSON.parse(readFileSync(join(root, 'catalogue.json'), 'utf8')).capturedAt;
-    const sameDay = written === today;
-    const expected = sameDay ? 'only the version string moved; the capture date is the same day' : 'only the version string and the capture date moved';
-    const forbidden = sameDay ? 'capture date moved' : 'is the same day';
-    check(
-        `a snapshot captured TODAY: the lead and the body say what happened (${sameDay ? 'same day' : 'the run crossed midnight'})`,
-        result.status === 0 && result.out.verdict === 'dated'
-        && leadText.includes(expected) && !leadText.includes(forbidden)
-        && (result.body ?? '').includes(`surface **unchanged** — ${expected}`),
-        `status ${result.status}, ${brief(leadText)} ${brief(result.body ?? '')}`
-    );
-});
+// Twice: over this repository's own history, and over a history whose previous block already
+// says the capture date MOVED — the shape that held release/1.5.10 red (#45), because a mirror
+// block has no `###` section and the lead slice used to run on into the blocks below it.
+const movedHistory = [
+    '# Changelog', '', '## [Unreleased]', '',
+    `## [${PUBLISHED}] - 2026-10-01`, '',
+    '**Mirrors the server.** The probe reported the surface **unchanged** — only the version',
+    'string and the capture date moved.', '',
+    `[${PUBLISHED}]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v${PUBLISHED}`, ''
+].join('\n');
+const sameDayHistories = [
+    ['this repository', null],
+    ['a previous block whose capture date moved', movedHistory]
+];
+for (const [history, changelog] of sameDayHistories) {
+    await scenario({ server: NEXT, root: { capturedAt: today, changelog } }, async ({ run, root }) => {
+        const result = await run(['--prepare', '--date', '2026-10-02']);
+        // Judged on the LEAD alone — from the new heading to the next section or version heading:
+        // the carried [Unreleased] text and the older blocks may quote the other sentence (this
+        // repository's own changelog does), so neither the whole file nor the tail is the oracle.
+        const flat = readFileSync(join(root, 'CHANGELOG.md'), 'utf8').replace(/\s+/gu, ' ');
+        const leadText = flat.split(`## [${NEXT}]`)[1]?.split(/###|## \[/u)[0] ?? '';
+        // The expectation is read off what HAPPENED: the fixture was dated a few seconds before the
+        // probe wrote, so a run crossing UTC midnight between the two legitimately moves the date.
+        const written = JSON.parse(readFileSync(join(root, 'catalogue.json'), 'utf8')).capturedAt;
+        const sameDay = written === today;
+        const expected = sameDay ? 'only the version string moved; the capture date is the same day' : 'only the version string and the capture date moved';
+        const forbidden = sameDay ? 'capture date moved' : 'is the same day';
+        check(
+            `a snapshot captured TODAY, over ${history}: the lead and the body say what happened (${sameDay ? 'same day' : 'the run crossed midnight'})`,
+            result.status === 0 && result.out.verdict === 'dated'
+            && leadText.includes(expected) && !leadText.includes(forbidden)
+            && (result.body ?? '').includes(`surface **unchanged** — ${expected}`),
+            `status ${result.status}, ${brief(leadText)} ${brief(result.body ?? '')}`
+        );
+    });
+}
 
 // --- prepare: the WRONG server (the 1.4.6 history) ------------------------------------------
 const extraTool = {
