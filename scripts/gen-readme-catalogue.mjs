@@ -17,8 +17,8 @@
  * PRECONDITIONS, each a refusal (exit 2), never a quiet success:
  *   - both markers present, once each, in order;
  *   - a catalogue with at least one tool, prompt and resource;
- *   - every tool placed in a group, and every group naming only tools that
- *     exist: a new tool is a README change somebody has to make on purpose, and
+ *   - every tool placed in exactly ONE group, and every group naming only
+ *     tools that exist: a new tool is a README change somebody has to make on purpose, and
  *     a retired one cannot linger under a heading.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -70,6 +70,8 @@ export function renderSection(catalogue) {
   const grouped = GROUPS.flatMap(([, names]) => names);
   const unplaced = tools.map((t) => t.name).filter((n) => !grouped.includes(n));
   if (unplaced.length > 0) throw new Error(`tool(s) in no README group: ${unplaced.join(', ')} — add them to GROUPS on purpose`);
+  const twice = grouped.filter((n, i) => grouped.indexOf(n) !== i);
+  if (twice.length > 0) throw new Error(`tool(s) in more than one README group: ${[...new Set(twice)].join(', ')} — a tool is listed once`);
   const ghosts = grouped.filter((n) => !byName.has(n));
   if (ghosts.length > 0) throw new Error(`README group(s) name tool(s) the catalogue does not have: ${ghosts.join(', ')}`);
 

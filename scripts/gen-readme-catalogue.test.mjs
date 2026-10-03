@@ -59,6 +59,14 @@ const minus = (name) => ({ ...real, tools: real.tools.filter((t) => t.name !== n
 const plus = { ...real, tools: [...real.tools, { name: 'brand_new_tool', description: 'Does a new thing.', annotations: { title: 'New' } }] };
 throws('a tool in no group is refused', () => renderSection(plus), /in no README group: brand_new_tool/);
 throws('a group naming a retired tool is refused', () => renderSection(minus(GROUPS[0][1][0])), /does not have/);
+throws('a tool listed in two groups is refused', () => {
+  GROUPS[1][1].push(GROUPS[0][1][0]);
+  try {
+    renderSection(real);
+  } finally {
+    GROUPS[1][1].pop();
+  }
+}, /more than one README group/);
 throws('an empty catalogue is refused', () => renderSection({ tools: [], prompts: [], resources: [] }), /incomplete/);
 throws('a README without markers is refused', () => spliceReadme('# no markers', 'x'), /markers exactly once/);
 throws('a README with the markers twice is refused', () => spliceReadme(`${BEGIN}\n${END}\n${BEGIN}\n${END}`, 'x'), /markers exactly once/);

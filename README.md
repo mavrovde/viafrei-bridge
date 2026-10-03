@@ -24,8 +24,9 @@ claude mcp add --transport http viafrei https://mcp.viafrei.de/mcp
 ```
 
 **Free. No account, no API key, no sign-up.** One line and your assistant knows
-whether the A8 is jammed, whether your train is late, where the next free
-Type 2 charger is and whether the lift at your station works — from official
+whether the A8 is jammed, whether your train is late, where the nearest
+Type 2 charger is (and whether it is free, where the operator publishes that)
+and whether the lift at your station works — from official
 German open data, live, with the source named in every answer.
 
 > **New in 1.6:** [viafrei.de](https://viafrei.de/en) is a real site now, in
@@ -45,7 +46,7 @@ comes back in the language you asked in.
 |---|---|
 | 🌅 **about to commute** | *Fahren Busse und Bahnen in Bayern gerade pünktlich?* · *When does the next train leave Hamburg Hbf?* |
 | 🚗 **about to drive** | *Gibt es Stau auf der A8?* · *Are there roadworks on the A7 next week?* · *Is the A1 closed anywhere?* |
-| ⚡ **driving electric** | *Where can I charge with Type 2 near Leipzig?* · *Wo gibt es einen Schnelllader mit 150 kW an der A9?* |
+| ⚡ **driving electric** | *Where can I charge with Type 2 near Leipzig?* · *Wo gibt es einen Schnelllader mit 150 kW bei Nürnberg?* |
 | 🅿️ **driving a lorry** | *Find a rest area with lorry parking on the A9* · *Wo ist der nächste Lkw-Parkplatz an der A7?* |
 | ♿ **travelling step-free** | *Funktioniert der Aufzug am Bahnhof Köln Messe/Deutz?* |
 | 🌦️ **watching the weather** | *Gibt es eine Unwetterwarnung für Freiburg?* |
@@ -328,6 +329,12 @@ curl -si https://mcp.viafrei.de/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"me","version":"0"}}}' \
   | grep -i mcp-session-id
 
+# 1b. tell the server you are ready — the MCP lifecycle requires it before any request
+curl -s https://mcp.viafrei.de/mcp \
+  -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+  -H 'mcp-session-id: <from step 1>' -H 'mcp-protocol-version: 2025-06-18' \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
 # 2. ask a question (put the session id from step 1 in the header)
 curl -s https://mcp.viafrei.de/mcp \
   -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
@@ -439,7 +446,7 @@ client that started it finds out.
   limit arrives as a sentence you are meant to show.
 - **Built for answering people.** Live figures, sourced and dated, in the
   language of the question. Good for travel and mobility assistants,
-  dispatchers' briefings, customer service and step-free routing.
+  dispatchers' briefings, customer service and step-free station checks.
 - **Read the business page:** [viafrei.de/en/business](https://viafrei.de/en/business).
   It covers six use cases and how to work with us.
 
