@@ -100,6 +100,15 @@ jobs:
       - name: API-reference generator self-test
         run: npm run test:docs
 
+      # The README's tool, prompt and resource tables are rendered from the same
+      # snapshot, between two markers, so the published README cannot carry a
+      # hand-typed catalogue that rots inside the tarball.
+      - name: README catalogue matches the catalogue snapshot
+        run: npm run check:readme
+
+      - name: README catalogue generator self-test
+        run: npm run test:readme
+
       # SOURCES.md states counts ABOUT THE SERVER - how many tools, how many read-only,
       # which are fuel and therefore excluded from its spot check. Nothing compared them
       # with the snapshot, and the page spent two releases describing a server it no
