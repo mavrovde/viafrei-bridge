@@ -10,7 +10,7 @@
  *   - the four states, each from the three readings that produce it, because the
  *     workflow branches on `state=` and a state that is never produced is a branch that
  *     is never taken;
- *   - that DETECT WRITES NOTHING, by hashing the five files before and after — a detect
+ *   - that DETECT WRITES NOTHING, by hashing the six files before and after — a detect
  *     that bumped the manifest would make every later run read "awaiting-tag";
  *   - the whole prepared tree for a DATED server: all three version fields, the snapshot,
  *     the reference, the CHANGELOG block's place, lead and link reference, and that the
@@ -55,7 +55,7 @@ const PUBLISHED = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).v
 const [MAJOR, MINOR] = PUBLISHED.split('.').map(Number);
 const NEXT = `${MAJOR}.${MINOR + 1}.0`;
 const OLDER = `${MAJOR}.${MINOR}.0` === PUBLISHED ? `${Math.max(MAJOR - 1, 0)}.0.1` : `${MAJOR}.${MINOR}.0`;
-const FILES = ['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'CHANGELOG.md'];
+const FILES = ['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'README.md', 'CHANGELOG.md'];
 
 const { check, failures, passed } = createChecker();
 const roots = [];
@@ -135,6 +135,7 @@ function buildRoot(mcpUrl, { manifestVersion = PUBLISHED, changelog = null, capt
     if (capturedAt !== null) snapshot.capturedAt = capturedAt;
     writeFileSync(join(root, 'catalogue.json'), `${JSON.stringify(snapshot, null, 2)}\n`);
     copyFileSync(join(ROOT, 'API.md'), join(root, 'API.md'));
+    copyFileSync(join(ROOT, 'README.md'), join(root, 'README.md'));
     copyFileSync(join(ROOT, 'SOURCES.md'), join(root, 'SOURCES.md'));
     if (changelog === null) {
         copyFileSync(join(ROOT, 'CHANGELOG.md'), join(root, 'CHANGELOG.md'));
@@ -219,7 +220,7 @@ await scenario({ server: NEXT }, async ({ run, root }) => {
         result.status === 0 && result.out.state === 'drift' && result.out.version === NEXT && result.out.npm === PUBLISHED && result.out.manifest === PUBLISHED,
         `status ${result.status}, out ${JSON.stringify(result.out)}`
     );
-    check('detect writes nothing: all five files are byte-identical afterwards', fileHashes(root) === before);
+    check('detect writes nothing: all six files are byte-identical afterwards', fileHashes(root) === before);
     check('detect writes no pull-request body', result.body === null);
 });
 
@@ -269,6 +270,7 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
     check('catalogue.json was re-captured: serverInfo.version moved and the tool count is unchanged',
         snapshot.serverInfo.version === NEXT && snapshot.tools.length === real.tools.length);
     check('API.md was regenerated from the new snapshot', readFileSync(join(root, 'API.md'), 'utf8').includes(NEXT));
+    check('the README catalogue section was regenerated from the new snapshot', readFileSync(join(root, 'README.md'), 'utf8').includes(`server ${NEXT}`));
 
     const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8');
     const lines = changelog.split('\n');
@@ -303,7 +305,7 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
         && result.body.includes(`git tag v${NEXT}`) && /never a squash/u.test(result.body),
         brief(result.body ?? '')
     );
-    check('files= lists exactly the five files the workflow may stage', result.out.files === FILES.join(','));
+    check('files= lists exactly the six files the workflow may stage', result.out.files === FILES.join(','));
 
     const again = await run(['--prepare', '--date', '2026-10-02']);
     check(
@@ -405,6 +407,11 @@ await scenario({
         result.body !== null && /check:sources.*\*\*FAIL\*\*/u.test(result.body)
         && /find_fuel_nearby reaches the rate-limited fuel source/u.test(result.body),
         brief(result.body ?? ''));
+    // A new tool has no README group yet: the proposal still happens, as a draft, and
+    // check:readme is the gate that says which tool needs one — never a refusal.
+    check('a new tool leaves check:readme FAILING and names the tool, instead of refusing the proposal',
+        /FAIL {2}check:readme/u.test(result.text) && result.body !== null && /in no README group: find_fuel_nearby/u.test(result.body),
+        brief(result.body ?? result.text));
 });
 
 // --- refusals: exit 2, never a decision ------------------------------------------------------
