@@ -343,9 +343,11 @@ curl -s https://mcp.viafrei.de/mcp \
 - **Results are written to be read aloud.** A tool answers in sentences an
   assistant can pass on, says what it does not know ("no status data means
   unknown, not free"), and ends with the source line.
-- **Read-only and annotated.** Every tool carries MCP annotations
-  (`readOnlyHint`, `idempotentHint`), so a client can call it without a
-  confirmation prompt.
+- **Annotated honestly.** Eighteen of the twenty tools are read-only and
+  idempotent (`readOnlyHint`, `idempotentHint`), so a client can call them
+  without a confirmation prompt. The two watch tools are not, because opening
+  or stopping a watch changes what the server will tell you later, and their
+  annotations say so.
 - **Prompts and resources, not only tools.** Nine ready-made briefings, and a
   reference shelf (driving rules, emission zones, emergency numbers,
   attribution) your assistant can read directly.
