@@ -5,6 +5,16 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- **The proposer's same-day self-test no longer reads the older release blocks as the
+  new lead.** It sliced the generated block from its heading to the next `###`, and a
+  mirror release has no `###` section, so the slice ran on into every block below it.
+  Whenever the previous release's lead said the capture date moved, the case failed on
+  a correct lead: release/1.5.10 (#45) was red on both Node jobs for that reason alone.
+  The slice now also stops at the next `## [` heading, and the case runs a second time
+  over a history whose previous block says exactly that, which fails with the old slice.
+
 ## [1.5.9] - 2026-10-02
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
