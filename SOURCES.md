@@ -125,13 +125,43 @@ database and this sentence named only the addresses until 2026-09-27. An issue o
 this repository reaches us, and the server's own register names the contact route
 as well.
 
+### And two parking sources that are share-alike
+
+`find_parking` answers from more publishers than it did, and two of them are
+share-alike (the full list is in the catalogue below):
+
+- **P+R NRW** (NRW.Mobidrom, the bundled Park+Ride data for North
+  Rhine-Westphalia) is **CC BY-SA**, with no version stated — the same
+  share-alike reasoning as the DELFI realtime feed above applies;
+- **Trucklounge Ecopark** (ENMO GmbH & Co.KG, lorry parking) is **ODbL 1.0** — a
+  second share-alike *database*, separate from OpenStreetMap and never joined to
+  it or to any other source.
+
+The server keeps both apart from everything else rather than mixing them into one
+list: the tool's own description says "ODbL and CC BY-SA sources are separate
+lists (up to three)". Measured on 2026-10-05, a park-and-ride question for
+Düsseldorf came back with the P+R NRW sites in a list of their own, each row
+carrying `"license": "CC BY-SA"` and its own attribution line, and a lorry-parking
+question near Emstek returned the Trucklounge site in a separate ODbL list. So
+the test is the same as for OpenStreetMap: **read `_meta.sources` and the
+attribution line on the answer you got** — `mobilithek_park_nrw_pr` and
+`mobilithek_park_trucklounge` are the two ids to look for. If you keep those rows,
+keep them apart too, and carry their licence with them.
+
+For the ODbL database the server makes the same § 4.6 offer as for the OSM
+tables, stated in `viafrei://attribution`: its complete contents and our
+alterations, under ODbL 1.0, free of charge on request to the contact address in
+the Impressum on viafrei.de. The same request also gets the P+R NRW data under
+CC BY-SA — not an ODbL duty, the register says, but the same channel.
+
 ---
 
 ## The catalogue
 
 **Status is not a promise, it is a measurement.** Every "live" below **except the
-one labelled `not re-measured`** was checked by calling the public endpoint on
-**2026-09-27** and reading which source the answer named. A source can be licensed, cleared and loaded and still not answer
+one labelled `not re-measured` and the six parking rows dated 2026-10-05** was
+checked by calling the public endpoint on **2026-09-27** and reading which source
+the answer named. A source can be licensed, cleared and loaded and still not answer
 a question today; where that is so, this page says it.
 
 The measurement was taken **on 2026-09-27**, when the server exposed sixteen
@@ -143,7 +173,7 @@ is deliberately not re-measured, and the count says so rather than absorbing it:
 status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
-As of the capture shipped alongside this page (2026-10-04, server 1.7.0)
+As of the capture shipped alongside this page (2026-10-04, server 1.7.3)
 it exposes twenty tools, eighteen of them read-only — the same twenty as on
 2026-10-02. Between that measurement and the 2026-10-02 capture it
 gained two tools, and both matter here. One is a SECOND fuel tool,
@@ -202,6 +232,12 @@ status somebody could still be relying on.
 | Station car parks (DB BahnPark) | Deutsche Bahn AG (DB API Marketplace) | Car parks at railway stations, with their operator and access details | continuous | **dl-de/by-2-0** | read |
 | Administrative units and place names | Bundesamt für Kartographie und Geodäsie (BKG), product GN250 | Länder, Regierungsbezirke, Kreise, Gemeinden with their official keys and names | yearly release | **dl-de/by-2-0** | live |
 | Police traffic events | Landesbetrieb Straßenbau NRW (VIZ.NRW), via the national access point | Police traffic reports, Germany-wide | continuous | **Datenlizenz Deutschland – Zero – 2.0** | in the service — see below |
+| Car park occupancy, Köln | Stadt Köln, via the national access point | Free spaces in the city's car parks | not read for this page | **Datenlizenz Deutschland – Zero – 2.0** | live — measured 2026-10-05, see below |
+| Car parks NRW | NRW.Mobidrom, via the national access point | Car parks in North Rhine-Westphalia | not read for this page | **dl-de/by-2-0** | live — measured 2026-10-05 |
+| Park and ride NRW | NRW.Mobidrom, via the national access point | Bundled P+R sites in North Rhine-Westphalia | not read for this page | **CC BY-SA (version unstated)** | live — measured 2026-10-05, a separate list |
+| Lorry parking, Christophorus Parking | Florence Knuellwald GmbH, via the national access point | The operator's lorry park, with occupancy | not read for this page | **dl-de/by-2-0** | live — measured 2026-10-05 |
+| Lorry parking, Bosch | Bosch Service Solutions, via the national access point | The operator's lorry parks, with occupancy | not read for this page | CC BY 4.0 | read — no answer named it in the 2026-10-05 calls, see below |
+| Lorry parking, Trucklounge Ecopark | ENMO GmbH & Co.KG, via the national access point | The operator's lorry park | not read for this page | **ODbL 1.0** | live — measured 2026-10-05, a separate list |
 
 Two of those rows need saying out loud rather than in a cell, because a cell
 cannot carry a reason — fuel takes two bullets, because the coverage limit and
@@ -227,6 +263,20 @@ the decision not to re-measure are different facts.
   catalogue row rather than by code, so this row could begin carrying its
   attribution line with no release at all. Do not design around it yet — and
   read `_meta.sources`, not this page, on the day you do.
+
+**The six parking rows were added on 2026-10-05, for server 1.7.3**, whose
+`find_parking` description first said that ODbL and CC BY-SA sources come back
+as separate lists. They were measured the same way as the rest, by asking the
+public endpoint and reading `_meta.sources`, and only `find_parking` was called:
+car parks in Köln named the Köln occupancy feed and the NRW car parks, park and
+ride in Düsseldorf named P+R NRW, and lorry parking near Knüllwald and near Emstek
+named Christophorus Parking (master data and occupancy) and Trucklounge. **Bosch
+is `read`, not `live`**: the server's register lists both its lorry-park master
+data and its occupancy feed, and none of the thirteen lorry-parking questions
+asked that day (ten near towns, three along a motorway by number) came back naming
+it. That is a statement about those questions, not about whether the data
+is loaded. The publication rhythm of these six was not read for this page and the
+column says so rather than guessing.
 
 **What changed on 2026-09-27, stated plainly because this page said the
 opposite until today.** Address lookup, lift and escalator status, and
@@ -661,6 +711,33 @@ Verkehrsmeldungen der Polizei: Landesbetrieb Straßenbau NRW (VIZ.NRW) via Mobil
 DL-DE/Zero-2.0 attaches **no** condition at all: "Jede Nutzung ist ohne
 Einschränkungen oder Bedingungen zulässig." We name the publisher anyway, for
 the same reason as the CC0 feeds.
+
+### Parking — Köln, NRW and three lorry-park operators · four licences
+
+All of them arrive through the national access point, and the licences are **not
+uniform**, so they are listed one by one, as the server's register gives them:
+
+```
+Parkhaus-Belegung: Stadt Köln via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0
+Parkhäuser NRW: NRW.Mobidrom via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+P+R NRW: NRW.Mobidrom via Mobilithek, Datensatz „Gebündelte Daten Park+Ride NRW“, CC BY-SA, bearbeitet
+Lkw-Parken: Florence Knuellwald GmbH (Christophorus Parking) via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+Lkw-Parken (Belegung): Florence Knuellwald GmbH (Christophorus Parking) via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+Lkw-Parken: Bosch Service Solutions via Mobilithek, CC BY 4.0, bearbeitet
+Lkw-Parken (Belegung): Bosch Service Solutions via Mobilithek, CC BY 4.0, bearbeitet
+Lkw-Parken: ENMO GmbH & Co.KG (Trucklounge Ecopark) via Mobilithek — enthält Daten aus „Trucklounge Ecopark“, Open Database License 1.0 (opendatacommons.org/licenses/odbl/1-0/), bearbeitet
+```
+
+- **Köln** is DL-DE/Zero-2.0, which attaches no condition; it is named anyway.
+- **NRW car parks and Christophorus Parking** are dl-de/by-2-0, which needs the
+  source note and a note that the data was changed — both are in the line.
+- **Bosch** is CC BY 4.0, with the `bearbeitet` the other CC BY sources carry.
+- **P+R NRW** is CC BY-SA with no version stated, and **Trucklounge Ecopark** is
+  ODbL 1.0. Both are share-alike, both come back in a list of their own, and what
+  that means for you is [near the top of this page](#and-two-parking-sources-that-are-share-alike).
+
+A missing "free now" in an answer means the operator publishes no count for that
+site, not that it is full — the tool's own description says so.
 
 ### German road rules — our own text
 
