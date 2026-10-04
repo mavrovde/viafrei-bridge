@@ -36,7 +36,7 @@
  *   behind        the server is BEHIND the registry — a rollback, or a premature publish.
  *                 Exit 1. Nothing here proposes a downgrade; a person decides.
  *
- * `--prepare` acts only on `drift`, in the tree this script lives in, and touches five
+ * `--prepare` acts only on `drift`, in the tree this script lives in, and touches six
  * files: package.json and package-lock.json (`npm version`), catalogue.json (the probe's
  * `--write`), API.md (regenerated) and CHANGELOG.md (a `## [X.Y.Z]` block below
  * `[Unreleased]`, carrying what was waiting there). It then runs the offline gates and
@@ -71,12 +71,13 @@ const SEMVER = /^(\d{1,4})\.(\d{1,4})\.(\d{1,4})$/u;
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 
 /** The files `--prepare` may change, and the only ones the workflow stages. */
-const FILES = Object.freeze(['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'CHANGELOG.md']);
+const FILES = Object.freeze(['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'README.md', 'CHANGELOG.md']);
 
 /** The offline gates run after preparing. Each is a script beside this one. */
 const GATES = Object.freeze([
     { name: 'check:versions', script: 'check-versions.mjs', args: [] },
     { name: 'check:docs', script: 'gen-api-doc.mjs', args: ['--check'] },
+    { name: 'check:readme', script: 'gen-readme-catalogue.mjs', args: ['--check'] },
     { name: 'check:sources', script: 'check-sources.mjs', args: [] }
 ]);
 
@@ -274,6 +275,16 @@ async function recapture(live) {
 async function regenerateReference() {
     const docs = await runScript('gen-api-doc.mjs');
     if (docs.status !== 0) refuse(`API.md could not be regenerated:\n${tail(docs.stderr)}`);
+    // The README's catalogue section is rendered from the same snapshot and names its
+    // version and capture date, so a release that moves either must regenerate it too —
+    // the first 1.6.1 proposal did not, and its own check:readme went red.
+    //
+    // NOT a refusal when it cannot render. The generator refuses a tool it cannot place
+    // in a README group, and a server that GAINED a tool is exactly the release this
+    // workflow must still propose — as a draft, with check:readme failing and saying
+    // which tool needs a group. So the README is left as it was, and the gate below
+    // reports the reason; refusing here would hide a surface change behind "cannot decide".
+    await runScript('gen-readme-catalogue.mjs');
 }
 
 function wrap(text, indent = '') {
@@ -386,6 +397,7 @@ function pullRequestBody(reading, date, gates, waitingLines) {
         `| \`npm version ${reading.live}\` | \`package.json\` and both lockfile fields |`,
         `| \`probe-catalogue --write\` | re-captured from the running server; surface ${surface} |`,
         '| `docs:api` | `API.md` regenerated from the new snapshot |',
+        '| `docs:readme` | the README\'s catalogue section regenerated from the same snapshot |',
         `| CHANGELOG | \`## [${reading.live}] - ${date}\` written below \`[Unreleased]\`, carrying the ${waitingLines} line(s) that were waiting there; link reference added |`,
         '',
         '## Gates run on the prepared tree',
@@ -443,7 +455,7 @@ function digest(files) {
 // --- main -----------------------------------------------------------------------------
 
 const options = parseArguments(process.argv.slice(2));
-// Detect must write nothing, and that is asserted rather than trusted: the five files
+// Detect must write nothing, and that is asserted rather than trusted: the six files
 // prepare may touch are hashed before the reads and compared after them.
 const before = options.prepare ? null : digest(FILES);
 
