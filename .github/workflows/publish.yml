@@ -4,7 +4,7 @@ name: Publish
 #
 # There is no token and no OTP anywhere in this file, and there must never be
 # one: the OIDC exchange is the credential. Configure the trusted publisher on
-# the npm package as `mavrovde/viafrei-bridge` + `.github/workflows/publish.yml`
+# the npm package as `mavrovde/viafrei-mcp` (renamed from viafrei-bridge on 2026-10-04) + `.github/workflows/publish.yml`
 # before the first run.
 #
 # The publish-hygiene gate runs BEFORE the publish step, against the tarball

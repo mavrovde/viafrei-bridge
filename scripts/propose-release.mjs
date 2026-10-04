@@ -64,7 +64,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const REGISTRY = process.env.PROPOSE_REGISTRY_URL ?? 'https://registry.npmjs.org/viafrei';
 const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 20_000);
-const RELEASE_PAGE = 'https://github.com/mavrovde/viafrei-bridge/releases/tag/v';
+const RELEASE_PAGE = 'https://github.com/mavrovde/viafrei-mcp/releases/tag/v';
 
 /** Three dotted integers and nothing else: a prerelease or a tag is not a number this package mirrors. */
 const SEMVER = /^(\d{1,4})\.(\d{1,4})\.(\d{1,4})$/u;

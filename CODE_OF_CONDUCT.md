@@ -41,7 +41,7 @@ Examples of unacceptable behaviour:
 own.** This repository is about open data with real licence conditions attached,
 and issues here regularly quote real answers about real places. Quoting a key or
 a token to report a problem republishes it; describe it instead, and use
-[the private form](https://github.com/mavrovde/viafrei-bridge/security/advisories/new).
+[the private form](https://github.com/mavrovde/viafrei-mcp/security/advisories/new).
 Deleting a comment is the only thing that removes it, and an edit is not a
 deletion.
 
@@ -66,7 +66,7 @@ officially representing the community in public spaces.
 ## Enforcement
 
 Report abusive, harassing or otherwise unacceptable behaviour through
-**[GitHub's private vulnerability reporting form](https://github.com/mavrovde/viafrei-bridge/security/advisories/new)**
+**[GitHub's private vulnerability reporting form](https://github.com/mavrovde/viafrei-mcp/security/advisories/new)**
 on this repository. It is private to the maintainers, and it is used for conduct
 reports as well as security ones; say at the top of the report which it is.
 

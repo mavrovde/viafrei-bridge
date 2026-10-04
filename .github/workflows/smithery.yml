@@ -1,0 +1,155 @@
+name: Smithery
+
+# Re-publish the Smithery listing (viafrei/viafrei) after every release, the
+# way publish.yml releases the npm package: a tag the owner pushes is the only
+# thing that starts it, and a person never types the command.
+#
+# Smithery lists the hosted server, not this tarball: a publish makes Smithery
+# re-scan https://mcp.viafrei.de/mcp and store what it finds (tools, prompts,
+# resources). So the one thing that must hold before a publish is that the
+# server Smithery is about to scan IS the version this tag names — otherwise
+# the listing would record another release's surface under this one's run.
+# That is asserted, not assumed, and a mismatch is a refusal.
+#
+# Order: runs only after the Publish workflow concluded SUCCESS for a tag push,
+# so a release that failed on npm never reaches Smithery either.
+# workflow_dispatch re-publishes by hand (e.g. after Smithery had an outage),
+# with the same version assertion.
+
+on:
+  workflow_run:
+    workflows: [Publish]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version the live server must report (X.Y.Z, no v)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  # PINNED, for the reason publish.yml pins npm: a release must not depend on
+  # the day it ran. Bump deliberately, and rehearse with workflow_dispatch.
+  SMITHERY_CLI_VERSION: '4.11.1'
+  SMITHERY_SERVER: 'viafrei/viafrei'
+  MCP_URL: 'https://mcp.viafrei.de/mcp'
+
+jobs:
+  publish:
+    # Only a Publish run that succeeded, for a TAG push (not a dispatch dry run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Holds the one secret, SMITHERY_API_KEY. No protection rule, for the
+    # reason publish.yml's `npm` environment has none: the release is already
+    # gated by the reviewer verdict before the merge and by every gate of the
+    # Publish run this job waits for.
+    environment: smithery
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Which version this run releases
+        id: version
+        env:
+          RUN_TAG: ${{ github.event.workflow_run.head_branch }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then v="${INPUT_VERSION}"; else v="${RUN_TAG#v}"; fi
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Not a version: '$v'" >&2
+            exit 2
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "releasing $v"
+
+      # Smithery will scan the live server; refuse unless it IS this version.
+      - name: The live server reports this version
+        env:
+          WANT: ${{ steps.version.outputs.version }}
+        run: |
+          set -eu
+          body='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smithery-release-check","version":"1"}}}'
+          hdrs="$(mktemp)"
+          out="$(curl -sS --max-time 20 -D "$hdrs" -X POST "$MCP_URL" \
+            -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
+            --data "$body")"
+          sid="$(grep -i '^mcp-session-id:' "$hdrs" | cut -d: -f2- | tr -d ' \r' || true)"
+          if [ -n "$sid" ]; then
+            curl -sS --max-time 10 -X DELETE "$MCP_URL" -H "mcp-session-id: $sid" -o /dev/null || true
+          fi
+          got="$(printf '%s' "$out" | sed -n 's/^data: //p' | head -1)"
+          [ -n "$got" ] || got="$out"
+          live="$(printf '%s' "$got" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).result.serverInfo.version))}catch{process.stdout.write("")}})')"
+          echo "live server: '${live}', this release: '${WANT}'"
+          if [ -z "$live" ]; then
+            echo "Could not read serverInfo.version from the live server — refusing to publish a listing about an unknown server." >&2
+            exit 2
+          fi
+          if [ "$live" != "$WANT" ]; then
+            echo "The live server is ${live}, not ${WANT}: Smithery would record another release's surface. Refusing." >&2
+            exit 1
+          fi
+
+      - name: Publish to Smithery
+        id: publish
+        env:
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
+        run: |
+          set -eu
+          if [ -z "${SMITHERY_API_KEY}" ]; then
+            echo "SMITHERY_API_KEY is empty in the 'smithery' environment — refusing rather than letting the CLI fall back to another login." >&2
+            exit 2
+          fi
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$RUNNER_TEMP/started"
+          # Installed with --ignore-scripts into a throwaway prefix and run by
+          # path: `npm exec` could install on demand and run lifecycle scripts
+          # in a job that holds the key (SonarCloud githubactions:S6505).
+          npm install --no-save --no-audit --no-fund --ignore-scripts \
+            --prefix "$RUNNER_TEMP/smithery-cli" "@smithery/cli@${SMITHERY_CLI_VERSION}"
+          "$RUNNER_TEMP/smithery-cli/node_modules/.bin/smithery" \
+            mcp publish "$MCP_URL" -n "$SMITHERY_SERVER" | tee "$RUNNER_TEMP/publish.out"
+          id="$(grep -Eo '"deploymentId":"[0-9a-f-]{36}"' "$RUNNER_TEMP/publish.out" | head -1 | cut -d'"' -f4 || true)"
+          if [ -z "$id" ]; then
+            echo "The CLI printed no deploymentId — cannot prove a release was created." >&2
+            exit 1
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      # "accepted" is not "live": the release is PENDING until Smithery's scan
+      # finishes. Poll THAT release by id (the endpoint the pinned CLI polls)
+      # with a deadline. The final failure states are the CLI's own set, read
+      # from @smithery/cli 4.11.1; on one, Smithery's first error-level log line
+      # is printed so the cause is in this log rather than a timeout.
+      - name: The release reached SUCCESS
+        env:
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
+          ID: ${{ steps.publish.outputs.id }}
+        run: |
+          set -eu
+          enc="$(printf '%s' "$SMITHERY_SERVER" | sed 's#/#%2F#')"
+          for i in $(seq 1 30); do
+            curl -sS --max-time 20 -H "Authorization: Bearer ${SMITHERY_API_KEY}" \
+              "https://api.smithery.ai/servers/${enc}/releases/${ID}" > "$RUNNER_TEMP/release.json" || true
+            status="$(node -e 'try{const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.stdout.write(String(r.status||"ABSENT"))}catch{process.stdout.write("UNREADABLE")}' "$RUNNER_TEMP/release.json")"
+            echo "attempt $i: release $ID is $status"
+            case "$status" in
+              SUCCESS) exit 0 ;;
+              FAILURE|FAILURE_SCAN|INTERNAL_ERROR|CANCELLED|AUTH_REQUIRED)
+                node -e 'try{const r=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));const e=(r.logs||[]).find(l=>l.level==="error");if(e)console.error("Smithery: ["+e.stage+"] "+e.message)}catch{}' "$RUNNER_TEMP/release.json"
+                echo "Smithery reports $status for release $ID." >&2
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Release $ID did not reach SUCCESS within 5 minutes (last status: $status)." >&2
+          exit 1

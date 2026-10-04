@@ -1,11 +1,11 @@
 blank_issues_enabled: true
 contact_links:
   - name: Security or a leaked secret
-    url: https://github.com/mavrovde/viafrei-bridge/security/advisories/new
+    url: https://github.com/mavrovde/viafrei-mcp/security/advisories/new
     about: Never open a public issue for a key, a token or anything that looks like one. This form is private to the maintainers, and it is the right place for a report about the hosted server too.
   - name: Question, idea, or "is this supposed to work?"
-    url: https://github.com/mavrovde/viafrei-bridge/discussions
+    url: https://github.com/mavrovde/viafrei-mcp/discussions
     about: Discussions are open. Nothing needs to be a bug before you can ask about it.
   - name: What each source covers, and what its licence asks of you
-    url: https://github.com/mavrovde/viafrei-bridge/blob/main/SOURCES.md
+    url: https://github.com/mavrovde/viafrei-mcp/blob/main/SOURCES.md
     about: Every publisher, what they cover, the licence, and the attribution line to reproduce - including the two conditions that are licence breaches rather than style problems.

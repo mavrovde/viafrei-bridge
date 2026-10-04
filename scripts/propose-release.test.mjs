@@ -295,8 +295,8 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
         `first waiting line at ${lines.indexOf(firstWaitingLine ?? '')}, block at ${block}`
     );
     check('the link reference was added exactly once, above the previous one',
-        changelog.split(`[${NEXT}]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v${NEXT}`).length === 2
-        && lines.indexOf(`[${NEXT}]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v${NEXT}`) < lines.findIndex(line => line.startsWith(`[${PUBLISHED}]: `)));
+        changelog.split(`[${NEXT}]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v${NEXT}`).length === 2
+        && lines.indexOf(`[${NEXT}]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v${NEXT}`) < lines.findIndex(line => line.startsWith(`[${PUBLISHED}]: `)));
     check('the previous version block is still there, after the new one', previousBlock > block, `${previousBlock} ${block}`);
     check(
         'the pull-request body names both numbers, every gate, and the three acts left to a person',
@@ -325,7 +325,7 @@ const movedHistory = [
     `## [${PUBLISHED}] - 2026-10-01`, '',
     '**Mirrors the server.** The probe reported the surface **unchanged** — only the version',
     'string and the capture date moved.', '',
-    `[${PUBLISHED}]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v${PUBLISHED}`, ''
+    `[${PUBLISHED}]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v${PUBLISHED}`, ''
 ].join('\n');
 const sameDayHistories = [
     ['this repository', null],

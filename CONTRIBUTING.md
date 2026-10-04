@@ -45,15 +45,30 @@ Streamable-HTTP MCP server:
 node dist/cli.js --url http://127.0.0.1:3000/mcp
 ```
 
-Five more checks exist, and CI runs all five:
+More checks exist, and CI runs every one of them (the list of steps is
+`.github/workflows/ci.yml`; none of them needs the network):
 
 ```bash
+npm run check:versions  # package.json and package-lock.json agree on the version
 npm run check:tarball   # what npm pack would publish, unpacked and read
 npm run test:gate       # poisons that tarball once per rule, and mutates the ruleset once per refusal
-npm run check:leaks     # the repository itself, working tree and history
+npm run check:leaks     # the repository itself (CI adds -- --history for every commit)
 npm run test:leaks      # the sweep's own history scope, on a throwaway repository
 npm run test:tools      # every spawned program comes from scripts/tools.mjs, not from $PATH
+npm run check:docs      # API.md matches catalogue.json
+npm run check:readme    # the README's catalogue section matches catalogue.json
+npm run check:sources   # the counts SOURCES.md states agree with catalogue.json
 ```
+
+Each `check:*` above that renders or reads a document has a `test:*` self-test
+beside it (`test:docs`, `test:readme`, `test:sources`, `test:versions`), and the
+release tooling has three more that run against local stubs (`test:probe`,
+`test:freshness`, `test:propose`).
+
+**API.md and the README's catalogue section are generated.** Do not edit them
+by hand: change `catalogue.json` (which a release re-captures from the running
+server) and run `npm run docs:api` and `npm run docs:readme`. Everything in the
+README outside the two `catalogue:` markers is hand-written and yours to fix.
 
 One more command prints rather than checks, and CI does not run it:
 

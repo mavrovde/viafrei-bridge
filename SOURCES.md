@@ -143,8 +143,9 @@ is deliberately not re-measured, and the count says so rather than absorbing it:
 status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
-As of the 2026-10-02 capture shipped alongside this page it exposes twenty tools,
-eighteen of them read-only. Between that measurement and the 2026-10-02 capture it
+As of the capture shipped alongside this page (2026-10-04, server 1.7.0)
+it exposes twenty tools, eighteen of them read-only — the same twenty as on
+2026-10-02. Between that measurement and the 2026-10-02 capture it
 gained two tools, and both matter here. One is a SECOND fuel tool,
 `find_fuel_station`, excluded from any spot check for exactly the same reason
 `find_cheapest_fuel` is, and the reason is a licence condition rather than a

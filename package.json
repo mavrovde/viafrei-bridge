@@ -1,6 +1,6 @@
 {
   "name": "viafrei",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "description": "German traffic, rail, parking, charging, fuel, address and weather data in your AI assistant - MCP, no API key. stdio bridge to the hosted ViaFrei MCP server.",
   "keywords": [
     "mcp",
@@ -18,18 +18,22 @@
     "autobahn",
     "deutsche-bahn",
     "departures",
+    "public-transport",
+    "roadworks",
+    "road-closures",
     "parking",
     "ev-charging",
     "fuel-prices",
     "geocoding",
+    "points-of-interest",
     "weather",
     "open-data"
   ],
   "homepage": "https://viafrei.de",
-  "bugs": "https://github.com/mavrovde/viafrei-bridge/issues",
+  "bugs": "https://github.com/mavrovde/viafrei-mcp/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mavrovde/viafrei-bridge.git"
+    "url": "git+https://github.com/mavrovde/viafrei-mcp.git"
   },
   "license": "Apache-2.0",
   "author": "ViaFrei",
