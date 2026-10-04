@@ -17,11 +17,18 @@ a Changelog and the versions follow Semantic Versioning.
 - **The Smithery workflow verifies the public listing.** After the release reaches
   `SUCCESS`, `scripts/verify-smithery.mjs` reads the public registry entry (no key)
   until it lists exactly the tools, with their descriptions, the prompts and the
-  resources of the `catalogue.json` shipped at the tag. Its offline self-test runs
-  in CI.
+  resources of `catalogue.json`. That file is read from a checkout of the default
+  branch, never the commit the triggering run names (a `workflow_run` job does not
+  execute code from a ref it is handed), and the run refuses unless its
+  `serverInfo.version` is the release's. Its offline self-test runs in CI.
 - **The Smithery workflow sets the listing's repository link** to the repository it
   runs in (and the homepage to viafrei.de) on every release. A publish re-scans the
   server but does not carry these, and the team listing had none after the move.
+- **SonarCloud analyses the shipped code only.** `.sonarcloud.properties` scopes the
+  analysis to `src/`, the code compiled into the published package; the CI tooling,
+  tests and workflows are judged by their self-tests and review.
+- **`verify-published` HEADs a tarball only on the npm registry**, never on a host
+  the version document names.
 
 ## [1.7.0] - 2026-10-04
 

@@ -183,13 +183,24 @@ jobs:
 
       # The release reached SUCCESS on Smithery's side; now check what a person sees.
       # The PUBLIC registry entry must list exactly this release's tools (names and
-      # descriptions), prompts and resources, as the catalogue.json shipped at this tag
-      # states them. Checked out at the tagged commit, with no credentials kept, and
-      # no secret in this step's environment.
+      # descriptions), prompts and resources, as catalogue.json states them.
+      # The checkout is the DEFAULT branch, never the commit the triggering run
+      # names: a workflow_run job must not execute code from a ref it was handed.
+      # A tag is cut from main, so main's catalogue is this release's — and that is
+      # asserted below rather than assumed. No credentials kept, no secret here.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
+
+      - name: The checked-out catalogue is this release's
+        env:
+          WANT: ${{ steps.version.outputs.version }}
+        run: |
+          got="$(node -e 'process.stdout.write(String(require("./catalogue.json").serverInfo?.version ?? ""))')"
+          if [ "$got" != "$WANT" ]; then
+            echo "catalogue.json on the default branch is for '${got}', not ${WANT}: main has moved since the tag. Re-run by hand with the current version." >&2
+            exit 1
+          fi
 
       - name: Verify the public listing shows this release
         run: node scripts/verify-smithery.mjs "$SMITHERY_SERVER" catalogue.json 300

@@ -18,6 +18,8 @@
 //
 // Usage: node scripts/verify-published.mjs <name> <version> <owner/repo> [deadlineSeconds]
 
+import { randomUUID } from 'node:crypto';
+
 const REGISTRY = 'https://registry.npmjs.org';
 
 /**
@@ -26,47 +28,64 @@ const REGISTRY = 'https://registry.npmjs.org';
  * @returns {Promise<{ok: boolean, failures: string[], reads: number}>}
  */
 export async function verifyPublished(o) {
-  const fetchFn = o.fetch ?? fetch;
-  const sleep = o.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const log = o.log ?? ((s) => console.log(s));
-  const deadline = o.deadlineMs ?? 300_000;
-  const interval = o.intervalMs ?? 5_000;
-  const bust = () => `?nocache=${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const get = (url) => fetchFn(url + bust(), { headers: { 'cache-control': 'no-cache', accept: 'application/json' } });
-
-  let doc = null;
-  let reads = 0;
-  for (let waited = 0; ; waited += interval) {
-    reads += 1;
-    const r = await get(`${REGISTRY}/${o.name}/${o.version}`);
-    if (r.status === 200) { doc = await r.json(); break; }
-    if (r.status !== 404) log(`read ${reads}: HTTP ${r.status} (retrying)`);
-    if (waited + interval > deadline) {
-      return { ok: false, reads, failures: [`${o.name}@${o.version} was not visible within ${Math.round(deadline / 1000)} s (${reads} reads). That is a timeout, not proof it was never published: check the registry again before re-tagging.`] };
-    }
-    await sleep(interval);
+  const ctx = {
+    fetchFn: o.fetch ?? fetch,
+    sleep: o.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+    log: o.log ?? ((s) => console.log(s)),
+    deadline: o.deadlineMs ?? 300_000,
+    interval: o.intervalMs ?? 5_000,
+  };
+  const { doc, reads } = await pollVersion(ctx, o.name, o.version);
+  if (!doc) {
+    return { ok: false, reads, failures: [`${o.name}@${o.version} was not visible within ${Math.round(ctx.deadline / 1000)} s (${reads} reads). That is a timeout, not proof it was never published: check the registry again before re-tagging.`] };
   }
-  log(`${o.name}@${o.version} is on the registry (after ${reads} read(s))`);
+  ctx.log(`${o.name}@${o.version} is on the registry (after ${reads} read(s))`);
+  const failures = [...checkDocument(doc, o), ...(await checkLatest(ctx, o)), ...(await checkTarball(ctx, doc))];
+  return { ok: failures.length === 0, failures, reads };
+}
 
+/** A GET that defeats both caches: a no-cache header and a unique query string. */
+function freshGet(ctx, url) {
+  return ctx.fetchFn(`${url}?nocache=${randomUUID()}`, { headers: { 'cache-control': 'no-cache', accept: 'application/json' } });
+}
+
+/** Poll the version document until it answers 200 or the deadline passes. */
+async function pollVersion(ctx, name, version) {
+  let reads = 0;
+  for (let waited = 0; waited <= ctx.deadline; waited += ctx.interval) {
+    reads += 1;
+    // Sequential on purpose: each read waits for the previous one and the interval.
+    const r = await freshGet(ctx, `${REGISTRY}/${name}/${version}`);
+    if (r.status === 200) return { doc: await r.json(), reads };
+    if (r.status !== 404) ctx.log(`read ${reads}: HTTP ${r.status} (retrying)`);
+    if (waited + ctx.interval > ctx.deadline) break;
+    await ctx.sleep(ctx.interval);
+  }
+  return { doc: null, reads };
+}
+
+function checkDocument(doc, o) {
   const failures = [];
   if (doc.version !== o.version) failures.push(`the registry answered a document about ${doc.version}, not ${o.version}`);
-
-  const packument = await get(`${REGISTRY}/${o.name}`);
-  const latest = packument.status === 200 ? (await packument.json())['dist-tags']?.latest : undefined;
-  if (latest !== o.version) failures.push(`dist-tags.latest is ${latest ?? '(unreadable)'}, not ${o.version}`);
-
   if (!doc.dist?.attestations) failures.push('dist.attestations is absent: the version was not published with provenance');
-
   const want = `git+https://github.com/${o.repo}.git`;
   if (doc.repository?.url !== want) failures.push(`repository.url is ${doc.repository?.url ?? '(absent)'}, not ${want}`);
+  return failures;
+}
 
+async function checkLatest(ctx, o) {
+  const packument = await freshGet(ctx, `${REGISTRY}/${o.name}`);
+  const latest = packument.status === 200 ? (await packument.json())['dist-tags']?.latest : undefined;
+  return latest === o.version ? [] : [`dist-tags.latest is ${latest ?? '(unreadable)'}, not ${o.version}`];
+}
+
+/** HEAD the tarball — only ever on the registry itself, never a host a document names. */
+async function checkTarball(ctx, doc) {
   const tarball = doc.dist?.tarball;
-  if (!tarball) failures.push('dist.tarball is absent');
-  else {
-    const t = await fetchFn(tarball, { method: 'HEAD', headers: { 'cache-control': 'no-cache' } });
-    if (t.status !== 200) failures.push(`the tarball ${tarball} answered HTTP ${t.status}`);
-  }
-  return { ok: failures.length === 0, failures, reads };
+  if (!tarball) return ['dist.tarball is absent'];
+  if (!tarball.startsWith(`${REGISTRY}/`)) return [`dist.tarball is not on ${REGISTRY}: ${tarball}`];
+  const t = await ctx.fetchFn(tarball, { method: 'HEAD', headers: { 'cache-control': 'no-cache' } });
+  return t.status === 200 ? [] : [`the tarball ${tarball} answered HTTP ${t.status}`];
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

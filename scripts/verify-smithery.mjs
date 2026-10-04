@@ -16,6 +16,7 @@
 //
 // Usage: node scripts/verify-smithery.mjs <namespace/name> [catalogue.json] [deadlineSeconds]
 
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const REGISTRY = 'https://registry.smithery.ai/servers';
@@ -59,24 +60,26 @@ export async function verifySmithery(o) {
   let last = ['no read yet'];
   for (let waited = 0; ; waited += interval) {
     reads += 1;
-    const url = `${REGISTRY}/${o.qualifiedName}?nocache=${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const r = await fetchFn(url, { headers: { 'cache-control': 'no-cache', accept: 'application/json' } });
-    if (r.status === 200) {
-      let entry = null;
-      try { entry = await r.json(); } catch { last = ['the registry answered something that is not JSON']; }
-      if (entry) {
-        last = compareListing(entry, o.catalogue, o.qualifiedName);
-        if (last.length === 0) return { ok: true, failures: [], reads };
-      }
-    } else {
-      last = [`the registry answered HTTP ${r.status}`];
-    }
-    log(`read ${reads}: ${last[0]}${last.length > 1 ? ` (+${last.length - 1} more)` : ''}`);
+    // Sequential on purpose: a poll, each read after the previous one and the interval.
+    last = await readOnce(fetchFn, o);
+    if (last.length === 0) return { ok: true, failures: [], reads };
+    const more = last.length > 1 ? ` (+${last.length - 1} more)` : '';
+    log(`read ${reads}: ${last[0]}${more}`);
     if (waited + interval > deadline) {
       return { ok: false, reads, failures: [...last, `the public listing did not match this release within ${Math.round(deadline / 1000)} s (${reads} reads)`] };
     }
     await sleep(interval);
   }
+}
+
+/** One read of the public entry: the differences, or [] when it matches. */
+async function readOnce(fetchFn, o) {
+  const url = `${REGISTRY}/${o.qualifiedName}?nocache=${randomUUID()}`;
+  const r = await fetchFn(url, { headers: { 'cache-control': 'no-cache', accept: 'application/json' } });
+  if (r.status !== 200) return [`the registry answered HTTP ${r.status}`];
+  let entry;
+  try { entry = await r.json(); } catch { return ['the registry answered something that is not JSON']; }
+  return compareListing(entry, o.catalogue, o.qualifiedName);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

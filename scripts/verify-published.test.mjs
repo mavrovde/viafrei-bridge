@@ -94,6 +94,13 @@ await t('a tarball that is not served fails', async () => {
   assert.ok(r.failures.some((f) => /answered HTTP 404/.test(f)), r.failures.join('; '));
 });
 
+await t('a tarball on another host is refused and never fetched', async () => {
+  const reg = registry({ doc: { ...goodDoc(), dist: { ...goodDoc().dist, tarball: 'https://example.invalid/viafrei.tgz' } } });
+  const r = await run(reg);
+  assert.ok(r.failures.some((f) => /dist\.tarball is not on https:\/\/registry\.npmjs\.org/.test(f)), r.failures.join('; '));
+  assert.ok(!reg.calls.some((c) => c.url.startsWith('https://example.invalid')), 'the foreign tarball was fetched');
+});
+
 await t('every registry read defeats both caches', async () => {
   const reg = registry({ visibleFrom: 2 });
   await run(reg);
