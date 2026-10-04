@@ -1,4 +1,9 @@
-name: Publish
+name: npm
+
+# Named "npm" rather than "Publish" (owner, 2026-10-04): the Smithery workflow
+# publishes too, so the name says WHERE this one publishes. The FILE stays
+# publish.yml, because npm's trusted publisher is configured against the
+# workflow's file name and a renamed file would be refused.
 
 # Tag-driven publish to npm with provenance, via npm Trusted Publishing.
 #
@@ -219,6 +224,18 @@ jobs:
       - name: Publish
         if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
         run: npm publish --provenance --access public "${{ steps.pack.outputs.tarball }}"
+
+      # `npm publish` exiting 0 is not "published": the registry is asynchronous
+      # and cached. This reads it, past both caches, until the version is served,
+      # then asserts latest, provenance, repository.url = this repository, and the
+      # tarball. A failure here means the release is NOT done, so the Smithery
+      # workflow, which waits for this run's success, does not start either.
+      - name: Verify the publish landed
+        if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
+        run: |
+          set -eu
+          node scripts/verify-published.mjs "$(node -p "require('./package.json').name")" \
+            "$(node -p "require('./package.json').version")" "${GITHUB_REPOSITORY}" 300
 
       - name: Dry run only
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}

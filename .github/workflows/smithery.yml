@@ -11,14 +11,14 @@ name: Smithery
 # the listing would record another release's surface under this one's run.
 # That is asserted, not assumed, and a mismatch is a refusal.
 #
-# Order: runs only after the Publish workflow concluded SUCCESS for a tag push,
+# Order: runs only after the npm workflow concluded SUCCESS for a tag push,
 # so a release that failed on npm never reaches Smithery either.
 # workflow_dispatch re-publishes by hand (e.g. after Smithery had an outage),
 # with the same version assertion.
 
 on:
   workflow_run:
-    workflows: [Publish]
+    workflows: [npm]
     types: [completed]
   workflow_dispatch:
     inputs:
@@ -39,7 +39,7 @@ env:
 
 jobs:
   publish:
-    # Only a Publish run that succeeded, for a TAG push (not a dispatch dry run).
+    # Only an npm run that succeeded, for a TAG push (not a dispatch dry run).
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -50,7 +50,7 @@ jobs:
     # Holds the one secret, SMITHERY_API_KEY. No protection rule, for the
     # reason publish.yml's `npm` environment has none: the release is already
     # gated by the reviewer verdict before the merge and by every gate of the
-    # Publish run this job waits for.
+    # npm run this job waits for.
     environment: smithery
     steps:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -153,3 +153,43 @@ jobs:
           done
           echo "Release $ID did not reach SUCCESS within 5 minutes (last status: $status)." >&2
           exit 1
+
+      # A publish re-scans the server; it does not carry the listing's links. Set the
+      # repository link to the repository this workflow runs in, every release, so it
+      # follows a rename on its own (it was missing after the move to the team).
+      - name: The listing links this repository
+        env:
+          SMITHERY_API_KEY: ${{ secrets.SMITHERY_API_KEY }}
+        run: |
+          set -eu
+          enc="$(printf '%s' "$SMITHERY_SERVER" | sed 's#/#%2F#')"
+          body="$(node -e 'process.stdout.write(JSON.stringify({repositoryUrl: "https://github.com/" + process.env.GITHUB_REPOSITORY, homepage: "https://viafrei.de"}))')"
+          # The authenticated answer is never printed: this log is public, and the
+          # server object may carry fields the public listing does not show. On a
+          # refusal only the HTTP status and Smithery's own error message are shown.
+          resp="$RUNNER_TEMP/smithery-link.json"
+          code="$(curl -sS --max-time 20 -o "$resp" -w '%{http_code}' -X PATCH \
+            -H "Authorization: Bearer ${SMITHERY_API_KEY}" \
+            -H 'content-type: application/json' --data "$body" "https://api.smithery.ai/servers/${enc}")"
+          if [ "$code" = 200 ] && grep -q '"success":true' "$resp"; then
+            rm -f "$resp"
+            echo "The listing links https://github.com/${GITHUB_REPOSITORY}."
+          else
+            msg="$(node -e 'let j={};try{j=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"))}catch{};const m=j.error?.message??j.error??j.message??"(no message)";process.stdout.write(String(m).slice(0,200))' "$resp")"
+            rm -f "$resp"
+            echo "Smithery did not accept the repository link: HTTP ${code}, ${msg}" >&2
+            exit 1
+          fi
+
+      # The release reached SUCCESS on Smithery's side; now check what a person sees.
+      # The PUBLIC registry entry must list exactly this release's tools (names and
+      # descriptions), prompts and resources, as the catalogue.json shipped at this tag
+      # states them. Checked out at the tagged commit, with no credentials kept, and
+      # no secret in this step's environment.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify the public listing shows this release
+        run: node scripts/verify-smithery.mjs "$SMITHERY_SERVER" catalogue.json 300

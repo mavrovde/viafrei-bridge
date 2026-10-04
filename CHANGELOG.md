@@ -5,6 +5,24 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- **The npm workflow is named `npm`, and it verifies its own publish.** "Publish" no
+  longer says where, now that the `Smithery` workflow publishes too; the file stays
+  `publish.yml`, which npm's trusted publisher is configured against. After `npm
+  publish`, `scripts/verify-published.mjs` reads the registry past both caches until
+  the version is served, then asserts `latest`, provenance, `repository.url` and the
+  tarball, so a release that did not land fails the run and Smithery does not start.
+  Its offline self-test runs in CI.
+- **The Smithery workflow verifies the public listing.** After the release reaches
+  `SUCCESS`, `scripts/verify-smithery.mjs` reads the public registry entry (no key)
+  until it lists exactly the tools, with their descriptions, the prompts and the
+  resources of the `catalogue.json` shipped at the tag. Its offline self-test runs
+  in CI.
+- **The Smithery workflow sets the listing's repository link** to the repository it
+  runs in (and the homepage to viafrei.de) on every release. A publish re-scans the
+  server but does not carry these, and the team listing had none after the move.
+
 ## [1.7.0] - 2026-10-04
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it

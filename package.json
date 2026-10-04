@@ -90,6 +90,8 @@
     "test:freshness": "node scripts/probe-freshness.test.mjs",
     "propose:release": "node scripts/propose-release.mjs",
     "test:propose": "node scripts/propose-release.test.mjs",
+    "test:verify": "node scripts/verify-published.test.mjs",
+    "test:verify-smithery": "node scripts/verify-smithery.test.mjs",
     "rules:show": "node scripts/show-rules.mjs"
   },
   "dependencies": {

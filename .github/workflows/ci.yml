@@ -159,6 +159,16 @@ jobs:
       - name: Version-gate self-test
         run: npm run test:versions
 
+      # The publish verifier proves a release landed; this proves it can say NO for
+      # each property it asserts, and that every read defeats both caches. Offline.
+      - name: Publish-verifier self-test (offline)
+        run: npm run test:verify
+
+      # The same for the Smithery listing verifier: each comparison can say NO,
+      # a non-200 or non-JSON answer is never a match, every read defeats both caches.
+      - name: Smithery-listing verifier self-test (offline)
+        run: npm run test:verify-smithery
+
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that
       # connects. Any occurrence outside an assertion fails the build.
