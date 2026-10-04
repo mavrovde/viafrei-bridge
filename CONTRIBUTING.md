@@ -62,8 +62,9 @@ npm run check:sources   # the counts SOURCES.md states agree with catalogue.json
 
 Each `check:*` above that renders or reads a document has a `test:*` self-test
 beside it (`test:docs`, `test:readme`, `test:sources`, `test:versions`), and the
-release tooling has three more that run against local stubs (`test:probe`,
-`test:freshness`, `test:propose`).
+release tooling has five more that run against local stubs or injected fetches
+(`test:probe`, `test:freshness`, `test:propose`, and the two release verifiers,
+`test:verify` for npm and `test:verify-smithery` for the Smithery listing).
 
 **API.md and the README's catalogue section are generated.** Do not edit them
 by hand: change `catalogue.json` (which a release re-captures from the running
