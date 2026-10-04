@@ -26,8 +26,11 @@ You do not need a template. Three things carry almost all the signal:
 1. **What you asked**, in the words you used. German or English, exactly as typed.
 2. **What came back**, pasted. If it was an error, the whole line.
 3. **Which client and transport** — Streamable HTTP at `https://mcp.viafrei.de/mcp`,
-   the older HTTP+SSE at `https://mcp.viafrei.de/sse`, or this stdio bridge through
-   `npx viafrei`.
+   the older HTTP+SSE at `https://mcp.viafrei.de/sse`, this stdio bridge through
+   `npx viafrei` (the npm package [`viafrei`](https://www.npmjs.com/package/viafrei)),
+   or the hosted connection on [Smithery](https://smithery.ai/servers/viafrei/viafrei).
+   If you found ViaFrei through its [Glama listing](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge),
+   say which of these you then connected with.
 
 If the answer was *wrong* rather than missing, say what the right answer was and
 how you know. A wrong answer with a correction attached usually turns into a fix;

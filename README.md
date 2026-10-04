@@ -2,12 +2,15 @@
 
 # ViaFrei
 
+[![smithery badge](https://smithery.ai/badge/viafrei/viafrei)](https://smithery.ai/servers/viafrei/viafrei)
+[![npm](https://img.shields.io/npm/v/viafrei)](https://www.npmjs.com/package/viafrei)
+[![Glama](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge/badge)](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge)
+
 ### Germany's traffic, trains, charging and roads — in your AI assistant.
 
 **Ask in plain words. Get the live answer, with its source.**
 
 [![website](https://img.shields.io/badge/viafrei.de-live-0b5fff?logo=googlechrome&logoColor=white)](https://viafrei.de/en)
-[![npm](https://img.shields.io/npm/v/viafrei?color=cb3837&label=npm&logo=npm)](https://www.npmjs.com/package/viafrei)
 [![node](https://img.shields.io/node/v/viafrei?logo=node.js&logoColor=white)](https://nodejs.org)
 [![licence](https://img.shields.io/npm/l/viafrei?color=blue)](LICENSE)
 [![no API key](https://img.shields.io/badge/API%20key-none-brightgreen)](#-connect-in-one-minute)
@@ -29,10 +32,12 @@ Type 2 charger is (and whether it is free, where the operator publishes that)
 and whether the lift at your station works — from official
 German open data, live, with the source named in every answer.
 
-> **New in 1.6:** [viafrei.de](https://viafrei.de/en) is a real site now, in
-> **seven languages** — Deutsch, English, Русский, Български, Українська,
-> Română, Türkçe — with the live figures on the front page and a one-minute
-> guide for every assistant.
+> **New in 1.7:** the front page of [viafrei.de](https://viafrei.de/en) gains
+> three everyday moments — **stuck in traffic, finding places, tell me when** —
+> nine in all, each with questions you can copy and today's live figure beside
+> them, in **seven languages** (Deutsch, English, Русский, Български,
+> Українська, Română, Türkçe). The questions are in the table below. The tools
+> themselves are the same twenty as in 1.6.
 
 ---
 
@@ -46,13 +51,24 @@ comes back in the language you asked in.
 |---|---|
 | 🌅 **about to commute** | *Fahren Busse und Bahnen in Bayern gerade pünktlich?* · *When does the next train leave Hamburg Hbf?* |
 | 🚗 **about to drive** | *Gibt es Stau auf der A8?* · *Are there roadworks on the A7 next week?* · *Is the A1 closed anywhere?* |
+| 🚧 **stuck in traffic** | *How much time is the jam on the A3 between Frankfurt and Würzburg costing right now?* · *Is traffic backed up on the Cologne motorway ring — A1, A3 or A4?* · *Ist der Elbtunnel auf der A7 heute Nacht gesperrt?* |
 | ⚡ **driving electric** | *Where can I charge with Type 2 near Leipzig?* · *Wo gibt es einen Schnelllader mit 150 kW bei Nürnberg?* |
 | 🅿️ **driving a lorry** | *Find a rest area with lorry parking on the A9* · *Wo ist der nächste Lkw-Parkplatz an der A7?* |
 | ♿ **travelling step-free** | *Funktioniert der Aufzug am Bahnhof Köln Messe/Deutz?* |
 | 🌦️ **watching the weather** | *Gibt es eine Unwetterwarnung für Freiburg?* |
-| 📍 **somewhere new** | *What is at 52.5163, 13.3777?* · *Wo ist die nächste Apotheke am Leipziger Hauptbahnhof?* |
+| 📍 **looking for a place** | *What is the address of the Elbphilharmonie in Hamburg?* · *Welche Apotheken gibt es in Fulda?* · *My satnav shows 50.1109, 8.6821 — what address is that?* |
 | 🇩🇪 **new to German roads** | *Do I need an emission sticker for Stuttgart?* · *Is there a speed limit on the Autobahn?* |
-| ⏳ **waiting for news** | *Tell me when the A8 reopens* — the server watches and tells your assistant when it changes |
+| ⏳ **waiting for news** | *Tell me as soon as the closure on the A7 is lifted.* · *Sag mir Bescheid, wenn in Köln ein Viertel oder mehr der Bus- und Bahnfahrten verspätet ist.* · *Warn me when a DWD severe-weather warning comes into force for Cologne.* |
+
+**What the answers cover, honestly.** Traffic is the motorways and federal
+roads: in cities that means the urban motorways, not the streets in between.
+Places and addresses come from OpenStreetMap, so what is not mapped there cannot
+be found, and opening hours and ratings are not part of it. A **watch** lives in
+the conversation that opened it: the server keeps every change there, and your
+assistant shows it when you ask, or on its own if your client supports MCP
+notifications. Nothing is sent by e-mail or SMS. Up to 10 watches per
+conversation, each for up to 24 hours (3 by default), and a road is watched as a
+whole, not one section of it.
 
 ## 💬 Real answers
 
@@ -188,21 +204,32 @@ negotiate. Step-by-step guides for each assistant:
 claude mcp add --transport http viafrei https://mcp.viafrei.de/mcp
 ```
 
-**Claude, ChatGPT and other apps that take a connector URL** — add a custom connector with this address:
+**Claude (desktop app and claude.ai), ChatGPT and other apps that take a connector URL** —
+add a custom connector with this address (in Claude: Settings → Connectors → *Add custom connector*;
+in ChatGPT the connector settings need developer mode):
 ```
 https://mcp.viafrei.de/mcp
 ```
 
-**Cursor, VS Code, Windsurf and any client with an `mcpServers` file**, over HTTP:
+**Cursor, and any client with an `mcpServers` file that takes a `url`**, over HTTP:
 ```json
 { "mcpServers": { "viafrei": { "url": "https://mcp.viafrei.de/mcp" } } }
 ```
 
-**Clients that speak only stdio**, such as Claude Desktop's config file. That is what this package is for:
+**VS Code** (`.vscode/mcp.json`, or *MCP: Add Server* from the command palette):
+```json
+{ "servers": { "viafrei": { "type": "http", "url": "https://mcp.viafrei.de/mcp" } } }
+```
+
+**Clients that speak only stdio** — for example Claude Desktop's config file
+(`claude_desktop_config.json`, opened from Settings → Developer → *Edit Config*).
+That is what this package is for:
 ```json
 { "mcpServers": { "viafrei": { "command": "npx", "args": ["-y", "viafrei"] } } }
 ```
-Node 22 or newer. `npx` fetches the bridge when your client starts it.
+Node 22 or newer. `npx` fetches the bridge when your client starts it. If the
+file already has an `mcpServers` block, add the `"viafrei"` entry inside it
+rather than pasting a second block.
 
 **An older client on HTTP+SSE** is answered too, at `https://mcp.viafrei.de/sse`.
 The transport is deprecated in the specification, so prefer the address above
@@ -212,6 +239,16 @@ claude mcp add --transport sse viafrei https://mcp.viafrei.de/sse
 ```
 
 Restart the client and ask one of the questions above.
+
+### Where to find ViaFrei
+
+- **npm — [`viafrei`](https://www.npmjs.com/package/viafrei).** This package:
+  the stdio bridge, for the config line above. Its page shows the current
+  version and this README.
+- **Smithery — [smithery.ai/servers/viafrei/viafrei](https://smithery.ai/servers/viafrei/viafrei).**
+  Connect through Smithery's hosted connection, with no local install.
+- **Glama — [glama.ai/mcp/servers/mavrovde/viafrei-bridge](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge).**
+  The directory listing for this repository, with the tool list.
 
 ## 🧰 Everything it can do
 
@@ -359,8 +396,13 @@ curl -s https://mcp.viafrei.de/mcp \
   reference shelf (driving rules, emission zones, emergency numbers,
   attribution) your assistant can read directly.
 - **Watches.** `watch_situation` turns polling into a notification for as long
-  as the session lives. Three hours by default, and 24 is the longest one can be
-  asked to run. It reaches no inbox and no phone.
+  as the session lives: a road closure appearing or clearing, a stop's departures
+  running late, a region's late share reaching a threshold (a quarter by
+  default), a DWD warning coming into force, a charge point turning free. Three
+  hours by default, 24 at most, and at most 10 per session. What a watch has
+  reported is readable at `viafrei://watches` and `viafrei://watch/{id}`, and a
+  client that subscribes to that resource is told when it reports something new.
+  It reaches no inbox and no phone.
 - **Machine-readable failures**, in the bridge too: one line on stderr and a
   distinct exit code per cause (see below).
 
@@ -481,7 +523,7 @@ See also [NOTICE](NOTICE) and [LICENSE](LICENSE).
 ViaFrei is live, free, and still growing. Some sources are thinner than they will
 be, and a tool can be slow or wrong. **A tool that fails is something the server
 sees. A tool that answers confidently with the wrong thing is not.** Use the
-[*the answer was wrong or useless*](https://github.com/mavrovde/viafrei-bridge/issues)
+[*A tool answered badly, or not at all*](https://github.com/mavrovde/viafrei-bridge/issues/new?template=answer.yml)
 issue template, saying what you asked and what came back. That report is the
 one thing we cannot get any other way.
 
