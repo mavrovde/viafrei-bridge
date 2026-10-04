@@ -111,8 +111,13 @@ jobs:
             exit 2
           fi
           date -u +%Y-%m-%dT%H:%M:%SZ > "$RUNNER_TEMP/started"
-          npm exec --yes --package="@smithery/cli@${SMITHERY_CLI_VERSION}" -- \
-            smithery mcp publish "$MCP_URL" -n "$SMITHERY_SERVER" | tee "$RUNNER_TEMP/publish.out"
+          # Installed with --ignore-scripts into a throwaway prefix and run by
+          # path: `npm exec` could install on demand and run lifecycle scripts
+          # in a job that holds the key (SonarCloud githubactions:S6505).
+          npm install --no-save --no-audit --no-fund --ignore-scripts \
+            --prefix "$RUNNER_TEMP/smithery-cli" "@smithery/cli@${SMITHERY_CLI_VERSION}"
+          "$RUNNER_TEMP/smithery-cli/node_modules/.bin/smithery" \
+            mcp publish "$MCP_URL" -n "$SMITHERY_SERVER" | tee "$RUNNER_TEMP/publish.out"
           id="$(grep -Eo '"deploymentId":"[0-9a-f-]{36}"' "$RUNNER_TEMP/publish.out" | head -1 | cut -d'"' -f4 || true)"
           if [ -z "$id" ]; then
             echo "The CLI printed no deploymentId — cannot prove a release was created." >&2
