@@ -169,6 +169,13 @@ jobs:
       - name: Smithery-listing verifier self-test (offline)
         run: npm run test:verify-smithery
 
+      # The release page's body, title and Latest come out of CHANGELOG.md through
+      # scripts/release-notes.mjs. This proves a missing or empty block is a refusal
+      # naming the tag, that 1.7.1 never reads 1.7.10's block, and that this tree's
+      # own CHANGELOG can back a page for the version it carries. Offline.
+      - name: Release-notes extractor self-test (offline)
+        run: npm run test:release-notes
+
       # The public endpoint may be *asserted about* - one test checks that the
       # default really is it - but it may never be handed to something that
       # connects. Any occurrence outside an assertion fails the build.
