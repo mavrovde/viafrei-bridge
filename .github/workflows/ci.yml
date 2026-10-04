@@ -153,6 +153,13 @@ jobs:
       - name: Release proposer self-test (offline, two local stubs)
         run: npm run test:propose
 
+      # The automatic release path's decisions: only a pure mirror is merged without a
+      # person, a red or still-pending required check never merges, a read that failed
+      # is never green, and the workflow waits before it merges and tags after.
+      # Offline: pure functions and a GitHub API stub on loopback.
+      - name: Automatic-release decisions self-test (offline, loopback stub)
+        run: npm run test:auto-release
+
       # The version gate above compares three fields. This proves it can say NO, with
       # the mutant #18 asks for, and that "could not read the lockfile" (exit 2) never
       # looks like "read it and was satisfied" (exit 0).

@@ -14,6 +14,10 @@ name: Release page
 # it is left exactly as it is and the run says so. A missing or empty block is a
 # failure naming the tag, never an empty page.
 #
+# The Version sync workflow's automatic path dispatches this with `tag` once
+# the npm run it dispatched has concluded success; the workflow_run trigger
+# below ignores a dispatched npm run, so that never runs twice.
+#
 # Order: runs only after the npm workflow concluded SUCCESS for a tag push — its
 # last step is scripts/verify-published.mjs — and verifies the registry again
 # itself, so a manual dispatch is held to the same rule. A failure here cannot

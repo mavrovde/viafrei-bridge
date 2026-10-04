@@ -209,6 +209,24 @@ for (const list of LISTS) {
     }
 }
 
+// The fields of `initialize` the snapshot ships besides the lists. `--write` rewrites
+// all three, and `gen-api-doc.mjs` renders all three into API.md, which is in the npm
+// tarball — the instructions verbatim. So a change to any of them is a change to what
+// ships, and is the SURFACE moving, never merely the version. Compared with sorted keys,
+// so a server reordering an object is not a change; an absent field on either side is.
+const INIT_FIELDS = Object.freeze(['protocolVersion', 'capabilities', 'instructions']);
+const canonical = value => JSON.stringify(value, (key, inner) => (
+    inner !== null && typeof inner === 'object' && !Array.isArray(inner)
+        ? Object.fromEntries(Object.keys(inner).sort().map(name => [name, inner[name]]))
+        : inner
+));
+for (const field of INIT_FIELDS) {
+    if (canonical(init.result[field]) !== canonical(stored[field])) {
+        differences.push(`${field}: the server's initialize answer differs from the snapshot's`);
+        surfaceMoved = true;
+    }
+}
+
 const versionMoved = stored.serverInfo?.version !== live.serverInfo.version;
 if (versionMoved) {
     differences.push(`serverInfo.version: the snapshot says ${stored.serverInfo?.version}, the server says ${live.serverInfo.version}`);
@@ -247,8 +265,9 @@ if (differences.length === 0) {
 console.error('');
 if (surfaceMoved) {
     console.error('probe-catalogue: FAIL - the snapshot is WRONG about this server, not merely dated.');
-    console.error('  The surface itself differs, so the shipped reference describes tools, resources or');
-    console.error('  prompts the server does not have, or omits ones it does. Re-capture before cutting.');
+    console.error('  The surface itself differs, so the shipped reference describes tools, resources,');
+    console.error('  prompts, instructions, capabilities or a protocol version the server does not have,');
+    console.error('  or omits ones it does. Re-capture before cutting.');
 } else {
     console.error('probe-catalogue: FAIL - the snapshot is DATED. The surface is unchanged; only the');
     console.error('  version or the capture date has moved. Re-capturing is a version string, and saying');

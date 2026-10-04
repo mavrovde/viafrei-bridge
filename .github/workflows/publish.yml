@@ -16,7 +16,10 @@ name: npm
 # that is about to be uploaded. The order is the point - a gate that runs after
 # the upload is a report, not a gate, and npm versions are immutable.
 #
-# Triggered only by a tag the owner pushes. Nothing here runs on a branch.
+# Triggered by a tag push, or - for a pure-mirror release - dispatched on the
+# tag ref by the Version sync workflow, because a tag pushed with GITHUB_TOKEN
+# starts no workflow run. Either way the ref is the tag and every gate below
+# runs. Nothing here publishes from a branch.
 
 on:
   push:

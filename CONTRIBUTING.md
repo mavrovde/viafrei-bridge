@@ -62,10 +62,106 @@ npm run check:sources   # the counts SOURCES.md states agree with catalogue.json
 
 Each `check:*` above that renders or reads a document has a `test:*` self-test
 beside it (`test:docs`, `test:readme`, `test:sources`, `test:versions`), and the
-release tooling has six more that run against local stubs, injected fetches or
-fixture files (`test:probe`, `test:freshness`, `test:propose`, the two release
-verifiers, `test:verify` for npm and `test:verify-smithery` for the Smithery
-listing, and `test:release-notes` for the release page).
+release tooling has seven more that run against local stubs, injected fetches or
+fixture files (`test:probe`, `test:freshness`, `test:propose`, `test:auto-release`
+for the automatic release path, the two release verifiers, `test:verify` for npm
+and `test:verify-smithery` for the Smithery listing, and `test:release-notes` for
+the release page).
+
+### How a release happens
+
+This package carries the version of the hosted server it relays to. The `Version
+sync` workflow (`.github/workflows/version-sync.yml`) compares the running server,
+the registry and `main` every hour (minute 30; one `initialize` and the four list
+calls, never a tool call). When the server is ahead, it prepares the release with
+`scripts/propose-release.mjs` and opens a `release/X.Y.Z` pull request. What
+happens next depends on one decision, made by `scripts/auto-release.mjs decide`:
+
+- **A pure mirror is released automatically.** The probe found the surface
+  unchanged, every offline gate passed and the leak sweep is clean. The workflow
+  waits for the pull request's required checks (`build-and-test (22)`,
+  `build-and-test (24)`, `SonarCloud Code Analysis`) for at most 30 minutes,
+  merges it with a merge commit pinned to the head it checked, pushes the
+  annotated tag `vX.Y.Z` on the merge commit, then dispatches the `npm` workflow
+  on the tag and waits for it to succeed, then dispatches `Smithery` and `Release
+  page`. A red check, a check still pending at the deadline, a pull request a
+  person has touched in the meantime, or any later failure ends the run red with
+  the reason, and the message says what has already happened at that stage. Nothing
+  is merged on red or pending. A pull request left unmerged waits for a person, who
+  finishes it the manual way below; a stage that failed after the merge is recovered
+  as described under "Recovering a release that stopped halfway".
+- **Anything else is a person's.** A changed surface, a probe report that could not
+  be classified, a failed gate or a leak
+  finding opens the pull request as a draft (or a ready pull request for a
+  person) and the workflow stops. Review it, write what the change means in the
+  CHANGELOG block, merge with a merge commit, then `git tag vX.Y.Z <merge sha>`
+  and push the tag on its own. The tag push starts `npm`, and `npm`'s success
+  starts `Smithery` and `Release page`.
+
+Why the automatic path dispatches the three workflows instead of letting the tag
+start them: a tag pushed with `GITHUB_TOKEN` starts no workflow, because GitHub
+creates no new runs for events caused by that token, apart from
+`workflow_dispatch` and `repository_dispatch`. `Smithery` and `Release page` act on
+a `workflow_run` of `npm` only when that run was a tag **push**, so a dispatched
+`npm` run never starts them a second time.
+
+"Unchanged" means the catalogue probe reported the snapshot DATED, read positively:
+exit 0, or exit 1 with the DATED report and without the WRONG one. Any other report
+(reworded, an undocumented exit code, a crash) is `unclassified` and goes to a
+person, like a changed surface. The surface includes the server's instructions,
+capabilities and protocol version as well as the tool, resource, template and prompt
+lists, because API.md renders all of them and ships in the tarball.
+
+If the required checks of `main` change, change `REQUIRED_CHECKS` in the
+workflow's `release` job too. Each entry is `name@app-slug`, matched the way branch
+protection matches it: the two CI jobs come from `github-actions` and the analysis
+from `sonarqubecloud`, and a check of the same name from another app does not count.
+The workflow cannot read branch protection itself, and GitHub's own protection
+still refuses a merge with a required check missing.
+
+**What a merge by the workflow does not get.** A merge made with `GITHUB_TOKEN` starts
+no `push` run, so `main`'s merge commit gets no CI run. Whether SonarCloud's automatic
+analysis of `main` follows such a merge has not been checked here. This is accepted
+because the tree was green on the pull request and `publish.yml` runs every gate again
+against the tag before it uploads anything.
+
+**Things that have not been checked yet:**
+
+- *npm trusted publishing from a dispatched run.* The trusted publisher is matched on
+  the repository, the workflow file name (`publish.yml`) and the `npm` environment.
+  It has no field for the ref or the event. npm's documentation
+  (docs.npmjs.com/trusted-publishers) warns that with `workflow_call`, "or
+  workflow_dispatch", validation may check the calling workflow's name. Here
+  `publish.yml` itself is dispatched, not called from another file, so the name should
+  match. No release has yet been published from a dispatched run (every one so far
+  came from a pushed tag). The first automatic release is the first time this path
+  runs. If it fails, the recovery below applies.
+- *Who `mergedBy` names when the workflow merges.* The stuck-release check accepts
+  `github-actions`, `github-actions[bot]` and `app/github-actions`.
+- *Approving the held CI run.* For a pull request opened with `GITHUB_TOKEN`, GitHub
+  holds the CI run until it is approved. The workflow approves it with the same token,
+  and that call is known to work: the Version sync run that opened #53 logged the
+  approval. Whether the held run blocks the merge, or whether a dispatched CI run
+  simply does not count, was seen once (#40) and not told apart. Approving it covers
+  both cases.
+
+**Recovering a release that stopped halfway.** Each failure message says which stage
+it stopped at. The hourly run also turns red, with the fix, while the release stays
+stuck:
+
+- *Red before the merge* (a check red, or still pending after 30 minutes). Nothing was
+  merged. Finish by hand: merge with a merge commit, then tag.
+- *Merged but not tagged.* The next hourly run reports it. Tag the merge commit
+  (`git tag -a vX.Y.Z <merge sha>`) and push the tag yourself. A tag pushed by a person
+  starts `npm`, and `npm`'s success starts `Smithery` and `Release page`.
+- *Tagged, but npm did not publish.* The next hourly run reports it. Re-run the
+  failed job of that Version sync run, or dispatch `publish.yml` on the tag with
+  `dry_run=false`. Once npm serves the version, dispatch `smithery.yml` (input
+  `version`) and `release-page.yml` (input `tag`) by hand. Their `workflow_run` trigger
+  skips an npm run that was dispatched rather than started by a tag push, so they will
+  not start on their own.
+- *npm published, Smithery or the release page failed.* Dispatch the one that failed,
+  with the same input.
 
 ### Release pages are written from the CHANGELOG
 

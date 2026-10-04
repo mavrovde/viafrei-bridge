@@ -7,6 +7,26 @@ a Changelog and the versions follow Semantic Versioning.
 
 ### Added
 
+- **A pure mirror releases itself.** When the `Version sync` proposal only mirrors
+  the server (surface unchanged, every offline gate passed, leak sweep clean), the
+  workflow now waits for the pull request's required checks (CI and SonarCloud, at
+  most 30 minutes), merges it with a merge commit, tags `vX.Y.Z` on the merge
+  commit, dispatches the `npm` workflow on the tag, and after npm succeeds
+  dispatches `Smithery` and `Release page`. The dispatches are needed because a tag
+  pushed with `GITHUB_TOKEN` starts no workflow. A red or still-pending check
+  merges nothing and leaves the pull request for a person; a changed surface is
+  still a draft for a person, as before. The decisions live in
+  `scripts/auto-release.mjs`, and its offline self-test runs in CI. Each job asks
+  only for the permissions it uses, and the workflow grants nothing at the top level.
+  Required checks are matched by name and reporting app. A release that stopped
+  halfway (tagged but not on npm, or merged by the workflow but not tagged) turns
+  the next hourly run red with its remedy, instead of reading as "awaiting tag";
+  CONTRIBUTING describes each recovery.
+- **The catalogue probe treats the server's instructions, capabilities and protocol
+  version as surface.** All three ship in API.md, so a change to any of them is now
+  reported WRONG, not DATED. The proposer reads DATED positively: exit 0, or exit 1
+  with the DATED report and not the WRONG one. Any other report is a new
+  `unclassified` verdict, which opens a draft and never takes the automatic path.
 - **Release pages are written from the CHANGELOG.** A new `Release page` workflow
   runs after the tag's npm run succeeds, verifies again that npm serves the version,
   and creates the GitHub release page: the body is the tag's `## [X.Y.Z]` block, the
@@ -21,6 +41,9 @@ a Changelog and the versions follow Semantic Versioning.
 
 ### Changed
 
+- **Version sync runs every hour instead of every six,** at minute 30, so it never
+  reads the server in the same minute as `Freshness`. Each run is still one
+  `initialize` and the four list calls, with no tool call.
 - **The npm workflow is named `npm`, and it verifies its own publish.** "Publish" no
   longer says where, now that the `Smithery` workflow publishes too; the file stays
   `publish.yml`, which npm's trusted publisher is configured against. After `npm
