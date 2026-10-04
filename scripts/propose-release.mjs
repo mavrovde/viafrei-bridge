@@ -12,15 +12,18 @@
  * CHANGELOG block, run the gates — so it is done here, by the `Version sync` workflow,
  * and lands as a pull request.
  *
- * WHAT IT WILL NOT DO, and this is the design rather than a limit: it does not merge,
- * tag or publish. Three reasons, each sufficient on its own. The merge needs a reviewer
- * verdict covering HEAD, which a bot merging through the API would simply bypass. An npm
- * version is immutable, so a wrong one can never be reissued under that number. And when
- * the server's SURFACE changed — not just its number — the release note needs a sentence
- * about what the change means, which nothing here can write: the 1.4.9 cut carried a
- * licence-relevant fix for exactly that case (a second fuel tool the sources page had not
- * named). So the output is a branch and a pull request, and the three remaining acts are
- * a person's: the verdict, the merge, the tag. The tag then publishes, as it always has.
+ * WHAT IT WILL NOT DO, and this is the design rather than a limit: this script never
+ * merges, tags or publishes. When the server's SURFACE changed — not just its number —
+ * the release note needs a sentence about what the change means, which nothing here can
+ * write: the 1.4.9 cut carried a licence-relevant fix for exactly that case (a second fuel
+ * tool the sources page had not named). An npm version is immutable, so a wrong one can
+ * never be reissued under that number. So the output is a branch and a pull request.
+ *
+ * What happens to that pull request is the workflow's decision (owner, 2026-10-04): a
+ * PURE MIRROR — surface unchanged, every gate here passed, the leak sweep clean — is
+ * merged, tagged and published by the `Version sync` workflow once its required checks
+ * are green (`scripts/auto-release.mjs` holds those decisions). Anything else stays a
+ * person's: the verdict, the merge, the tag.
  *
  *   node scripts/propose-release.mjs [--out <file>]                        # detect only
  *   node scripts/propose-release.mjs --prepare [--out <file>] [--body <file>] [--date YYYY-MM-DD]
@@ -252,16 +255,38 @@ async function bumpManifest(live) {
 }
 
 /**
- * Re-capture the snapshot and read the probe's own verdict off its report. The report
- * is the probe's contract, not a log: WRONG means the surface moved and a person must
- * describe it, DATED means only the number did. Exit 0 (the snapshot already matched)
- * is treated as DATED, because nothing on the surface moved either way.
+ * The probe's verdict, read POSITIVELY off its report. `dated` only on exit 0 (the
+ * snapshot already matched) or on exit 1 carrying the DATED sentence and not the WRONG
+ * one; `wrong` only on exit 1 carrying the WRONG sentence and not the DATED one. Every
+ * other shape — a reworded line, both sentences, neither, an exit code the probe does not
+ * document, a crash after the write — is `unclassified`. That matters because `dated`
+ * is the one verdict the automatic release path acts on: it used to be the DEFAULT, so
+ * anything the probe printed that was not the exact WRONG sentence counted as
+ * "nothing a reader sees has changed".
+ */
+const PROBE_WRONG = 'the snapshot is WRONG about this server';
+const PROBE_DATED = 'the snapshot is DATED';
+
+function classifyProbe(status, stderr) {
+    const wrong = stderr.includes(PROBE_WRONG);
+    const dated = stderr.includes(PROBE_DATED);
+    if (status === 0) return 'dated';
+    if (status === 1 && dated && !wrong) return 'dated';
+    if (status === 1 && wrong && !dated) return 'wrong';
+    return 'unclassified';
+}
+
+/**
+ * Re-capture the snapshot and read the probe's own verdict off its report (above). The
+ * report is the probe's contract, not a log: WRONG means the surface moved and a person
+ * must describe it, DATED means only the number did, and anything else means nobody
+ * knows which, so a person must look.
  */
 async function recapture(live) {
     const capturedBefore = readJson('catalogue.json').capturedAt;
     const probe = await runScript('probe-catalogue.mjs', ['--write']);
     if (probe.status === 2) refuse(`the catalogue probe could not re-capture the server:\n${tail(probe.stderr)}`);
-    const wrong = /the snapshot is WRONG about this server/u.test(probe.stderr);
+    const verdict = classifyProbe(probe.status, probe.stderr);
     const differences = [...probe.stderr.matchAll(/^ {2}! (.+)$/gmu)]
         .map(match => match[1])
         .filter(line => !line.startsWith('serverInfo.version:'));
@@ -269,7 +294,13 @@ async function recapture(live) {
     if (after.serverInfo?.version !== live) refuse(`the probe rewrote catalogue.json, but its serverInfo.version is ${after.serverInfo?.version}, not ${live}`);
     // Two releases on one day leave the capture date where it was, and with every patch
     // mirrored that is the normal path, not a coincidence: the lead says so only when it is so.
-    return { verdict: wrong ? 'wrong' : 'dated', differences, captureMoved: after.capturedAt !== capturedBefore };
+    return {
+        verdict,
+        differences,
+        captureMoved: after.capturedAt !== capturedBefore,
+        probeStatus: probe.status,
+        probeTail: tail(`${probe.stdout}\n${probe.stderr}`, 20)
+    };
 }
 
 async function regenerateReference() {
@@ -302,16 +333,25 @@ function wrap(text, indent = '') {
     return lines;
 }
 
-function lead({ live, npm, verdict, differences, captureMoved }) {
+const SURFACE_WORD = Object.freeze({ wrong: '**CHANGED**', dated: '**unchanged**', unclassified: '**UNCLASSIFIED**' });
+
+function lead({ live, npm, verdict, differences, captureMoved, probeStatus }) {
     const datedTail = ` — ${captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay}.`;
+    const tails = {
+        wrong: ' — the automation knows what moved, not what it means:',
+        dated: datedTail,
+        unclassified: ` — its report (exit ${probeStatus}) was not one this script recognises, so nobody knows yet whether the surface moved.`
+    };
     const lines = wrap(
         `**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it relays to. ` +
         `The running server reports ${live} while the registry's latest is ${npm}, so this release moves the ` +
         `package to the server's number and carries whatever had been waiting under \`[Unreleased]\`. Prepared by ` +
         `the \`Version sync\` workflow: the shipped reference was re-captured from the running server, and the ` +
-        `probe reported the surface ${verdict === 'wrong' ? '**CHANGED**' : '**unchanged**'}` +
-        (verdict === 'wrong' ? ' — the automation knows what moved, not what it means:' : datedTail)
+        `probe reported the surface ${SURFACE_WORD[verdict]}` + tails[verdict]
     );
+    if (verdict === 'unclassified') {
+        lines.push('', ...wrap('**A person must compare the surface by hand before this merges.** The pull request carries the probe\'s output.'));
+    }
     if (verdict === 'wrong') {
         lines.push(
             '',
@@ -383,9 +423,11 @@ function gateVerdict(gate) {
 function pullRequestBody(reading, date, gates, waitingLines) {
     const failed = gates.filter(gate => gate.status !== 0);
     const surfaceTail = reading.captureMoved ? DATED_MOVED.withDate : DATED_MOVED.sameDay;
-    const surface = reading.verdict === 'wrong'
-        ? `**CHANGED** — ${reading.differences.length} difference(s), listed below`
-        : `**unchanged** — ${surfaceTail}`;
+    const surface = {
+        wrong: `**CHANGED** — ${reading.differences.length} difference(s), listed below`,
+        dated: `**unchanged** — ${surfaceTail}`,
+        unclassified: `**UNCLASSIFIED** — the probe's report (exit ${reading.probeStatus}) was not recognised; its output is below`
+    }[reading.verdict];
     const out = [
         `Prepared by the **Version sync** workflow. The running server reports **${reading.live}**, the registry's ` +
         `\`latest\` is **${reading.npm}**, and \`main\` carried ${reading.manifest}.`,
@@ -422,16 +464,51 @@ function pullRequestBody(reading, date, gates, waitingLines) {
             ''
         );
     }
-    out.push(
-        '## What it did not do, and will not',
-        '',
-        'It opened this pull request and nothing else. The verdict, the merge and the tag are a person\'s:',
-        '',
+    if (reading.verdict === 'unclassified') {
+        out.push(
+            '## The probe\'s verdict could not be read — compare the surface by hand',
+            '',
+            'Neither the DATED nor the WRONG report came back in the shape this script reads, so it cannot say ' +
+            'whether anything a reader sees has changed. This is a draft for that reason alone.',
+            '',
+            '```',
+            reading.probeTail,
+            '```',
+            ''
+        );
+    }
+    const pure = failed.length === 0 && reading.verdict === 'dated';
+    const byHand = [
         '1. review, then the one post-mortem comment (`APPROVE` / `HEAD: <sha>` / `BASE: main`);',
         '2. merge — a merge commit, never a squash;',
-        `3. \`git tag v${reading.live} <merge sha>\` and push the tag alone. \`publish.yml\` does the rest.`,
+        `3. \`git tag v${reading.live} <merge sha>\` and push the tag alone. \`publish.yml\` does the rest.`
+    ];
+    if (pure) {
+        out.push(
+            '## What happens next: the automatic path',
+            '',
+            'This is a pure mirror — the surface is unchanged and every gate passed — so, unless the leak sweep ' +
+            'below says otherwise, the Version sync workflow finishes the release itself: it waits for this pull ' +
+            `request's required checks (CI and SonarCloud, at most 30 minutes), merges it with a merge commit, tags ` +
+            `\`v${reading.live}\` on the merge commit, and dispatches npm, then Smithery and the release page.`,
+            '',
+            'If a check is red, or still pending at the deadline, it merges nothing and stops red; this pull request ' +
+            'then waits for a person, who finishes it by hand:',
+            '',
+            ...byHand
+        );
+    } else {
+        out.push(
+            '## What it did not do, and will not',
+            '',
+            'It opened this pull request and nothing else. The verdict, the merge and the tag are a person\'s:',
+            '',
+            ...byHand
+        );
+    }
+    out.push(
         '',
-        `Opened as a ${failed.length > 0 || reading.verdict === 'wrong' ? '**draft**, because a gate failed or the surface changed' : 'ready pull request: every gate passed and the surface is unchanged'}.`
+        `Opened as a ${pure ? 'ready pull request: every gate passed and the surface is unchanged' : '**draft**, because a gate failed, the surface changed, or the probe could not say whether it did'}.`
     );
     return `${out.join('\n')}\n`;
 }
@@ -483,13 +560,13 @@ if (decision.state !== 'drift') {
 
 const date = options.date ?? new Date().toISOString().slice(0, 10);
 await bumpManifest(live);
-const { verdict, differences, captureMoved } = await recapture(live);
+const { verdict, differences, captureMoved, probeStatus, probeTail } = await recapture(live);
 await regenerateReference();
-const reading = { live, npm, manifest, verdict, differences, captureMoved };
+const reading = { live, npm, manifest, verdict, differences, captureMoved, probeStatus, probeTail };
 const waitingLines = cutChangelog(reading, date);
 const gates = await runGates();
 const gatesPass = gates.every(gate => gate.status === 0);
-const draft = !gatesPass || verdict === 'wrong';
+const draft = !gatesPass || verdict !== 'dated';
 
 for (const gate of gates) console.log(`  ${gate.status === 0 ? 'PASS' : 'FAIL'}  ${gate.name}`);
 console.log(`propose-release: PREPARED ${live} — surface ${verdict}, gates ${gatesPass ? 'pass' : 'FAIL'}, ${draft ? 'draft' : 'ready'}`);

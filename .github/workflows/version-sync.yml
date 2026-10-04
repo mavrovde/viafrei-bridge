@@ -11,31 +11,46 @@ name: Version sync
 # write the CHANGELOG block, run the offline gates — and this workflow pushes
 # the result as a branch and opens the pull request.
 #
-# WHAT IT WILL NOT DO, by design rather than by omission: merge, tag, or publish.
-# The merge needs a reviewer verdict covering HEAD, which a bot merging through
-# the API would bypass; an npm version is immutable, so a wrong one is forever;
-# and when the server's SURFACE changed, the release note needs a sentence
-# about what the change means, which nothing here can write. Those three acts
-# stay with a person. The tag then publishes, as it always has.
+# TWO PATHS, decided by `scripts/auto-release.mjs decide` (owner, 2026-10-04):
 #
+# - A PURE MIRROR — the probe found the surface unchanged, every offline gate
+#   passed and the leak sweep is clean — carries no sentence a person has to
+#   write. For that case only, the `release` job waits for the pull request's
+#   required checks (CI and SonarCloud) with a deadline, merges it with a merge
+#   commit pinned to the head it checked, and pushes an annotated tag on the
+#   merge commit; the `publish` job then dispatches npm, waits for it to
+#   conclude success, and dispatches Smithery and the release page. Anything not
+#   green ends the run red with the reason and leaves the pull request for a
+#   person. Nothing merges on red, on pending, or on a read that failed.
+# - ANYTHING ELSE — a changed surface, a probe report that could not be
+#   classified, a failed gate, a leak finding — is a
+#   pull request (a DRAFT when there is writing to do) and stops there: the
+#   verdict, the merge and the tag are a person's, because the release note
+#   needs a sentence about what the change means, and an npm version is
+#   immutable.
+#
+# WHY THE DISPATCHES. A tag pushed with GITHUB_TOKEN does not start publish.yml:
+# events caused by GITHUB_TOKEN create no new workflow runs, except
+# workflow_dispatch and repository_dispatch. So npm is dispatched explicitly on
+# the tag ref. Smithery and the release page normally follow npm through
+# workflow_run, and each of them only acts on an npm run whose event was a tag
+# PUSH, so a dispatched npm run never starts them twice: they are dispatched
+# explicitly too, once npm has concluded success.
+
 # Like `Freshness`, this reaches the network and is therefore on a schedule and
 # never on push: a drift is news about the service, not about a commit.
 
 on:
   schedule:
-    # Every six hours, offset half an hour from Freshness so the two never read
-    # the server in the same minute. One `initialize` plus the four list calls
-    # per run — no tool is invoked, which is a licence condition, not courtesy.
-    - cron: '30 */6 * * *'
+    # Hourly, at minute 30, so it never reads the server in the same minute as
+    # Freshness (minute 0 of every sixth hour). One `initialize` plus the four
+    # list calls per run — no tool is invoked, which is a licence condition, not
+    # courtesy.
+    - cron: '30 * * * *'
   workflow_dispatch:
 
-# Wider than every other workflow here, and each grant is used: `contents` to
-# push the branch, `pull-requests` to open the PR, `actions` to dispatch CI on
-# it (see the last step for why that is necessary).
-permissions:
-  contents: write
-  pull-requests: write
-  actions: write
+# Nothing at the top level; each job asks for exactly what it uses.
+permissions: {}
 
 concurrency:
   group: version-sync
@@ -45,6 +60,17 @@ jobs:
   sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # `contents` to push the branch, `pull-requests` to open the PR, `actions` to
+    # approve or dispatch CI on it (see the last step for why that is necessary).
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    outputs:
+      auto: ${{ steps.decide.outputs.auto }}
+      version: ${{ steps.prepare.outputs.version }}
+      pr: ${{ steps.open.outputs.pr }}
+      sha: ${{ steps.open.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -129,9 +155,37 @@ jobs:
           node scripts/propose-release.mjs --out "$RUNNER_TEMP/detect.env"
           cat "$RUNNER_TEMP/detect.env" >> "$GITHUB_OUTPUT"
 
+      # `awaiting-tag` is main carrying the server's version while npm does not. That
+      # is the normal pause between a person's merge and their tag — and also exactly
+      # what every hourly run reads after the automatic path stopped halfway, which
+      # used to end green saying "the tag is the missing step" while nothing would ever
+      # take it. Red, with the remedy, when the tag exists but npm lacks the version
+      # (a publish failed), or when the workflow token merged the release and no tag
+      # followed (the release job stopped between merge and tag). A read that fails
+      # here is a refusal, never "not stuck".
+      - name: Is an awaiting tag really a release stuck halfway?
+        if: steps.detect.outputs.state == 'awaiting-tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -eu
+          rc=0
+          git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null || rc=$?
+          case "$rc" in
+            0) tag_exists=true ;;
+            2) tag_exists=false ;;
+            *) echo "Could not ask origin whether v${VERSION} exists (git exit ${rc})." >&2; exit 2 ;;
+          esac
+          if ! merged_by="$(gh pr list --head "release/${VERSION}" --base main --state merged --json mergedBy --jq '.[0].mergedBy.login // ""')"; then
+            echo "Could not read who merged release/${VERSION}." >&2
+            exit 2
+          fi
+          node scripts/auto-release.mjs stuck --version "$VERSION" --tag-exists "$tag_exists" --merged-by "$merged_by"
+
       # Idempotent across runs: a drift that is already proposed is left alone,
       # so a pull request waiting for its review is not joined by a twin every
-      # six hours. The key is the BRANCH on origin, deliberately: close the pull
+      # hour. The key is the BRANCH on origin, deliberately: close the pull
       # request and keep the branch and the proposal stays quiet; delete the
       # branch and the next run proposes again. The version has passed the
       # script's X.Y.Z check before it reaches this shell, and it arrives
@@ -187,11 +241,24 @@ jobs:
           cat "$RUNNER_TEMP/leaks.log"
           exit "$status"
 
+      # The one decision that sends a release down the automatic path, with every
+      # reason it did not named in the log. `continue-on-error` above makes a
+      # failed sweep an outcome rather than a stop, and that outcome is an input.
+      - name: Pure mirror? (decides the automatic path)
+        id: decide
+        if: steps.prepare.outputs.state == 'proposed'
+        env:
+          LEAKS: ${{ steps.leaks.outcome }}
+        run: |
+          set -eu
+          node scripts/auto-release.mjs decide --prepare-env "$RUNNER_TEMP/prepare.env" --leaks "$LEAKS" | tee -a "$GITHUB_OUTPUT"
+
       # Only the six files the script declares are staged — never `add -A`.
       # A DRAFT when a gate failed, the surface changed or the sweep found
       # something: each means a person has writing to do before the review, and
       # a draft says so in the title.
       - name: Push the branch and open the pull request
+        id: open
         if: steps.prepare.outputs.state == 'proposed'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -202,6 +269,7 @@ jobs:
           DRAFT: ${{ steps.prepare.outputs.draft }}
           FILES: ${{ steps.prepare.outputs.files }}
           LEAKS: ${{ steps.leaks.outcome }}
+          AUTO: ${{ steps.decide.outputs.auto }}
         run: |
           set -eu
           if [ "$LEAKS" != "success" ]; then
@@ -210,7 +278,7 @@ jobs:
               echo
               echo '## The leak sweep failed on the prepared tree'
               echo
-              echo 'The re-captured snapshot carries something the public-repo sweep refuses. Read the findings, decide whether each is harmless (then `numbers.allowed` in `scripts/rules.json`) or a value that must not be published, and fix it before the review.'
+              echo 'The re-captured snapshot carries something the public-repo sweep refuses. Read the findings, decide whether each is harmless (then `numbers.allowed` in `scripts/rules.json`) or a value that must not be published, and fix it before the review. This also takes the release off the automatic path: the workflow will not merge it.'
               echo
               echo '```'
               tail -n 20 "$RUNNER_TEMP/leaks.log"
@@ -231,7 +299,7 @@ jobs:
           catalogue.json re-captured (surface ${VERDICT}), API.md regenerated, the
           CHANGELOG block written; offline gates: ${GATES}.
 
-          Nothing published. The verdict, the merge and the tag are a person's.
+          Nothing published by this commit. Automatic path: ${AUTO}.
           EOF
           git push -u origin "$branch"
 
@@ -242,11 +310,15 @@ jobs:
           if [ "$DRAFT" = "true" ]; then
             args+=(--draft)
           fi
-          if ! gh pr create "${args[@]}"; then
+          if ! url="$(gh pr create "${args[@]}")"; then
             echo "gh pr create failed; removing origin/${branch} so the next run is not suppressed by it" >&2
             git push origin --delete "$branch"
             exit 1
           fi
+          echo "$url"
+          sha="$(git rev-parse HEAD)"
+          echo "pr=${url##*/}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
 
           # CI FOR A BOT PROPOSAL. Measured on #39-#41: GitHub DOES create the
           # `pull_request` run for a PR opened with GITHUB_TOKEN, and holds it at
@@ -258,12 +330,10 @@ jobs:
           # the dispatched run simply does not count toward the required contexts
           # is not distinguished by that observation; either way the approval is
           # the act that cleared it, so it is done here. The run is created
-          # asynchronously after the PR and is looked for a few times. Whether
-          # GITHUB_TOKEN may call the approve endpoint at all is NOT yet measured
-          # (the hand approvals used a user token), which is why the two failure
-          # modes below are reported apart: the first run's log is the answer. On
-          # either, CI is dispatched as before and the hand step is named.
-          sha="$(git rev-parse HEAD)"
+          # asynchronously after the PR and is looked for a few times. GITHUB_TOKEN
+          # MAY call the approve endpoint: measured on #53, whose Version sync run
+          # logged the approval. The two failure modes below stay reported apart in
+          # case that changes; on either, CI is dispatched and the hand step named.
           run_id=""
           for attempt in 1 2 3 4 5 6; do
             run_id="$(gh run list --workflow ci.yml --branch "$branch" --event pull_request --json databaseId,headSha --jq ".[] | select(.headSha == \"${sha}\") | .databaseId" | head -n 1)"
@@ -283,3 +353,174 @@ jobs:
             gh workflow run ci.yml --ref "$branch"
             echo "CI dispatched on $branch instead. If the merge is refused by the base branch policy, approve the held run by hand: gh api -X POST repos/${GITHUB_REPOSITORY}/actions/runs/<run_id>/approve" >&2
           fi
+
+  # THE AUTOMATIC PATH, part 1: green checks, merge, tag. Reachable only when the
+  # `decide` step above judged the proposal a pure mirror; every other proposal
+  # stops at its pull request.
+  release:
+    needs: sync
+    if: needs.sync.outputs.auto == 'true'
+    runs-on: ubuntu-24.04
+    # 30 min for the checks (CI is ~2 min, SonarCloud a few) plus the merge and tag.
+    timeout-minutes: 40
+    # `checks` to read the required checks, `pull-requests` + `contents` to merge,
+    # `contents` to push the tag. Nothing else.
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      merge_sha: ${{ steps.merge.outputs.sha }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ needs.sync.outputs.pr }}
+      SHA: ${{ needs.sync.outputs.sha }}
+      VERSION: ${{ needs.sync.outputs.version }}
+      # The required status checks of `main`'s branch protection, as NAME@APP, the
+      # way protection identifies them: GitHub Actions reports the two CI jobs, the
+      # SonarCloud app reports the analysis, and a run of the same name from any
+      # other app does not count. Written here because reading branch protection
+      # needs the administration permission, which GITHUB_TOKEN cannot hold. If they
+      # drift apart, GitHub's own protection still refuses a merge with a required
+      # check missing.
+      REQUIRED_CHECKS: 'build-and-test (22)@github-actions,build-and-test (24)@github-actions,SonarCloud Code Analysis@sonarqubecloud'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tag is pushed from this checkout, and the merge commit is read from it.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Inputs are what the sync job produced
+        run: |
+          set -eu
+          printf '%s' "$PR" | grep -Eq '^[0-9]+$' || { echo "No pull request number from the sync job ('$PR')." >&2; exit 2; }
+          printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "No head sha from the sync job ('$SHA')." >&2; exit 2; }
+          printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "No version from the sync job ('$VERSION')." >&2; exit 2; }
+          echo "pull request #${PR}, head ${SHA}, version ${VERSION}"
+
+      # Bounded: green within 30 minutes or the run ends red and the pull request
+      # waits for a person. A red check ends the wait at once.
+      - name: Wait for the required checks (CI + SonarCloud)
+        run: node scripts/auto-release.mjs wait-checks --sha "$SHA" --required "$REQUIRED_CHECKS" --deadline-s "$((30 * 60))" --interval-s 20
+
+      # The state is read again right before the merge: a person may have taken the
+      # pull request over in the meantime (converted it to a draft, pushed to it,
+      # closed it), and then it is theirs. `--match-head-commit` makes GitHub refuse
+      # the merge if the head moved between this read and the call.
+      - name: Merge (a merge commit, pinned to the head that was checked)
+        id: merge
+        run: |
+          set -eu
+          state="$(gh pr view "$PR" --json state,isDraft,headRefOid,baseRefName --jq '[.state, (.isDraft|tostring), .headRefOid, .baseRefName] | join(" ")')"
+          echo "pull request #${PR}: ${state}"
+          if [ "$state" != "OPEN false ${SHA} main" ]; then
+            echo "Pull request #${PR} is no longer the open, ready proposal at ${SHA} against main — leaving it to a person." >&2
+            exit 1
+          fi
+          gh pr merge "$PR" --merge --match-head-commit "$SHA"
+          merged="$(gh pr view "$PR" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | join(" ")')"
+          echo "after the merge: ${merged}"
+          merge_sha="${merged#MERGED }"
+          if [ "${merged%% *}" != "MERGED" ] || ! printf '%s' "$merge_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "The merge call returned but the pull request does not read as merged with a 40-hex merge commit ('${merged}')." >&2
+            echo "If it IS merged, the next hourly run reports it as stuck and names the remedy." >&2
+            exit 1
+          fi
+          echo "sha=${merge_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Tag the merge commit
+        id: tag
+        env:
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          set -eu
+          tag="v${VERSION}"
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$MERGE_SHA" refs/remotes/origin/main; then
+            echo "The merge commit ${MERGE_SHA} is not on main — refusing to tag it." >&2
+            exit 1
+          fi
+          at="$(git show "${MERGE_SHA}:package.json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(String(JSON.parse(s).version)))')"
+          if [ "$at" != "$VERSION" ]; then
+            echo "package.json at ${MERGE_SHA} says ${at}, not ${VERSION} — refusing to tag it." >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+            echo "${tag} already exists on origin — nothing is tagged twice." >&2
+            exit 1
+          fi
+          # From here a failure leaves a merged, untagged release. The next hourly run
+          # reads it as stuck (merged by the workflow, no tag) and names the remedy.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$tag" -m "viafrei ${tag} - mirror the server" "$MERGE_SHA"
+          git push origin "refs/tags/${tag}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "tagged ${tag} on ${MERGE_SHA}"
+
+  # THE AUTOMATIC PATH, part 2: npm, then Smithery and the release page. Each is
+  # DISPATCHED, because the tag above was pushed with GITHUB_TOKEN and therefore
+  # started nothing. Each is waited for, so this run's colour is the release's.
+  publish:
+    needs: [sync, release]
+    runs-on: ubuntu-24.04
+    # The step deadlines are 20 min (npm) + 20 min (Smithery) + 10 min (the page,
+    # waited after Smithery) = 50, plus checkout and dispatch; 60 keeps every
+    # deadline reachable, so a slow stage fails with its own message and remedy
+    # rather than being killed by the job timeout without one. Observed: npm ~2 min,
+    # Smithery up to ~11, the page ~1.
+    timeout-minutes: 60
+    # `actions: write` to dispatch and read the runs. Publishing itself happens in
+    # the dispatched workflows, under their own permissions and environments.
+    permissions:
+      actions: write
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.release.outputs.tag }}
+      MERGE_SHA: ${{ needs.release.outputs.merge_sha }}
+      VERSION: ${{ needs.sync.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: npm — dispatch on the tag and wait for success
+        run: |
+          set -eu
+          [ "$TAG" = "v${VERSION}" ] || { echo "The release job tagged '${TAG}', not v${VERSION}." >&2; exit 2; }
+          printf '%s' "$MERGE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "No 40-hex merge sha from the release job ('${MERGE_SHA}')." >&2; exit 2; }
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run publish.yml --ref "$TAG" -f dry_run=false
+          # Matched by the tagged COMMIT and the dispatch time, not by the ref's name.
+          node scripts/auto-release.mjs wait-run --workflow publish.yml --sha "$MERGE_SHA" --version "$VERSION" --since "$since" --deadline-s "$((20 * 60))" --interval-s 15
+
+      # Both dispatched before either is waited for; both are waited for even when
+      # the first fails, so the log names every failure, and the step fails if any did.
+      - name: Smithery and the release page — dispatch and wait
+        run: |
+          set -eu
+          # Both run on main; a dispatched run's head is main's head at that moment,
+          # which is read here so each run is matched by commit as well as by time.
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          printf '%s' "$main_sha" | grep -Eq '^[0-9a-f]{40}$' || { echo "Could not read main's head ('${main_sha}')." >&2; exit 2; }
+          since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          gh workflow run smithery.yml --ref main -f version="$VERSION"
+          gh workflow run release-page.yml --ref main -f tag="$TAG"
+          failed=0
+          node scripts/auto-release.mjs wait-run --workflow smithery.yml --sha "$main_sha" --version "$VERSION" --since "$since" --deadline-s "$((20 * 60))" --interval-s 15 || failed=1
+          node scripts/auto-release.mjs wait-run --workflow release-page.yml --sha "$main_sha" --version "$VERSION" --since "$since" --deadline-s "$((10 * 60))" --interval-s 15 || failed=1
+          if [ "$failed" != 0 ]; then
+            echo "npm published ${TAG}; at least one follow-up did not conclude success (named above with its remedy)." >&2
+            exit 1
+          fi
+          echo "${TAG}: npm, Smithery and the release page all concluded success."

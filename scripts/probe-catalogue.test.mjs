@@ -159,6 +159,37 @@ await withStub(
     }
 );
 
+// --- WRONG: the initialize fields API.md renders are surface too ----------------------
+// instructions (quoted verbatim in API.md), capabilities and protocolVersion all ship in
+// the tarball through API.md, so a change to any of them is WRONG, never DATED — the
+// automatic release path trusts DATED to mean "nothing a reader sees has changed".
+const initWith = changes => liveAnswers({
+    initialize: { result: { ...liveAnswers().initialize.result, ...changes } }
+});
+for (const [field, changes] of [
+    ['instructions', { instructions: `${real.instructions ?? ''} One more sentence.` }],
+    ['capabilities', { capabilities: { ...real.capabilities, completions: {} } }],
+    ['protocolVersion', { protocolVersion: '2099-01-01' }],
+    ['instructions', { instructions: undefined }]
+]) {
+    await withStub(initWith(changes), async root => {
+        const result = await run(root);
+        const what = changes[field] === undefined ? `an absent ${field}` : `a changed ${field}`;
+        check(
+            `${what} is reported as WRONG and names the field`,
+            result.status === 1
+            && /is WRONG about this server/u.test(result.out)
+            && new RegExp(`${field}: the server's initialize answer differs`, 'u').test(result.out),
+            `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 280))}`
+        );
+    });
+}
+await withStub(initWith({ capabilities: Object.fromEntries(Object.entries(real.capabilities ?? {}).reverse()) }), async root => {
+    const result = await run(root);
+    check('capabilities in another key ORDER are not a change (compared with sorted keys)',
+        result.status === 0, `status ${result.status}, out ${JSON.stringify(result.out.slice(0, 280))}`);
+});
+
 // --- DATED: the 1.4.8 history. Only the version moved. -------------------------------
 await withStub(liveAnswers(), async root => {
     const result = await run(root);
