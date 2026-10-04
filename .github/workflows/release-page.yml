@@ -1,0 +1,157 @@
+name: Release page
+
+# The GitHub release page for a tag, written from CHANGELOG.md, after the npm
+# release of that tag has been VERIFIED — a page must never announce a version
+# npm does not serve.
+#
+# Body : the tag's `## [X.Y.Z]` block, read from CHANGELOG.md AT THE TAG.
+# Title: "viafrei vX.Y.Z — <the block's first bold lead>".
+# Latest: only when the tag is the highest vX.Y.Z tag in the repository.
+# scripts/release-notes.mjs owns all three rules, and its self-test pins them.
+#
+# Never destructive: if a page for the tag already exists (published or draft),
+# it is left exactly as it is and the run says so. A missing or empty block is a
+# failure naming the tag, never an empty page.
+#
+# Order: runs only after the npm workflow concluded SUCCESS for a tag push — its
+# last step is scripts/verify-published.mjs — and verifies the registry again
+# itself, so a manual dispatch is held to the same rule. A failure here cannot
+# hold up the Smithery workflow, which waits on the npm run, not on this one.
+#
+# workflow_dispatch writes the page for a tag by hand (a failed run, a page that
+# was never made). Because the verifier asserts the version is npm's `latest`,
+# a dispatch succeeds for the newest release only; older tags are history.
+
+on:
+  workflow_run:
+    workflows: [npm]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'The tag to write the page for (vX.Y.Z)'
+        required: true
+        type: string
+
+# Nothing at the workflow level; the one job below asks for exactly what it uses.
+permissions: {}
+
+concurrency:
+  group: release-page-${{ github.event.workflow_run.head_branch || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  page:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The minimum that creates a release: GITHUB_TOKEN, contents: write, here only.
+    permissions:
+      contents: write
+    steps:
+      # The DEFAULT branch, never the commit the triggering run names: a
+      # workflow_run job must not execute code from a ref it was handed. The
+      # tag's CHANGELOG is read below as DATA (git show), never run.
+      # fetch-depth 0 brings every tag, which Latest is judged against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Which tag this run writes the page for
+        id: tag
+        env:
+          RUN_TAG: ${{ github.event.workflow_run.head_branch }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -eu
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then t="${INPUT_TAG}"; else t="${RUN_TAG}"; fi
+          if ! printf '%s' "$t" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Not a release tag: '$t' (vX.Y.Z)" >&2
+            exit 2
+          fi
+          if ! git rev-parse --verify --quiet "refs/tags/$t" >/dev/null; then
+            echo "The tag $t is not in this checkout, so its CHANGELOG cannot be read." >&2
+            exit 2
+          fi
+          echo "tag=$t" >> "$GITHUB_OUTPUT"
+          echo "version=${t#v}" >> "$GITHUB_OUTPUT"
+          echo "writing the page for $t"
+
+      # The rule this workflow exists under, asserted here rather than inherited:
+      # npm serves this version, as latest, with provenance, tarball reachable.
+      - name: npm serves this version
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -eu
+          node scripts/verify-published.mjs "$(node -p "require('./package.json').name")" \
+            "$VERSION" "${GITHUB_REPOSITORY}" 120
+
+      # Drafts are included: the releases listing shows them to a token that can
+      # write, while the by-tag endpoint does not, and a draft is a page somebody
+      # is writing. Any API error is a refusal, never "no page".
+      - name: Is there a page for this tag already?
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -eu
+          list="$RUNNER_TEMP/releases.txt"
+          if ! gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | [.tag_name, (.draft|tostring), .html_url] | @tsv' > "$list"; then
+            echo "Could not list this repository's releases — refusing rather than guessing there is no page." >&2
+            exit 2
+          fi
+          echo "releases listed: $(wc -l < "$list")"
+          hit="$(awk -F '\t' -v t="$TAG" '$1 == t' "$list" | head -1)"
+          if [ -n "$hit" ]; then
+            echo "A page for ${TAG} already exists ($(printf '%s' "$hit" | cut -f3), draft: $(printf '%s' "$hit" | cut -f2)). Leaving it unchanged."
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No page for ${TAG} yet."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Body, title and Latest from the tag's CHANGELOG
+        id: notes
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+        run: |
+          set -eu
+          git show "refs/tags/${TAG}:CHANGELOG.md" > "$RUNNER_TEMP/CHANGELOG.md"
+          git tag -l 'v*' > "$RUNNER_TEMP/tags.txt"
+          node scripts/release-notes.mjs "$VERSION" "$RUNNER_TEMP/CHANGELOG.md" \
+            "$RUNNER_TEMP/tags.txt" "$RUNNER_TEMP/body.md" > "$RUNNER_TEMP/notes.out"
+          cat "$RUNNER_TEMP/notes.out"
+          cat "$RUNNER_TEMP/notes.out" >> "$GITHUB_OUTPUT"
+          echo "body: $(wc -l < "$RUNNER_TEMP/body.md") line(s)"
+
+      # --verify-tag: the tag must already exist on GitHub; this never creates one.
+      # A page created between the check above and this step makes GitHub refuse
+      # with "already exists", which fails the run rather than writing a second page.
+      - name: Create the page
+        if: steps.existing.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          TITLE: ${{ steps.notes.outputs.title }}
+          LATEST: ${{ steps.notes.outputs.latest }}
+        run: |
+          set -eu
+          case "$LATEST" in true|false) ;; *) echo "latest is '$LATEST', not true or false" >&2; exit 2 ;; esac
+          [ -n "$TITLE" ] || { echo "No title was produced for ${TAG}." >&2; exit 2; }
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$TITLE" --notes-file "$RUNNER_TEMP/body.md" --latest="$LATEST"
+          echo "Created the page for ${TAG}: \"${TITLE}\" (Latest: ${LATEST})."

@@ -5,6 +5,18 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- **Release pages are written from the CHANGELOG.** A new `Release page` workflow
+  runs after the tag's npm run succeeds, verifies again that npm serves the version,
+  and creates the GitHub release page: the body is the tag's `## [X.Y.Z]` block, the
+  title is `viafrei vX.Y.Z — ` plus the block's first bold lead, and it is marked
+  Latest only when the tag is the highest version. A page that already exists is
+  left unchanged; a missing or empty block fails the run and names the tag. The one
+  permission it holds is `contents: write`, on that job only. The rules live in
+  `scripts/release-notes.mjs`, whose offline self-test runs in CI; CONTRIBUTING
+  describes the flow.
+
 ### Changed
 
 - **The npm workflow is named `npm`, and it verifies its own publish.** "Publish" no

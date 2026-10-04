@@ -62,9 +62,40 @@ npm run check:sources   # the counts SOURCES.md states agree with catalogue.json
 
 Each `check:*` above that renders or reads a document has a `test:*` self-test
 beside it (`test:docs`, `test:readme`, `test:sources`, `test:versions`), and the
-release tooling has five more that run against local stubs or injected fetches
-(`test:probe`, `test:freshness`, `test:propose`, and the two release verifiers,
-`test:verify` for npm and `test:verify-smithery` for the Smithery listing).
+release tooling has six more that run against local stubs, injected fetches or
+fixture files (`test:probe`, `test:freshness`, `test:propose`, the two release
+verifiers, `test:verify` for npm and `test:verify-smithery` for the Smithery
+listing, and `test:release-notes` for the release page).
+
+### Release pages are written from the CHANGELOG
+
+Nobody writes a GitHub release page by hand. After the npm workflow has published
+a `v*` tag and verified it, the `Release page` workflow
+(`.github/workflows/release-page.yml`) creates the page for that tag:
+
+- **Body:** the tag's `## [X.Y.Z]` block of `CHANGELOG.md`, read at the tag, without
+  its heading. A missing or empty block fails the run and names the tag; there is
+  never an empty page.
+- **Title:** `viafrei vX.Y.Z — <lead>`, where the lead is the block's **first bold
+  lead** — the first line that opens with `**...**`, backticks and a trailing `.`,
+  `:` or `;` dropped. That is the only rule, so choose the title by what you put first
+  in the block.
+- **Latest:** only when the tag is the highest `vX.Y.Z` tag, compared as numbers.
+- **Never destructive:** a page that already exists for the tag, draft or published,
+  is left unchanged and the run says so. To change a page, edit it on GitHub.
+
+`scripts/release-notes.mjs` holds those rules and `npm run test:release-notes` pins
+them. To see what a tag's page would say before tagging:
+
+```bash
+git tag -l 'v*' > /tmp/tags && echo v1.7.0 >> /tmp/tags
+node scripts/release-notes.mjs 1.7.0 CHANGELOG.md /tmp/tags /tmp/body.md && cat /tmp/body.md
+```
+
+If a run failed (a block was missing, say), fix nothing on the tag: dispatch the
+workflow by hand with the tag once the cause is gone. It verifies npm again first,
+and that verifier requires the version to be npm's `latest`, so a dispatch works
+for the newest release only.
 
 **API.md and the README's catalogue section are generated.** Do not edit them
 by hand: change `catalogue.json` (which a release re-captures from the running
