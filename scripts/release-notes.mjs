@@ -10,11 +10,17 @@
  * block, and minus surrounding blank lines. The version must match exactly, so 1.7.1
  * never picks up 1.7.10 and the reverse.
  *
- * TITLE. ONE rule: `viafrei vX.Y.Z — <lead>`, where <lead> is the block's FIRST BOLD
- * LEAD — the first line of the block that opens with `**...**` (a paragraph or a list
- * item), with backticks dropped, whitespace collapsed and a trailing `.`, `:` or `;`
- * removed. Whoever writes the block chooses the title by what they put first.
- *
+ * TITLE. ONE rule: `viafrei vX.Y.Z — <lead>`, where <lead> is the block's first BOLD
+ * LEAD — `**...**` opening a paragraph or a list item (not a wrapped line that happens
+ * to start with bold),
+ * with backticks dropped, whitespace collapsed and a trailing `.`, `:` or `;` removed —
+ * that is NOT the Version sync proposer's standard opening (MIRROR_LEAD, compared after
+ * the same normalisation). Every block that proposer writes opens with that line, so
+ * skipping it lets the first real change name the page. When it is the block's ONLY
+ * bold lead (a pure version-sync release) it is used, so a legitimate mirror block is
+ * titled `viafrei vX.Y.Z — Mirrors the server` and never fails. No bold lead at all is
+ * a failure.
+
  * LATEST. True only when X.Y.Z is the highest plain `vX.Y.Z` tag the caller lists
  * (the tag itself included), compared as numbers, not as strings.
  *
@@ -68,18 +74,50 @@ export function extractBlock(changelog, version) {
 }
 
 /**
- * `viafrei vX.Y.Z — <first bold lead>`. Throws NotesError when the block has none.
+ * The opening bold lead of every block scripts/propose-release.mjs writes. ONE copy:
+ * the self-test reads the proposer's source and fails unless its opening line is this
+ * string, so the two cannot drift apart.
+ */
+export const MIRROR_LEAD = 'Mirrors the server.';
+
+/** A bold lead as a title fragment: no backticks, collapsed spaces, no trailing `.:;`. */
+export function normaliseLead(text) {
+    return text.replace(/`/g, '').replace(/\s+/g, ' ').trim().replace(/[.:;]+$/, '').trim();
+}
+
+/**
+ * Every bold lead of the block, normalised, in order. A lead OPENS a paragraph (the
+ * line before it is blank, a heading, or the start of the block) or a list item. A
+ * line that merely starts with bold because the paragraph above it wrapped there —
+ * the proposer's `**unchanged**` does exactly that — is not a lead.
+ */
+export function boldLeads(block) {
+    const leads = [];
+    let previous = '';
+    for (const line of block.split('\n')) {
+        const opensParagraph = previous.trim() === '' || /^#{1,6}\s/.test(previous);
+        const m = /^\s*([-*]\s+)?\*\*(.+?)\*\*/.exec(line);
+        const lead = m && (m[1] || opensParagraph) ? normaliseLead(m[2]) : '';
+        if (lead) leads.push(lead);
+        previous = line;
+    }
+    return leads;
+}
+
+/**
+ * `viafrei vX.Y.Z — <first bold lead that is not MIRROR_LEAD>`, falling back to
+ * MIRROR_LEAD when it is the only one. Throws NotesError when the block has none.
  * @param {string} block
  * @param {string} version
  */
 export function titleFor(block, version) {
-    for (const line of block.split('\n')) {
-        const m = /^\s*(?:[-*]\s+)?\*\*(.+?)\*\*/.exec(line);
-        if (!m) continue;
-        const lead = m[1].replace(/`/g, '').replace(/\s+/g, ' ').trim().replace(/[.:;]+$/, '').trim();
-        if (lead) return `viafrei v${version} — ${lead}`;
+    const leads = boldLeads(block);
+    if (leads.length === 0) {
+        throw new NotesError(`v${version}: the "## [${version}]" block has no bold lead to title the page with`);
     }
-    throw new NotesError(`v${version}: the "## [${version}]" block has no bold lead to title the page with`);
+    const mirror = normaliseLead(MIRROR_LEAD);
+    const lead = leads.find((l) => l !== mirror) ?? leads[0];
+    return `viafrei v${version} — ${lead}`;
 }
 
 const parts = (v) => v.split('.').map(Number);

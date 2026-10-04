@@ -10,7 +10,9 @@ a Changelog and the versions follow Semantic Versioning.
 - **Release pages are written from the CHANGELOG.** A new `Release page` workflow
   runs after the tag's npm run succeeds, verifies again that npm serves the version,
   and creates the GitHub release page: the body is the tag's `## [X.Y.Z]` block, the
-  title is `viafrei vX.Y.Z — ` plus the block's first bold lead, and it is marked
+  title is `viafrei vX.Y.Z — ` plus the block's first bold lead other than the
+  Version sync proposer's "Mirrors the server" (which is used only when it is the
+  sole lead), and it is marked
   Latest only when the tag is the highest version. A page that already exists is
   left unchanged; a missing or empty block fails the run and names the tag. The one
   permission it holds is `contents: write`, on that job only. The rules live in

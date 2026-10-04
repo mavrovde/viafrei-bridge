@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createChecker } from './check-harness.mjs';
-import { NotesError, compareSemver, extractBlock, isHighest, releaseNotes, titleFor } from './release-notes.mjs';
+import { MIRROR_LEAD, NotesError, boldLeads, compareSemver, extractBlock, isHighest, releaseNotes, titleFor } from './release-notes.mjs';
 import { nodePath, runTool } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -122,6 +122,32 @@ check('title: bold in the middle of a line is not a lead',
 const noLead = refusal(() => titleFor('Plain prose only.\n\n### Added\n\n- a thing', '1.0.0'));
 check('title: a block with no bold lead FAILS and names the tag', noLead !== null && noLead.startsWith('v1.0.0:') && noLead.includes('no bold lead'), noLead ?? 'no refusal');
 
+// The Version sync proposer's opening line is skipped when a real lead follows it.
+const MIRROR = `**${MIRROR_LEAD}** The bridge is versioned to match the server it relays to.`;
+const realAfter = `${MIRROR}\n\n### Added\n\n- **The repository is now \`a/b\`** (renamed).`;
+check('title: a mirror line followed by a real lead takes the real lead',
+    titleFor(realAfter, '1.0.0') === 'viafrei v1.0.0 — The repository is now a/b', titleFor(realAfter, '1.0.0'));
+const mirrorOnly = `${MIRROR} The probe reported the surface **unchanged** today.`;
+check('title: a mirror-only block falls back to the mirror line',
+    titleFor(mirrorOnly, '1.0.0') === 'viafrei v1.0.0 — Mirrors the server', titleFor(mirrorOnly, '1.0.0'));
+check('title: the mirror line is recognised after normalisation (no period, extra spaces)',
+    titleFor('**Mirrors  the server**\n\n**Real one.**', '1.0.0') === 'viafrei v1.0.0 — Real one');
+check('title: a real lead BEFORE the mirror line is still the first one',
+    titleFor(`**First.**\n\n${MIRROR}`, '1.0.0') === 'viafrei v1.0.0 — First');
+
+const wrapped = `${MIRROR} The probe reported the surface\n**unchanged** — only the version string moved.\n\n### Changed\n\n- **The real change.** Here.`;
+check('title: bold at the start of a WRAPPED line is not a lead (the proposer wraps **unchanged** there)',
+    titleFor(wrapped, '1.0.0') === 'viafrei v1.0.0 — The real change', titleFor(wrapped, '1.0.0'));
+const wrappedOnly = `${MIRROR} The probe reported the surface\n**unchanged** — only the version string moved.`;
+check('title: a mirror-only block whose wrapped line starts with bold still falls back to the mirror line',
+    titleFor(wrappedOnly, '1.0.0') === 'viafrei v1.0.0 — Mirrors the server', titleFor(wrappedOnly, '1.0.0'));
+
+// One copy of the boilerplate: the proposer must open its blocks with exactly MIRROR_LEAD.
+const proposer = readFileSync(join(HERE, 'propose-release.mjs'), 'utf8');
+const proposerLeads = [...proposer.matchAll(/`\*\*([^*`]+)\*\* The bridge is versioned/g)].map((m) => m[1]);
+check('the proposer opens its blocks with MIRROR_LEAD, word for word',
+    proposerLeads.length === 1 && proposerLeads[0] === MIRROR_LEAD, JSON.stringify(proposerLeads));
+
 // --- Latest ----------------------------------------------------------------------------
 
 check('semver is numeric: 1.7.10 > 1.7.9', compareSemver('1.7.10', '1.7.9') > 0);
@@ -163,6 +189,12 @@ try {
     writeFileSync(join(dir, 'tags3'), 'v1.7.0\n');
     const emptyCli = cli(['1.7.0', changelog, join(dir, 'tags3'), body]);
     check('CLI: an empty block is exit 1 naming the tag', emptyCli.status === 1 && emptyCli.out.includes('v1.7.0'), `${emptyCli.status} ${emptyCli.out}`);
+    const noLeadLog = join(dir, 'nolead.md');
+    writeFileSync(noLeadLog, '## [3.0.0] - 2026-12-01\n\nPlain prose, no bold lead anywhere.\n');
+    writeFileSync(join(dir, 'tags4'), 'v3.0.0\n');
+    const noLeadCli = cli(['3.0.0', noLeadLog, join(dir, 'tags4'), body]);
+    check('CLI: a block with no bold lead is exit 1 naming the tag',
+        noLeadCli.status === 1 && noLeadCli.out.includes('v3.0.0') && noLeadCli.out.includes('no bold lead'), `${noLeadCli.status} ${noLeadCli.out}`);
     check('CLI: a v-prefixed version is a usage error (2)', cli(['v1.7.1', changelog, tags, body]).status === 2);
     check('CLI: a tag list without the tag is a usage error (2)', cli(['1.7.1', changelog, join(dir, 'tags2'), body]).status === 2);
     check('CLI: a missing argument is a usage error (2)', cli(['1.7.1', changelog, tags]).status === 2);
@@ -171,6 +203,11 @@ try {
     const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
     writeFileSync(tags, `v${version}\n`);
     const real = cli([version, join(ROOT, 'CHANGELOG.md'), tags, body]);
+    const realBlock = extractBlock(readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8'), version);
+    const others = boldLeads(realBlock).filter((l) => l !== 'Mirrors the server');
+    if (others.length > 0) {
+        check(`CLI: ${version} has a real lead, so its title is not the mirror line`, !real.out.includes('Mirrors the server'), real.out);
+    }
     check(`CLI: the repository CHANGELOG backs a page for ${version}`, real.status === 0 && real.out.startsWith(`title=viafrei v${version} — `), real.out);
 } finally {
     rmSync(dir, { recursive: true, force: true });

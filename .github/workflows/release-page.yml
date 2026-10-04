@@ -5,7 +5,8 @@ name: Release page
 # npm does not serve.
 #
 # Body : the tag's `## [X.Y.Z]` block, read from CHANGELOG.md AT THE TAG.
-# Title: "viafrei vX.Y.Z — <the block's first bold lead>".
+# Title: "viafrei vX.Y.Z — <the block's first bold lead>", skipping the Version
+#        sync proposer's "Mirrors the server" unless it is the only one.
 # Latest: only when the tag is the highest vX.Y.Z tag in the repository.
 # scripts/release-notes.mjs owns all three rules, and its self-test pins them.
 #

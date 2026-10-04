@@ -77,9 +77,15 @@ a `v*` tag and verified it, the `Release page` workflow
   its heading. A missing or empty block fails the run and names the tag; there is
   never an empty page.
 - **Title:** `viafrei vX.Y.Z — <lead>`, where the lead is the block's **first bold
-  lead** — the first line that opens with `**...**`, backticks and a trailing `.`,
-  `:` or `;` dropped. That is the only rule, so choose the title by what you put first
-  in the block.
+  lead that is not "Mirrors the server"**. A bold lead is `**...**` opening a
+  paragraph or a list item (not a wrapped line that happens to start with bold), with
+  backticks and a trailing `.`, `:` or `;` dropped. "Mirrors the server" is the line
+  the Version sync proposer opens every block with, so it is skipped and the first
+  real change names the page; when it is the block's only bold lead (a pure
+  version-sync release) the title is `viafrei vX.Y.Z — Mirrors the server`. A block
+  with no bold lead at all fails the run. The string is one constant, `MIRROR_LEAD`
+  in `scripts/release-notes.mjs`, and the self-test fails if the proposer's opening
+  line stops matching it. Choose the title by the first real bold lead you write.
 - **Latest:** only when the tag is the highest `vX.Y.Z` tag, compared as numbers.
 - **Never destructive:** a page that already exists for the tag, draft or published,
   is left unchanged and the run says so. To change a page, edit it on GitHub.
