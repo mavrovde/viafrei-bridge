@@ -12,15 +12,18 @@
  * CHANGELOG block, run the gates — so it is done here, by the `Version sync` workflow,
  * and lands as a pull request.
  *
- * WHAT IT WILL NOT DO, and this is the design rather than a limit: it does not merge,
- * tag or publish. Three reasons, each sufficient on its own. The merge needs a reviewer
- * verdict covering HEAD, which a bot merging through the API would simply bypass. An npm
- * version is immutable, so a wrong one can never be reissued under that number. And when
- * the server's SURFACE changed — not just its number — the release note needs a sentence
- * about what the change means, which nothing here can write: the 1.4.9 cut carried a
- * licence-relevant fix for exactly that case (a second fuel tool the sources page had not
- * named). So the output is a branch and a pull request, and the three remaining acts are
- * a person's: the verdict, the merge, the tag. The tag then publishes, as it always has.
+ * WHAT IT WILL NOT DO, and this is the design rather than a limit: this script never
+ * merges, tags or publishes. When the server's SURFACE changed — not just its number —
+ * the release note needs a sentence about what the change means, which nothing here can
+ * write: the 1.4.9 cut carried a licence-relevant fix for exactly that case (a second fuel
+ * tool the sources page had not named). An npm version is immutable, so a wrong one can
+ * never be reissued under that number. So the output is a branch and a pull request.
+ *
+ * What happens to that pull request is the workflow's decision (owner, 2026-10-04): a
+ * PURE MIRROR — surface unchanged, every gate here passed, the leak sweep clean — is
+ * merged, tagged and published by the `Version sync` workflow once its required checks
+ * are green (`scripts/auto-release.mjs` holds those decisions). Anything else stays a
+ * person's: the verdict, the merge, the tag.
  *
  *   node scripts/propose-release.mjs [--out <file>]                        # detect only
  *   node scripts/propose-release.mjs --prepare [--out <file>] [--body <file>] [--date YYYY-MM-DD]
@@ -422,16 +425,38 @@ function pullRequestBody(reading, date, gates, waitingLines) {
             ''
         );
     }
-    out.push(
-        '## What it did not do, and will not',
-        '',
-        'It opened this pull request and nothing else. The verdict, the merge and the tag are a person\'s:',
-        '',
+    const pure = failed.length === 0 && reading.verdict !== 'wrong';
+    const byHand = [
         '1. review, then the one post-mortem comment (`APPROVE` / `HEAD: <sha>` / `BASE: main`);',
         '2. merge — a merge commit, never a squash;',
-        `3. \`git tag v${reading.live} <merge sha>\` and push the tag alone. \`publish.yml\` does the rest.`,
+        `3. \`git tag v${reading.live} <merge sha>\` and push the tag alone. \`publish.yml\` does the rest.`
+    ];
+    if (pure) {
+        out.push(
+            '## What happens next: the automatic path',
+            '',
+            'This is a pure mirror — the surface is unchanged and every gate passed — so, unless the leak sweep ' +
+            'below says otherwise, the Version sync workflow finishes the release itself: it waits for this pull ' +
+            `request's required checks (CI and SonarCloud, at most 30 minutes), merges it with a merge commit, tags ` +
+            `\`v${reading.live}\` on the merge commit, and dispatches npm, then Smithery and the release page.`,
+            '',
+            'If a check is red, or still pending at the deadline, it merges nothing and stops red; this pull request ' +
+            'then waits for a person, who finishes it by hand:',
+            '',
+            ...byHand
+        );
+    } else {
+        out.push(
+            '## What it did not do, and will not',
+            '',
+            'It opened this pull request and nothing else. The verdict, the merge and the tag are a person\'s:',
+            '',
+            ...byHand
+        );
+    }
+    out.push(
         '',
-        `Opened as a ${failed.length > 0 || reading.verdict === 'wrong' ? '**draft**, because a gate failed or the surface changed' : 'ready pull request: every gate passed and the surface is unchanged'}.`
+        `Opened as a ${pure ? 'ready pull request: every gate passed and the surface is unchanged' : '**draft**, because a gate failed or the surface changed'}.`
     );
     return `${out.join('\n')}\n`;
 }

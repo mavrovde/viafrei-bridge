@@ -305,6 +305,13 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
         && result.body.includes(`git tag v${NEXT}`) && /never a squash/u.test(result.body),
         brief(result.body ?? '')
     );
+    check(
+        'a pure mirror\'s body announces the automatic path, its deadline, and the hand path if it stops',
+        result.body !== null && /## What happens next: the automatic path/u.test(result.body)
+        && /at most 30 minutes/u.test(result.body) && /merges nothing and stops red/u.test(result.body)
+        && !/## What it did not do/u.test(result.body),
+        brief(result.body ?? '')
+    );
     check('files= lists exactly the six files the workflow may stage', result.out.files === FILES.join(','));
 
     const again = await run(['--prepare', '--date', '2026-10-02']);
@@ -381,6 +388,8 @@ await scenario({
     );
     check('the body carries the surface section with the difference',
         result.body !== null && /The surface changed/u.test(result.body) && /find_something_new/u.test(result.body));
+    check('a changed surface\'s body leaves the merge and the tag to a person and announces no automatic path',
+        result.body !== null && /## What it did not do, and will not/u.test(result.body) && !/automatic path/u.test(result.body));
     check(
         'a new tool moves the count the sources page states, so check:sources fails on the COUNT sentence and not on the licence arm',
         result.out.gates === 'fail' && result.body !== null && /check:sources.*\*\*FAIL\*\*/u.test(result.body)

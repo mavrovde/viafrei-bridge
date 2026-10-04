@@ -11,6 +11,10 @@ name: Smithery
 # the listing would record another release's surface under this one's run.
 # That is asserted, not assumed, and a mismatch is a refusal.
 #
+# The Version sync workflow's automatic path dispatches this with `version`
+# once the npm run it dispatched has concluded success; the workflow_run
+# trigger below ignores a dispatched npm run, so that never runs twice.
+#
 # Order: runs only after the npm workflow concluded SUCCESS for a tag push,
 # so a release that failed on npm never reaches Smithery either.
 # workflow_dispatch re-publishes by hand (e.g. after Smithery had an outage),

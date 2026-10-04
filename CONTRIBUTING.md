@@ -62,10 +62,49 @@ npm run check:sources   # the counts SOURCES.md states agree with catalogue.json
 
 Each `check:*` above that renders or reads a document has a `test:*` self-test
 beside it (`test:docs`, `test:readme`, `test:sources`, `test:versions`), and the
-release tooling has six more that run against local stubs, injected fetches or
-fixture files (`test:probe`, `test:freshness`, `test:propose`, the two release
-verifiers, `test:verify` for npm and `test:verify-smithery` for the Smithery
-listing, and `test:release-notes` for the release page).
+release tooling has seven more that run against local stubs, injected fetches or
+fixture files (`test:probe`, `test:freshness`, `test:propose`, `test:auto-release`
+for the automatic release path, the two release verifiers, `test:verify` for npm
+and `test:verify-smithery` for the Smithery listing, and `test:release-notes` for
+the release page).
+
+### How a release happens
+
+This package carries the version of the hosted server it relays to. The `Version
+sync` workflow (`.github/workflows/version-sync.yml`) compares the running server,
+the registry and `main` every hour (minute 30; one `initialize` and the four list
+calls, never a tool call). When the server is ahead, it prepares the release with
+`scripts/propose-release.mjs` and opens a `release/X.Y.Z` pull request. What
+happens next depends on one decision, made by `scripts/auto-release.mjs decide`:
+
+- **A pure mirror is released automatically.** The probe found the surface
+  unchanged, every offline gate passed and the leak sweep is clean. The workflow
+  waits for the pull request's required checks (`build-and-test (22)`,
+  `build-and-test (24)`, `SonarCloud Code Analysis`) for at most 30 minutes,
+  merges it with a merge commit pinned to the head it checked, pushes the
+  annotated tag `vX.Y.Z` on the merge commit, then dispatches the `npm` workflow
+  on the tag and waits for it to succeed, then dispatches `Smithery` and `Release
+  page`. A red check, a check still pending at the deadline, a pull request a
+  person has touched in the meantime, or any later failure ends the run red with
+  the reason. Nothing is merged on red or pending. A pull request left unmerged
+  waits for a person, who finishes it the manual way below.
+- **Anything else is a person's.** A changed surface, a failed gate or a leak
+  finding opens the pull request as a draft (or a ready pull request for a
+  person) and the workflow stops. Review it, write what the change means in the
+  CHANGELOG block, merge with a merge commit, then `git tag vX.Y.Z <merge sha>`
+  and push the tag on its own. The tag push starts `npm`, and `npm`'s success
+  starts `Smithery` and `Release page`.
+
+Why the automatic path dispatches the three workflows instead of letting the tag
+start them: a tag pushed with `GITHUB_TOKEN` starts no workflow, because GitHub
+creates no new runs for events caused by that token, apart from
+`workflow_dispatch` and `repository_dispatch`. `Smithery` and `Release page` act on
+a `workflow_run` of `npm` only when that run was a tag **push**, so a dispatched
+`npm` run never starts them a second time.
+
+If the required checks of `main` change, change `REQUIRED_CHECKS` in the
+workflow's `release` job too. The workflow cannot read branch protection itself,
+and GitHub's own protection still refuses a merge with a required check missing.
 
 ### Release pages are written from the CHANGELOG
 
