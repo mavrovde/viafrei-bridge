@@ -18,6 +18,15 @@ a Changelog and the versions follow Semantic Versioning.
   still a draft for a person, as before. The decisions live in
   `scripts/auto-release.mjs`, and its offline self-test runs in CI. Each job asks
   only for the permissions it uses, and the workflow grants nothing at the top level.
+  Required checks are matched by name and reporting app. A release that stopped
+  halfway (tagged but not on npm, or merged by the workflow but not tagged) turns
+  the next hourly run red with its remedy, instead of reading as "awaiting tag";
+  CONTRIBUTING describes each recovery.
+- **The catalogue probe treats the server's instructions, capabilities and protocol
+  version as surface.** All three ship in API.md, so a change to any of them is now
+  reported WRONG, not DATED. The proposer reads DATED positively: exit 0, or exit 1
+  with the DATED report and not the WRONG one. Any other report is a new
+  `unclassified` verdict, which opens a draft and never takes the automatic path.
 - **Release pages are written from the CHANGELOG.** A new `Release page` workflow
   runs after the tag's npm run succeeds, verifies again that npm serves the version,
   and creates the GitHub release page: the body is the tag's `## [X.Y.Z]` block, the

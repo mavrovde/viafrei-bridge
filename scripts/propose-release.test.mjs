@@ -362,6 +362,67 @@ for (const [history, changelog] of sameDayHistories) {
     });
 }
 
+// --- prepare: a probe report that is not the documented shape is UNCLASSIFIED -----------
+// `dated` is the one verdict the automatic release path acts on, so it must be read off
+// the probe positively and never fall out as the default. The real probe runs behind a
+// wrapper that distorts only the `--write` call's report, after the real write happened.
+const FAKE_PROBE = `import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { nodePath, runTool } from './tools.mjs';
+const here = dirname(fileURLToPath(import.meta.url));
+const args = process.argv.slice(2);
+let status = 0;
+let stdout = '';
+let stderr = '';
+try {
+    stdout = runTool(nodePath(), [join(here, 'probe-real.mjs'), ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
+} catch (error) {
+    if (typeof error.status !== 'number') throw error;
+    ({ status, stdout, stderr } = error);
+}
+const mode = args.includes('--write') ? process.env.FAKE_PROBE_MODE : '';
+process.stdout.write(stdout);
+if (mode === 'crash') throw new Error('the probe crashed after writing the snapshot');
+process.stderr.write(mode === 'reworded' ? stderr.replace('the snapshot is DATED', 'the snapshot is OLD') : stderr);
+process.exit(mode === 'exit3' ? 3 : status);
+`;
+for (const [mode, label] of [
+    ['reworded', 'a reworded DATED line'],
+    ['exit3', 'an exit code the probe does not document'],
+    ['crash', 'a crash after the write']
+]) {
+    await scenario({ server: NEXT }, async ({ run, root }) => {
+        copyFileSync(join(root, 'scripts', 'probe-catalogue.mjs'), join(root, 'scripts', 'probe-real.mjs'));
+        writeFileSync(join(root, 'scripts', 'probe-catalogue.mjs'), FAKE_PROBE);
+        process.env.FAKE_PROBE_MODE = mode;
+        let result;
+        try {
+            result = await run(['--prepare', '--date', '2026-10-02']);
+        } finally {
+            delete process.env.FAKE_PROBE_MODE;
+        }
+        check(
+            `${label} is verdict=unclassified and a draft — never dated`,
+            result.status === 0 && result.out.state === 'proposed' && result.out.verdict === 'unclassified' && result.out.draft === 'true',
+            `status ${result.status}, out ${JSON.stringify(result.out)} ${brief(result.text)}`
+        );
+        check(
+            `${label}: the body says the verdict could not be read, carries the probe output, and announces no automatic path`,
+            result.body !== null && /verdict could not be read/u.test(result.body) && /\*\*UNCLASSIFIED\*\*/u.test(result.body)
+            && !/the automatic path/u.test(result.body),
+            brief(result.body ?? '')
+        );
+    });
+}
+await scenario({ server: NEXT }, async ({ run, root }) => {
+    copyFileSync(join(root, 'scripts', 'probe-catalogue.mjs'), join(root, 'scripts', 'probe-real.mjs'));
+    writeFileSync(join(root, 'scripts', 'probe-catalogue.mjs'), FAKE_PROBE);
+    const result = await run(['--prepare', '--date', '2026-10-02']);
+    check('the wrapper alone (no distortion) still reads as dated, so the three cases above are the distortion and not the wrapper',
+        result.status === 0 && result.out.verdict === 'dated' && result.out.draft === 'false',
+        `status ${result.status}, out ${JSON.stringify(result.out)} ${brief(result.text)}`);
+});
+
 // --- prepare: the WRONG server (the 1.4.6 history) ------------------------------------------
 const extraTool = {
     name: 'find_something_new',

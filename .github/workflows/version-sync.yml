@@ -22,7 +22,8 @@ name: Version sync
 #   conclude success, and dispatches Smithery and the release page. Anything not
 #   green ends the run red with the reason and leaves the pull request for a
 #   person. Nothing merges on red, on pending, or on a read that failed.
-# - ANYTHING ELSE — a changed surface, a failed gate, a leak finding — is a
+# - ANYTHING ELSE — a changed surface, a probe report that could not be
+#   classified, a failed gate, a leak finding — is a
 #   pull request (a DRAFT when there is writing to do) and stops there: the
 #   verdict, the merge and the tag are a person's, because the release note
 #   needs a sentence about what the change means, and an npm version is
@@ -153,6 +154,34 @@ jobs:
           set -eu
           node scripts/propose-release.mjs --out "$RUNNER_TEMP/detect.env"
           cat "$RUNNER_TEMP/detect.env" >> "$GITHUB_OUTPUT"
+
+      # `awaiting-tag` is main carrying the server's version while npm does not. That
+      # is the normal pause between a person's merge and their tag — and also exactly
+      # what every hourly run reads after the automatic path stopped halfway, which
+      # used to end green saying "the tag is the missing step" while nothing would ever
+      # take it. Red, with the remedy, when the tag exists but npm lacks the version
+      # (a publish failed), or when the workflow token merged the release and no tag
+      # followed (the release job stopped between merge and tag). A read that fails
+      # here is a refusal, never "not stuck".
+      - name: Is an awaiting tag really a release stuck halfway?
+        if: steps.detect.outputs.state == 'awaiting-tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.detect.outputs.version }}
+        run: |
+          set -eu
+          rc=0
+          git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null || rc=$?
+          case "$rc" in
+            0) tag_exists=true ;;
+            2) tag_exists=false ;;
+            *) echo "Could not ask origin whether v${VERSION} exists (git exit ${rc})." >&2; exit 2 ;;
+          esac
+          if ! merged_by="$(gh pr list --head "release/${VERSION}" --base main --state merged --json mergedBy --jq '.[0].mergedBy.login // ""')"; then
+            echo "Could not read who merged release/${VERSION}." >&2
+            exit 2
+          fi
+          node scripts/auto-release.mjs stuck --version "$VERSION" --tag-exists "$tag_exists" --merged-by "$merged_by"
 
       # Idempotent across runs: a drift that is already proposed is left alone,
       # so a pull request waiting for its review is not joined by a twin every
@@ -301,11 +330,10 @@ jobs:
           # the dispatched run simply does not count toward the required contexts
           # is not distinguished by that observation; either way the approval is
           # the act that cleared it, so it is done here. The run is created
-          # asynchronously after the PR and is looked for a few times. Whether
-          # GITHUB_TOKEN may call the approve endpoint at all is NOT yet measured
-          # (the hand approvals used a user token), which is why the two failure
-          # modes below are reported apart: the first run's log is the answer. On
-          # either, CI is dispatched as before and the hand step is named.
+          # asynchronously after the PR and is looked for a few times. GITHUB_TOKEN
+          # MAY call the approve endpoint: measured on #53, whose Version sync run
+          # logged the approval. The two failure modes below stay reported apart in
+          # case that changes; on either, CI is dispatched and the hand step named.
           run_id=""
           for attempt in 1 2 3 4 5 6; do
             run_id="$(gh run list --workflow ci.yml --branch "$branch" --event pull_request --json databaseId,headSha --jq ".[] | select(.headSha == \"${sha}\") | .databaseId" | head -n 1)"
@@ -335,25 +363,28 @@ jobs:
     runs-on: ubuntu-24.04
     # 30 min for the checks (CI is ~2 min, SonarCloud a few) plus the merge and tag.
     timeout-minutes: 40
-    # `checks`/`statuses` to read the required checks, `pull-requests` + `contents`
-    # to merge, `contents` to push the tag. Nothing else.
+    # `checks` to read the required checks, `pull-requests` + `contents` to merge,
+    # `contents` to push the tag. Nothing else.
     permissions:
       contents: write
       pull-requests: write
       checks: read
-      statuses: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      merge_sha: ${{ steps.merge.outputs.sha }}
     env:
       GH_TOKEN: ${{ github.token }}
       PR: ${{ needs.sync.outputs.pr }}
       SHA: ${{ needs.sync.outputs.sha }}
       VERSION: ${{ needs.sync.outputs.version }}
-      # The required status checks of `main`'s branch protection, by name. They are
-      # written here because reading branch protection needs the administration
-      # permission, which GITHUB_TOKEN cannot hold. If they drift apart, GitHub's
-      # own protection still refuses a merge with a required check missing.
-      REQUIRED_CHECKS: 'build-and-test (22),build-and-test (24),SonarCloud Code Analysis'
+      # The required status checks of `main`'s branch protection, as NAME@APP, the
+      # way protection identifies them: GitHub Actions reports the two CI jobs, the
+      # SonarCloud app reports the analysis, and a run of the same name from any
+      # other app does not count. Written here because reading branch protection
+      # needs the administration permission, which GITHUB_TOKEN cannot hold. If they
+      # drift apart, GitHub's own protection still refuses a merge with a required
+      # check missing.
+      REQUIRED_CHECKS: 'build-and-test (22)@github-actions,build-and-test (24)@github-actions,SonarCloud Code Analysis@sonarqubecloud'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -394,11 +425,13 @@ jobs:
           gh pr merge "$PR" --merge --match-head-commit "$SHA"
           merged="$(gh pr view "$PR" --json state,mergeCommit --jq '[.state, (.mergeCommit.oid // "")] | join(" ")')"
           echo "after the merge: ${merged}"
-          case "$merged" in
-            "MERGED "[0-9a-f]*) ;;
-            *) echo "The merge call returned but the pull request does not read as merged with a merge commit." >&2; exit 1 ;;
-          esac
-          echo "sha=${merged#MERGED }" >> "$GITHUB_OUTPUT"
+          merge_sha="${merged#MERGED }"
+          if [ "${merged%% *}" != "MERGED" ] || ! printf '%s' "$merge_sha" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "The merge call returned but the pull request does not read as merged with a 40-hex merge commit ('${merged}')." >&2
+            echo "If it IS merged, the next hourly run reports it as stuck and names the remedy." >&2
+            exit 1
+          fi
+          echo "sha=${merge_sha}" >> "$GITHUB_OUTPUT"
 
       - name: Tag the merge commit
         id: tag
@@ -421,6 +454,8 @@ jobs:
             echo "${tag} already exists on origin — nothing is tagged twice." >&2
             exit 1
           fi
+          # From here a failure leaves a merged, untagged release. The next hourly run
+          # reads it as stuck (merged by the workflow, no tag) and names the remedy.
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag -a "$tag" -m "viafrei ${tag} - mirror the server" "$MERGE_SHA"
@@ -434,8 +469,12 @@ jobs:
   publish:
     needs: [sync, release]
     runs-on: ubuntu-24.04
-    # npm ~2 min (its own ceiling 15), Smithery up to ~11, the page ~1.
-    timeout-minutes: 45
+    # The step deadlines are 20 min (npm) + 20 min (Smithery) + 10 min (the page,
+    # waited after Smithery) = 50, plus checkout and dispatch; 60 keeps every
+    # deadline reachable, so a slow stage fails with its own message and remedy
+    # rather than being killed by the job timeout without one. Observed: npm ~2 min,
+    # Smithery up to ~11, the page ~1.
+    timeout-minutes: 60
     # `actions: write` to dispatch and read the runs. Publishing itself happens in
     # the dispatched workflows, under their own permissions and environments.
     permissions:
@@ -444,6 +483,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.release.outputs.tag }}
+      MERGE_SHA: ${{ needs.release.outputs.merge_sha }}
       VERSION: ${{ needs.sync.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -458,23 +498,29 @@ jobs:
         run: |
           set -eu
           [ "$TAG" = "v${VERSION}" ] || { echo "The release job tagged '${TAG}', not v${VERSION}." >&2; exit 2; }
+          printf '%s' "$MERGE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "No 40-hex merge sha from the release job ('${MERGE_SHA}')." >&2; exit 2; }
           since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh workflow run publish.yml --ref "$TAG" -f dry_run=false
-          node scripts/auto-release.mjs wait-run --workflow publish.yml --ref "$TAG" --since "$since" --deadline-s "$((20 * 60))" --interval-s 15
+          # Matched by the tagged COMMIT and the dispatch time, not by the ref's name.
+          node scripts/auto-release.mjs wait-run --workflow publish.yml --sha "$MERGE_SHA" --version "$VERSION" --since "$since" --deadline-s "$((20 * 60))" --interval-s 15
 
       # Both dispatched before either is waited for; both are waited for even when
       # the first fails, so the log names every failure, and the step fails if any did.
       - name: Smithery and the release page — dispatch and wait
         run: |
           set -eu
+          # Both run on main; a dispatched run's head is main's head at that moment,
+          # which is read here so each run is matched by commit as well as by time.
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
+          printf '%s' "$main_sha" | grep -Eq '^[0-9a-f]{40}$' || { echo "Could not read main's head ('${main_sha}')." >&2; exit 2; }
           since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           gh workflow run smithery.yml --ref main -f version="$VERSION"
           gh workflow run release-page.yml --ref main -f tag="$TAG"
           failed=0
-          node scripts/auto-release.mjs wait-run --workflow smithery.yml --ref main --since "$since" --deadline-s "$((20 * 60))" --interval-s 15 || failed=1
-          node scripts/auto-release.mjs wait-run --workflow release-page.yml --ref main --since "$since" --deadline-s "$((10 * 60))" --interval-s 15 || failed=1
+          node scripts/auto-release.mjs wait-run --workflow smithery.yml --sha "$main_sha" --version "$VERSION" --since "$since" --deadline-s "$((20 * 60))" --interval-s 15 || failed=1
+          node scripts/auto-release.mjs wait-run --workflow release-page.yml --sha "$main_sha" --version "$VERSION" --since "$since" --deadline-s "$((10 * 60))" --interval-s 15 || failed=1
           if [ "$failed" != 0 ]; then
-            echo "npm published ${TAG}; at least one follow-up did not conclude success. Re-dispatch it by hand: Smithery with version ${VERSION}, the release page with tag ${TAG}." >&2
+            echo "npm published ${TAG}; at least one follow-up did not conclude success (named above with its remedy)." >&2
             exit 1
           fi
           echo "${TAG}: npm, Smithery and the release page all concluded success."
