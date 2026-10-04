@@ -14,10 +14,11 @@ waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipp
 reference was re-captured from the running server, and the probe reported the surface
 **unchanged** — only the version string and the capture date moved.
 
-**The first publish since 1.5.10.** 1.5.9 and 1.6.0 were prepared and merged here but
-never tagged, so neither reached npm, and for a day the registry's `latest` stayed at
-1.5.10 while the server ran 1.6.x. Neither changed the surface a client can call, and
-everything they carried ships in this version.
+**The first publish since 1.5.10.** 1.6.0 was prepared and merged here but never
+tagged, so it never reached npm, and for a day the registry's `latest` stayed at 1.5.10
+while the server ran 1.6.x. It changed nothing a client can call, and everything it
+carried ships in this version. (1.5.9 was never tagged either, but 1.5.10 overtook it
+and carried its content.)
 
 ### Changed
 
@@ -65,7 +66,7 @@ reference was re-captured from the running server, and the probe reported the su
 ## [1.5.9] - 2026-10-02
 
 **Not published.** This block was merged but never tagged, so `1.5.9` is not on npm;
-its content shipped in 1.6.2.
+its content shipped in 1.5.10.
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
 relays to. The running server reports 1.5.9 while the registry's latest is 1.5.7, so
