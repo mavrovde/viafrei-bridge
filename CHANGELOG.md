@@ -5,7 +5,7 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
-## [1.7.3] - 2026-10-04
+## [1.7.3] - 2026-10-05
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
 relays to. The running server reports 1.7.3 while the registry's latest is 1.7.0, so
@@ -32,7 +32,7 @@ reference was re-captured from the running server, and the probe reported the su
 - tools: watch_situation differs between the server and the snapshot
 - tools: stop_watch differs between the server and the snapshot
 
-**Every free-text argument now has a length cap.** Sixteen of the seventeen differences
+**Every free-text tool argument now has a length cap.** Sixteen of the seventeen differences
 add a `maxLength` to string arguments that had none, and for fifteen of those tools it is
 the only change: the place-like inputs — `place`, `region`, `station`, `stop`, `near`,
 `in`, a POI `name`, a station `name`, a `find_place` query — stop at 120 characters,
