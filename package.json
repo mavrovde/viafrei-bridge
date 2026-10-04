@@ -30,10 +30,10 @@
     "open-data"
   ],
   "homepage": "https://viafrei.de",
-  "bugs": "https://github.com/mavrovde/viafrei-bridge/issues",
+  "bugs": "https://github.com/mavrovde/viafrei-mcp/issues",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mavrovde/viafrei-bridge.git"
+    "url": "git+https://github.com/mavrovde/viafrei-mcp.git"
   },
   "license": "Apache-2.0",
   "author": "ViaFrei",

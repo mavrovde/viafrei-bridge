@@ -16,6 +16,11 @@ reference was re-captured from the running server, and the probe reported the su
 
 ### Added
 
+- **The repository is now `mavrovde/viafrei-mcp`** (renamed from
+  `viafrei-bridge` on 2026-10-04). GitHub redirects the old address. The npm package
+  is still `viafrei`, so `npx -y viafrei` is unchanged. The Glama listing keeps its
+  old address until Glama re-indexes the repository under the new name.
+
 - **The Smithery listing is released by the tag, like npm.** A new `Smithery`
   workflow runs after the tag's `Publish` run succeeds: it refuses unless the live
   server reports the tag's version (Smithery scans the server, so a mismatch would
@@ -1801,17 +1806,17 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
-[1.7.0]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.7.0
-[1.6.2]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.6.2
-[1.5.10]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.10
-[1.5.7]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.7
-[1.5.6]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.6
-[1.5.5]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.5
-[1.5.4]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.5.4
-[1.4.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.4.9
-[1.3.22]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.22
-[1.3.16]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.16
-[1.3.15]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.15
-[1.3.12]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.12
-[1.3.10]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v1.3.10
-[0.0.9]: https://github.com/mavrovde/viafrei-bridge/releases/tag/v0.0.9
+[1.7.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.0
+[1.6.2]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.6.2
+[1.5.10]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.10
+[1.5.7]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.7
+[1.5.6]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.6
+[1.5.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.5
+[1.5.4]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.4
+[1.4.9]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.4.9
+[1.3.22]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.3.22
+[1.3.16]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.3.16
+[1.3.15]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.3.15
+[1.3.12]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.3.12
+[1.3.10]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.3.10
+[0.0.9]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v0.0.9

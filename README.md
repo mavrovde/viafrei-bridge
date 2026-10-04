@@ -349,11 +349,11 @@ snapshot. Ask any MCP client for `tools/list` to see what is live this minute.
 
 Walkthroughs that chain several tools, each naming what comes back:
 
-- 🛣️ [Driving Munich to Berlin](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Driving-Munich-to-Berlin): several motorways in one call, roadworks ahead, a fuel or charging stop, and parking at the far end.
-- 🚉 [The commute that broke](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-The-commute-that-broke): departures, regional disruption, and a station lift that is out.
-- 🔋 [An EV on a long weekend](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-An-EV-on-a-long-weekend): charging by connector and power, low-emission-zone rules, and what is around a stop.
-- 🚚 [Fleet and logistics briefings](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Fleet-and-logistics-briefings): a dispatcher's morning brief, and watches that report a change instead of being polled.
-- 🗺️ [Building a local guide agent](https://github.com/mavrovde/viafrei-bridge/wiki/Use-case-Building-a-local-guide-agent): a vague place to coordinates and back, and what OpenStreetMap's licence asks of you.
+- 🛣️ [Driving Munich to Berlin](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-Driving-Munich-to-Berlin): several motorways in one call, roadworks ahead, a fuel or charging stop, and parking at the far end.
+- 🚉 [The commute that broke](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-The-commute-that-broke): departures, regional disruption, and a station lift that is out.
+- 🔋 [An EV on a long weekend](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-An-EV-on-a-long-weekend): charging by connector and power, low-emission-zone rules, and what is around a stop.
+- 🚚 [Fleet and logistics briefings](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-Fleet-and-logistics-briefings): a dispatcher's morning brief, and watches that report a change instead of being polled.
+- 🗺️ [Building a local guide agent](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-Building-a-local-guide-agent): a vague place to coordinates and back, and what OpenStreetMap's licence asks of you.
 
 ## 🛠️ For developers
 
@@ -523,7 +523,7 @@ See also [NOTICE](NOTICE) and [LICENSE](LICENSE).
 ViaFrei is live, free, and still growing. Some sources are thinner than they will
 be, and a tool can be slow or wrong. **A tool that fails is something the server
 sees. A tool that answers confidently with the wrong thing is not.** Use the
-[*A tool answered badly, or not at all*](https://github.com/mavrovde/viafrei-bridge/issues/new?template=answer.yml)
+[*A tool answered badly, or not at all*](https://github.com/mavrovde/viafrei-mcp/issues/new?template=answer.yml)
 issue template, saying what you asked and what came back. That report is the
 one thing we cannot get any other way.
 
@@ -537,11 +537,11 @@ so nobody spends an evening looking for the server code.
 
 ## Contributing · Security · Licence
 
-- **Contributing:** yes, please. See [CONTRIBUTING.md](https://github.com/mavrovde/viafrei-bridge/blob/main/CONTRIBUTING.md)
-  and [CODE_OF_CONDUCT.md](https://github.com/mavrovde/viafrei-bridge/blob/main/CODE_OF_CONDUCT.md).
+- **Contributing:** yes, please. See [CONTRIBUTING.md](https://github.com/mavrovde/viafrei-mcp/blob/main/CONTRIBUTING.md)
+  and [CODE_OF_CONDUCT.md](https://github.com/mavrovde/viafrei-mcp/blob/main/CODE_OF_CONDUCT.md).
   The bridge is small and self-contained, which makes it a good place for a first patch.
 - **Security:** never open a public issue for a key, a token or anything that
-  looks like one. [SECURITY.md](https://github.com/mavrovde/viafrei-bridge/blob/main/SECURITY.md)
+  looks like one. [SECURITY.md](https://github.com/mavrovde/viafrei-mcp/blob/main/SECURITY.md)
   has the private reporting path.
 - **Licence:** [Apache-2.0](LICENSE) for this code. Data obtained through the
   server keeps its provider's licence; see [NOTICE](NOTICE).

@@ -11,13 +11,13 @@ reads everything here.
 
 | What you have | Where it goes |
 |---|---|
-| **A question** — "is this supposed to work?", "which tool answers X?", "can I use this for Y?" | [Discussions › Q&A](https://github.com/mavrovde/viafrei-bridge/discussions/categories/q-a). Nothing needs to be a bug first. |
-| **A bad or missing answer from the service** — you asked something reasonable and got nonsense, nothing, or an error | [Open an issue](https://github.com/mavrovde/viafrei-bridge/issues/new/choose) with the **question you asked** and **what came back**. That pair is the single most useful report there is. |
-| **The bridge itself misbehaves** — `npx viafrei` will not start, a flag is ignored, an exit code looks wrong | [Open an issue](https://github.com/mavrovde/viafrei-bridge/issues/new/choose). Include the command, the Node version, and the stderr line. |
+| **A question** — "is this supposed to work?", "which tool answers X?", "can I use this for Y?" | [Discussions › Q&A](https://github.com/mavrovde/viafrei-mcp/discussions/categories/q-a). Nothing needs to be a bug first. |
+| **A bad or missing answer from the service** — you asked something reasonable and got nonsense, nothing, or an error | [Open an issue](https://github.com/mavrovde/viafrei-mcp/issues/new/choose) with the **question you asked** and **what came back**. That pair is the single most useful report there is. |
+| **The bridge itself misbehaves** — `npx viafrei` will not start, a flag is ignored, an exit code looks wrong | [Open an issue](https://github.com/mavrovde/viafrei-mcp/issues/new/choose). Include the command, the Node version, and the stderr line. |
 | **A licence or attribution question** — what you owe whom, whether a use is allowed | Read [SOURCES.md](SOURCES.md) first; it is the per-source register. If it does not answer you, open a Discussion — and if you think the register itself is wrong, that is an issue, not a question. |
-| **A key, a token, or anything that looks like one** | **Never a public issue.** Use the [private security advisory form](https://github.com/mavrovde/viafrei-bridge/security/advisories/new). See [SECURITY.md](SECURITY.md). |
-| **An idea** — a tool that should exist, a source worth adding | [Discussions › Ideas](https://github.com/mavrovde/viafrei-bridge/discussions/categories/ideas), or an issue if you have thought it through. |
-| **You built something with it** | [Discussions › Show and tell](https://github.com/mavrovde/viafrei-bridge/discussions/categories/show-and-tell). |
+| **A key, a token, or anything that looks like one** | **Never a public issue.** Use the [private security advisory form](https://github.com/mavrovde/viafrei-mcp/security/advisories/new). See [SECURITY.md](SECURITY.md). |
+| **An idea** — a tool that should exist, a source worth adding | [Discussions › Ideas](https://github.com/mavrovde/viafrei-mcp/discussions/categories/ideas), or an issue if you have thought it through. |
+| **You built something with it** | [Discussions › Show and tell](https://github.com/mavrovde/viafrei-mcp/discussions/categories/show-and-tell). |
 
 ## What makes a report easy to act on
 

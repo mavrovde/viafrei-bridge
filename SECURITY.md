@@ -14,7 +14,7 @@ cannot be abused while we talk about it.
 
 Use GitHub's private vulnerability reporting on this repository:
 **Security → Report a vulnerability**
-(<https://github.com/mavrovde/viafrei-bridge/security/advisories/new>).
+(<https://github.com/mavrovde/viafrei-mcp/security/advisories/new>).
 
 That form is private to the maintainers. It is the right channel for a
 vulnerability in this bridge **and for one in the ViaFrei MCP server itself** —

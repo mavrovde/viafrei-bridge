@@ -11,7 +11,7 @@ body:
 
         - **A new data source has to be licensed before it can be built.** If you
           are proposing one, a link to its terms is the most useful thing in the
-          issue. [SOURCES.md](https://github.com/mavrovde/viafrei-bridge/blob/main/SOURCES.md) shows the shape of what
+          issue. [SOURCES.md](https://github.com/mavrovde/viafrei-mcp/blob/main/SOURCES.md) shows the shape of what
           we can accept.
         - **The tool catalogue lives on the server, whose source is closed.** An
           idea for a new tool is still welcome here - this repository is the
