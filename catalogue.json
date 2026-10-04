@@ -5,7 +5,7 @@
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.7.0"
+    "version": "1.7.3"
   },
   "capabilities": {
     "tools": {
@@ -74,7 +74,8 @@
           },
           "cursor": {
             "description": "Pagination cursor from a previous result's _meta.nextCursor. Omit for the first page.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 256
           }
         },
         "required": [
@@ -101,7 +102,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -170,7 +172,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -212,12 +215,14 @@
           "brand": {
             "description": "Only stations of this brand, matched case-insensitively anywhere in the brand field: \"ARAL\", \"Shell\", \"TotalEnergies\", \"JET\". Use it when the person named a chain (\"die ARAL an der B1\"). Free stations often carry no brand at all and are then not matched by any brand.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 60
           },
           "name": {
             "description": "Part of the station's own name or brand, case-insensitive: \"Autohof\", \"Raststätte Fulda\". Use it when the person named a specific forecourt rather than a chain. Combine with place to keep the search local.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "open_now": {
             "default": false,
@@ -266,14 +271,15 @@
     },
     {
       "name": "find_parking",
-      "description": "Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, how many are free now and that reading's age. Use when someone asks where to park, stop, rest or leave the car for the train (\"Parkhaus in Köln\", \"Rastplatz A3\", \"P+R\"). Do NOT use for fuel — call find_cheapest_fuel — or for charging an electric car — call find_charging_station. Radius ≤ 25 km, ≤ 10 sites. No \"free now\" means the operator publishes no count, not that it is full. Every answer carries each source's attribution.",
+      "description": "Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, free spaces now and the reading's age. Use when someone asks where to park or leave the car for the train (\"Parkhaus in Köln\", \"Rastplatz A3\", \"P+R\"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No \"free now\" means no published count, not full. Every answer carries each source's attribution.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -298,7 +304,8 @@
           },
           "road": {
             "description": "A single motorway number to list parking along, e.g. \"A3\" (\"A 3\" and \"a3\" are the same road). Use this when the person named a road and no town — \"Rastplatz auf der A7\". Give road OR place OR lat+lon, never two of them: a road is a 900 km line and a place is a point, so the two answer different questions. When the question names BOTH — \"Parkhaus in Köln an der A3\" — use the place: a person parks at a point, and the radius already covers the motorway beside it.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 16
           },
           "kind": {
             "default": "any",
@@ -358,7 +365,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -470,7 +478,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -558,6 +567,7 @@
           "query": {
             "type": "string",
             "minLength": 2,
+            "maxLength": 120,
             "description": "The place name to look up, as the person said it — \"Neustadt\", \"Munich\", \"Kreis Fulda\", \"Köln Hbf\". English names and spellings without umlauts both work."
           },
           "kind": {
@@ -575,7 +585,8 @@
           },
           "near": {
             "description": "A second place to measure from, used to tell same-named candidates apart: \"Neustadt\" near \"Hamburg\" is one of twenty Neustadts. Every result then carries its distance from this point.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude to measure from, instead of `near`.",
@@ -636,15 +647,18 @@
           "name": {
             "type": "string",
             "minLength": 2,
+            "maxLength": 120,
             "description": "The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: \"adesso\" finds \"adesso SE\". A chain name works too, because brands are matched as well as names."
           },
           "in": {
             "description": "A town to search in — \"Dortmund\", \"Fulda\". Strongly preferred: it is both far faster and far less ambiguous than a nationwide search. Use this OR near/lat+lon, not both.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "near": {
             "description": "A place to search around, when the question is \"the nearest X\" rather than \"X in Y\". Use with radius_km.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude of the point to search around, when the caller already holds a coordinate.",
@@ -720,6 +734,7 @@
           "query": {
             "type": "string",
             "minLength": 3,
+            "maxLength": 160,
             "description": "A street address, as a person writes one: street and house number, plus a town or postcode — \"Hauptstraße 12, 36037 Fulda\" or \"Hauptstraße 12, Fulda\". Both orders work. A street and number with neither a town nor a postcode cannot be placed (the same street name exists in about two thousand German towns) and is refused."
           },
           "limit": {
@@ -798,7 +813,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -914,7 +930,8 @@
           "region": {
             "description": "The German region to report on, as free text: a Bundesland (\"Bayern\", \"Bavaria\", \"Nordrhein-Westfalen\"), a city (\"Hamburg\", \"Köln\") or a Kreis (\"Landkreis Fulda\"). A town inside a Kreis is reported as that Kreis and the answer says so, because the data is filed at Kreis level. Not a stop, not a street, not an address. Give either region OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use region.",
@@ -966,7 +983,8 @@
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "lat": {
             "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
@@ -1018,7 +1036,8 @@
           "station": {
             "description": "The railway station, as the person says it: \"Hamburg Hbf\", \"Köln Hbf\", \"Munich Central\", \"Frankfurt (Main) Hbf\". Pass their words — English names and \"central station\" are understood. If the name fits several stations (a bare \"Hauptbahnhof\"), call anyway: the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "eva_no": {
             "description": "The station's EVA number (6–8 digits, e.g. 8002549 for Hamburg Hbf), when a previous result gave you one. It skips the name lookup and is exact — use it to answer a follow-up about a station this tool has already named.",
@@ -1076,12 +1095,14 @@
           "stop": {
             "description": "The stop, as the person says it: \"Fulda, Bahnhof\", \"München, Marienplatz\", \"Köln, Hbf\", \"Hamburg, Rathausmarkt\" (town first). Include the town when the person did — half the names in Germany exist in twenty towns, and a bare \"Bahnhof\" or \"Hauptbahnhof\" comes back as a list of candidates to choose from, so call it and let the result ask. Pass their words; do not guess an id. Give either stop OR the stop id, never both.",
             "type": "string",
-            "minLength": 2
+            "minLength": 2,
+            "maxLength": 120
           },
           "stop_id": {
             "description": "The stop's timetable id, exactly as a previous result of this tool gave it (\"de:06631:1234\"). It skips the name lookup and is exact — use it for a follow-up about a stop this tool has already named, and for one the person picked out of a candidate list.",
             "type": "string",
-            "minLength": 3
+            "minLength": 3,
+            "maxLength": 64
           },
           "when": {
             "description": "Start of the window as an ISO-8601 instant with an offset (\"2026-10-02T07:30:00+02:00\"). Leave it out for \"now\". Convert the person's words yourself — \"morgen früh\", \"tonight\" — and pass the instant; the answer is always rendered in Europe/Berlin.",
@@ -1149,7 +1170,8 @@
           "station": {
             "description": "The railway station, as the person says it: \"Köln Hbf\", \"Hamburg Hbf\", \"Munich Central\". Pass their words — English names and \"central station\" are understood. If the name fits several stations the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.",
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "maxLength": 120
           },
           "eva_no": {
             "description": "The station's EVA number (6–8 digits, e.g. 8000207 for Köln Hbf), when a previous result — a departure board, for instance — already gave you one. It skips the name lookup and is exact.",
@@ -1226,7 +1248,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "The thing being watched, in the vocabulary of `kind`: a road number, a stop id, an AGS prefix, a place name, a DWD warncell, a charging site id. For `road` and `place` it is the person's own words — \"A8\", \"B27\", \"Fulda\" — and needs no lookup. For `station`, `region`, `weather` and `charger` it is an identifier, and it must be the one the matching read tool returned (get_train_departures, check_transit_disruption, check_weather_warnings, find_charging_station): look it up first, because a key nothing matches produces a watch that is simply never triggered."
+            "description": "The thing being watched, in the vocabulary of `kind`: a road number, a stop DHID, an AGS prefix, a place name, a DWD warncell, a charging site id. For `road` and `place` it is the person's own words — \"A8\", \"B27\", \"Fulda\" — and needs no lookup. For `station`, `region`, `weather` and `charger` it is an identifier the matching read tool returned — look it up first: `station` = one of `stop.stopIds` from get_departures (\"de:14612:28\"); an EVA number from get_train_departures (\"8000207\") is NOT a stop id and is refused, as is any id no known stop carries; `region` from check_transit_disruption, `weather` from check_weather_warnings, `charger` from find_charging_station — a key nothing matches there produces a watch that is simply never triggered."
           },
           "hours": {
             "description": "How long to watch, in hours (default 3, maximum 24). Prefer this over `until`: it needs no knowledge of the current time. Give one of `hours` or `until`, never both.",
@@ -1330,7 +1352,8 @@
           },
           "uri": {
             "description": "The watch's resource uri, e.g. \"viafrei://watch/12\". Give either this or `watch_id`, not both.",
-            "type": "string"
+            "type": "string",
+            "maxLength": 64
           }
         }
       },

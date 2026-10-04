@@ -5,6 +5,64 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.7.3] - 2026-10-05
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
+relays to. The running server reports 1.7.3 while the registry's latest is 1.7.0, so
+this release moves the package to the server's number and carries whatever had been
+waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
+reference was re-captured from the running server, and the probe reported the surface
+**CHANGED** — the automation knows what moved, not what it means:
+
+- tools: check_autobahn_traffic differs between the server and the snapshot
+- tools: find_cheapest_fuel differs between the server and the snapshot
+- tools: find_fuel_station differs between the server and the snapshot
+- tools: find_parking differs between the server and the snapshot
+- tools: check_road_status differs between the server and the snapshot
+- tools: find_charging_station differs between the server and the snapshot
+- tools: find_place differs between the server and the snapshot
+- tools: find_poi differs between the server and the snapshot
+- tools: find_address differs between the server and the snapshot
+- tools: find_nearby differs between the server and the snapshot
+- tools: check_transit_disruption differs between the server and the snapshot
+- tools: check_weather_warnings differs between the server and the snapshot
+- tools: get_train_departures differs between the server and the snapshot
+- tools: get_departures differs between the server and the snapshot
+- tools: check_station_facilities differs between the server and the snapshot
+- tools: watch_situation differs between the server and the snapshot
+- tools: stop_watch differs between the server and the snapshot
+
+**Every free-text tool argument now has a length cap.** Sixteen of the seventeen differences
+add a `maxLength` to string arguments that had none, and for fifteen of those tools it is
+the only change: the place-like inputs — `place`, `region`, `station`, `stop`, `near`,
+`in`, a POI `name`, a station `name`, a `find_place` query — stop at 120 characters,
+`find_address`'s `query` at 160, a fuel `brand` at 60, `find_parking`'s `road` at 16, a
+`get_departures` `stop_id` and a `stop_watch` `uri` at 64, and the
+`check_autobahn_traffic` pagination `cursor` at 256. The minimum lengths, enums and
+descriptions of those arguments are unchanged. A value longer than its cap no longer
+matches the tool's input schema, so a client that validates arguments against the schema
+can tell before it sends the call.
+
+**`find_parking` returns share-alike sources as separate lists.** Its description now
+says "ODbL and CC BY-SA sources are separate lists (up to three)", and the 10-site limit
+is now per list. It also shortens the rest: "where published, free spaces now and the
+reading's age"; a missing free count reads "no published count, not full"; the fuel and
+EV redirects move into parentheses; and "stop, rest" is dropped from the when-to-use
+examples. The
+licences behind the two extra lists are what SOURCES now names (below).
+
+**`watch_situation` says exactly which key a station watch takes.** A `station` key is a
+stop DHID — one of `stop.stopIds` from `get_departures`, e.g. "de:14612:28". An EVA
+number from `get_train_departures` ("8000207") is not a stop id and is refused, as is an
+id no known stop carries. The other kinds read as before: `region` from
+`check_transit_disruption`, `weather` from `check_weather_warnings`, `charger` from
+`find_charging_station`.
+
+No tool, prompt or resource was added or removed, and no output shape in the snapshot
+moved. This block describes what the catalogue shows; a change in how the server
+answers that leaves the published schemas and descriptions alone cannot be read off a
+snapshot and is not claimed here.
+
 ### Added
 
 - **A pure mirror releases itself.** When the `Version sync` proposal only mirrors
@@ -41,6 +99,13 @@ a Changelog and the versions follow Semantic Versioning.
 
 ### Changed
 
+- **SOURCES lists the parking sources `find_parking` now answers from.** Six rows: Köln
+  car-park occupancy (DL-DE/Zero-2.0), NRW car parks (dl-de/by-2-0), P+R NRW (**CC
+  BY-SA**), Christophorus Parking (dl-de/by-2-0), Bosch (CC BY 4.0) and Trucklounge
+  Ecopark (**ODbL 1.0**), with their attribution lines as the server's register gives
+  them. Five are `live`, each named by a public answer on 2026-10-05; Bosch is `read`,
+  because no answer that day named it. A new section near the top says what the two
+  share-alike ones mean for the reader, and the page now names server 1.7.3.
 - **Version sync runs every hour instead of every six,** at minute 30, so it never
   reads the server in the same minute as `Freshness`. Each run is still one
   `initialize` and the four list calls, with no tool call.
@@ -1868,6 +1933,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.7.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.3
 [1.7.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.0
 [1.6.2]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.6.2
 [1.5.10]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.5.10
