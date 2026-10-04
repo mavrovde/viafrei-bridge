@@ -17,7 +17,7 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.7.0 |
+| Server | `viafrei` 1.7.3 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
@@ -71,7 +71,7 @@ The server's own instructions to a connecting client, verbatim:
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
 | `roads` | array of string | **yes** | — | min 1 item(s); max 5 item(s); each item: pattern `^[Aa] ?\d{1,3}$` |
-| `cursor` | string | no | — | — |
+| `cursor` | string | no | — | max length 256 |
 | `kinds` | array of string | no | `["warning","closure","roadworks"]` | min 1 item(s); each item: one of `"warning"`, `"roadworks"`, `"closure"` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `10` | min 1; max 50 |
@@ -95,7 +95,7 @@ The server's own instructions to a connecting client, verbatim:
 | `lat` | number | no | — | min -90; max 90 |
 | `limit` | integer | no | `5` | min 1; max 10 |
 | `lon` | number | no | — | min -180; max 180 |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `radius_km` | number | no | `5` | min 1; max 25 |
 
 - **`fuel`** — Fuel grade: "e5" (Super E5), "e10" (Super E10, the standard German petrol) or "diesel". Default "e10". Pass the grade the person named — a diesel driver is not helped by a petrol price.
@@ -114,16 +114,16 @@ The server's own instructions to a connecting client, verbatim:
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `brand` | string | no | — | min length 1 |
+| `brand` | string | no | — | min length 1; max length 60 |
 | `fuel` | string | no | — | one of `"e5"`, `"e10"`, `"diesel"` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
 | `limit` | integer | no | `5` | min 1; max 10 |
 | `lon` | number | no | — | min -180; max 180 |
-| `name` | string | no | — | min length 1 |
+| `name` | string | no | — | min length 1; max length 120 |
 | `open_at` | string | no | — | pattern `^(?:\d{1,2}:\d{2}\|\d{4}-\d{2}-\d{2}[T ]\d{1,2}:\d{2})$` |
 | `open_now` | boolean | no | `false` | — |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `radius_km` | number | no | `5` | min 1; max 25 |
 | `sort` | string | no | `"distance"` | one of `"distance"`, `"price"`, `"name"` |
 | `whole_day` | boolean | no | `false` | — |
@@ -146,7 +146,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, how many are free now and that reading's age. Use when someone asks where to park, stop, rest or leave the car for the train ("Parkhaus in Köln", "Rastplatz A3", "P+R"). Do NOT use for fuel — call find_cheapest_fuel — or for charging an electric car — call find_charging_station. Radius ≤ 25 km, ≤ 10 sites. No "free now" means the operator publishes no count, not that it is full. Every answer carries each source's attribution.
+> Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, free spaces now and the reading's age. Use when someone asks where to park or leave the car for the train ("Parkhaus in Köln", "Rastplatz A3", "P+R"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No "free now" means no published count, not full. Every answer carries each source's attribution.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -156,9 +156,9 @@ The server's own instructions to a connecting client, verbatim:
 | `limit` | integer | no | `5` | min 1; max 10 |
 | `lon` | number | no | — | min -180; max 180 |
 | `only_with_free_spaces` | boolean | no | `false` | — |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `radius_km` | number | no | `10` | min 1; max 25 |
-| `road` | string | no | — | — |
+| `road` | string | no | — | max length 16 |
 
 - **`kind`** — Which kind of parking: "rest_area" = motorway rest and service area (no feed we ingest classifies this category at all, so an answer filtered to it says so and names the parking we do hold), "car_park" = public car park (Parkhaus/Parkplatz), "park_and_ride" = P+R beside a station, "truck" = lorry parking, "any" = all of them. Default "any". Pass a kind only when the person named one — "Rastanlage"/"Raststätte" is "rest_area", a lorry driver asking for a break wants "truck", someone leaving the car for the train wants "park_and_ride". A camper, a caravan or a coach is none of the five: leave the argument out rather than filtering a tourist into lorry bays.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
@@ -183,7 +183,7 @@ The server's own instructions to a connecting client, verbatim:
 | `lat` | number | no | — | min -90; max 90 |
 | `limit` | integer | no | `10` | min 1; max 11 |
 | `lon` | number | no | — | min -180; max 180 |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `road` | string | no | — | pattern `^[ABab] ?\d{1,3}$` |
 
 - **`horizon_days`** — How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for "this weekend", 7 for "next week", and for a named weekday ("am Freitag", "on Friday") the number of days from today to that day. A bare "is the A8 open?" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is.
@@ -229,7 +229,7 @@ The server's own instructions to a connecting client, verbatim:
 | `lon` | number | no | — | min -180; max 180 |
 | `min_power_kw` | number | no | — | min 1; max 1000 |
 | `only_available` | boolean | no | `false` | — |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `radius_km` | number | no | `10` | min 1; max 25 |
 
 - **`connector`** — Plug the car needs: "ccs2" (CCS Combo 2 — the DC fast-charging standard on almost every European EV), "type2" (Typ 2 / Mennekes, the AC socket) or "chademo" (older Japanese DC, e.g. Nissan Leaf). Omit unless the person named their plug or their car model — filtering on a guess hides chargers they could have used.
@@ -250,13 +250,13 @@ The server's own instructions to a connecting client, verbatim:
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `query` | string | **yes** | — | min length 2 |
+| `query` | string | **yes** | — | min length 2; max length 120 |
 | `kind` | string | no | — | one of `"city"`, `"district"`, `"admin"`, `"station"`, `"stop"`, `"motorway"`, `"junction"` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
 | `limit` | integer | no | `5` | min 1; max 10 |
 | `lon` | number | no | — | min -180; max 180 |
-| `near` | string | no | — | — |
+| `near` | string | no | — | max length 120 |
 | `radius_km` | number | no | — | min 1; max 200 |
 
 - **`query`** — The place name to look up, as the person said it — "Neustadt", "Munich", "Kreis Fulda", "Köln Hbf". English names and spellings without umlauts both work.
@@ -276,14 +276,14 @@ The server's own instructions to a connecting client, verbatim:
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `name` | string | **yes** | — | min length 2 |
+| `name` | string | **yes** | — | min length 2; max length 120 |
 | `category` | string | no | — | one of `"office"`, `"amenity"`, `"shop"`, `"tourism"`, `"healthcare"`, `"leisure"`, `"industrial"`, `"building"` |
-| `in` | string | no | — | — |
+| `in` | string | no | — | max length 120 |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
 | `limit` | integer | no | `5` | min 1; max 10 |
 | `lon` | number | no | — | min -180; max 180 |
-| `near` | string | no | — | — |
+| `near` | string | no | — | max length 120 |
 | `radius_km` | number | no | `10` | min 1; max 50 |
 
 - **`name`** — The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: "adesso" finds "adesso SE". A chain name works too, because brands are matched as well as names.
@@ -304,7 +304,7 @@ The server's own instructions to a connecting client, verbatim:
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `query` | string | **yes** | — | min length 3 |
+| `query` | string | **yes** | — | min length 3; max length 160 |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `3` | min 1; max 5 |
 
@@ -340,7 +340,7 @@ The server's own instructions to a connecting client, verbatim:
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
 | `lon` | number | no | — | min -180; max 180 |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 | `radius_km` | number | no | `5` | min 1; max 15 |
 
 - **`categories`** — Which categories to include: "fuel", "charging", "parking", "station" (railway station), "junction" (motorway junction). Omit for all five. Pass a subset only when the person named one — otherwise the full picture is the point of this tool.
@@ -377,7 +377,7 @@ The server's own instructions to a connecting client, verbatim:
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
 | `lon` | number | no | — | min -180; max 180 |
-| `region` | string | no | — | min length 1 |
+| `region` | string | no | — | min length 1; max length 120 |
 | `window_min` | integer | no | `60` | min 5; max 120 |
 
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
@@ -398,7 +398,7 @@ The server's own instructions to a connecting client, verbatim:
 | `lat` | number | no | — | min -90; max 90 |
 | `lon` | number | no | — | min -180; max 180 |
 | `min_level` | integer | no | `0` | min 0; max 4 |
-| `place` | string | no | — | min length 1 |
+| `place` | string | no | — | min length 1; max length 120 |
 
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
@@ -418,7 +418,7 @@ The server's own instructions to a connecting client, verbatim:
 | `eva_no` | string | no | — | pattern `^\d{6,8}$` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `10` | min 1; max 15 |
-| `station` | string | no | — | min length 1 |
+| `station` | string | no | — | min length 1; max length 120 |
 | `when` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
 
 - **`duration_min`** — How far ahead to look, in minutes (5–120, default 60). Use a small window for "what leaves now" and a larger one for "this evening". Above 120 is refused: a departure board is not a timetable search.
@@ -440,8 +440,8 @@ The server's own instructions to a connecting client, verbatim:
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `10` | min 1; max 15 |
 | `modes` | array of string | no | — | min 1 item(s); each item: one of `"rail"`, `"subway"`, `"tram"`, `"bus"`, `"ferry"` |
-| `stop` | string | no | — | min length 2 |
-| `stop_id` | string | no | — | min length 3 |
+| `stop` | string | no | — | min length 2; max length 120 |
+| `stop_id` | string | no | — | min length 3; max length 64 |
 | `when` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
 
 - **`duration_min`** — How far past that moment to look, in minutes (5–1440, default 60). Small for "what goes now", a few hours for an evening. To reach the far end of the 48 h timetable, move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.
@@ -464,7 +464,7 @@ The server's own instructions to a connecting client, verbatim:
 | `facility` | string | no | `"any"` | one of `"any"`, `"elevator"`, `"escalator"` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `20` | min 1; max 50 |
-| `station` | string | no | — | min length 1 |
+| `station` | string | no | — | min length 1; max length 120 |
 
 - **`eva_no`** — The station's EVA number (6–8 digits, e.g. 8000207 for Köln Hbf), when a previous result — a departure board, for instance — already gave you one. It skips the name lookup and is exact.
 - **`facility`** — Which equipment to report: "elevator" for lifts only, "escalator" for escalators only, "any" for both (default). Pass a value only when the person named the equipment itself ("Aufzug", "Rolltreppe", "lift", "escalator"): a question about a wheelchair, a pram, heavy luggage or step-free access keeps the default — an escalator carries a suitcase too, and a filter there hides half of what the traveller needs. Filtering does not change how a broken one is reported, only which ones are listed.
@@ -487,7 +487,7 @@ The server's own instructions to a connecting client, verbatim:
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `until` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
 
-- **`key`** — The thing being watched, in the vocabulary of `kind`: a road number, a stop id, an AGS prefix, a place name, a DWD warncell, a charging site id. For `road` and `place` it is the person's own words — "A8", "B27", "Fulda" — and needs no lookup. For `station`, `region`, `weather` and `charger` it is an identifier, and it must be the one the matching read tool returned (get_train_departures, check_transit_disruption, check_weather_warnings, find_charging_station): look it up first, because a key nothing matches produces a watch that is simply never triggered.
+- **`key`** — The thing being watched, in the vocabulary of `kind`: a road number, a stop DHID, an AGS prefix, a place name, a DWD warncell, a charging site id. For `road` and `place` it is the person's own words — "A8", "B27", "Fulda" — and needs no lookup. For `station`, `region`, `weather` and `charger` it is an identifier the matching read tool returned — look it up first: `station` = one of `stop.stopIds` from get_departures ("de:14612:28"); an EVA number from get_train_departures ("8000207") is NOT a stop id and is refused, as is any id no known stop carries; `region` from check_transit_disruption, `weather` from check_weather_warnings, `charger` from find_charging_station — a key nothing matches there produces a watch that is simply never triggered.
 - **`kind`** — What kind of thing to watch. `road` = one motorway or federal road (key: "A8", "B27") — reports a closure or restriction appearing or clearing; `station` = one public-transport stop by its DHID (key: "de:14612:28") — reports departures running late past the threshold; `region` = a city or district by AGS prefix (key: "14612") — reports the share of late trips crossing the threshold; `place` = a town or address (key: "Fulda") — reports road restrictions appearing within the radius; `weather` = a DWD warncell (key: "105315000") — reports an official warning coming into force; `charger` = one charging site (key: the site id from find_charging_station) — reports a point turning free.
 - **`condition`** — Optional threshold. Each key belongs to ONE kind and a key that does not belong to the chosen kind is refused by name; leave it out to use that kind's default.
   - `delay_min` (integer, min 1; max 600) — station: minutes of delay that count as a disruption (default 10).
@@ -510,7 +510,7 @@ The server's own instructions to a connecting client, verbatim:
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
-| `uri` | string | no | — | — |
+| `uri` | string | no | — | max length 64 |
 | `watch_id` | integer | no | — | min 1; max 9007199254740991 |
 
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
