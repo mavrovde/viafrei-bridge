@@ -4,11 +4,25 @@
  * whether it is the Latest release. The `Release page` workflow runs this and hands
  * the result to `gh release create`; nothing here talks to GitHub.
  *
- * BODY. The version's `## [X.Y.Z]` block, without its heading: every line after the
+ * BLOCK. The version's `## [X.Y.Z]` block, without its heading: every line after the
  * heading up to the next level-2 heading (`## `, not `### `) or the end of the file,
  * minus any link-reference definitions (a `[1.7.0]:` line followed by a URL) that trail the last
  * block, and minus surrounding blank lines. The version must match exactly, so 1.7.1
  * never picks up 1.7.10 and the reverse.
+ *
+ * BODY. The page a person reads, built from the block (owner 2026-10-05: "normal release
+ * notes"). The Version sync proposer's opening paragraph is written for the maintainer
+ * who merges the pull request — registry numbers, probe verdicts, the raw list of
+ * catalogue differences — so on the page it becomes one plain sentence: "This release
+ * mirrors server X.Y.Z.", plus "the tools, prompts and resources are unchanged" when the
+ * probe said so. The raw `- tools: x differs between the server and the snapshot` lines
+ * are dropped; the person who merged a CHANGED surface described it in prose below them.
+ * A block whose proposer paragraph still says the surface CHANGED or is UNCLASSIFIED
+ * with no prose of its own, or that still carries the "A person must ..." instruction, is
+ * a failure: a page cannot say what nobody wrote down. Every page then ends with the
+ * same Install section and a Full changelog link to the previous plain tag, unless the
+ * block already carries an install line of its own. Hard-wrapped prose is joined back
+ * into one line per paragraph, because a page renders every newline as a break.
  *
  * TITLE. ONE rule: `viafrei vX.Y.Z — <lead>`, where <lead> is the block's first BOLD
  * LEAD — `**...**` opening a paragraph or a list item (not a wrapped line that happens
@@ -18,14 +32,14 @@
  * the same normalisation). Every block that proposer writes opens with that line, so
  * skipping it lets the first real change name the page. When it is the block's ONLY
  * bold lead (a pure version-sync release) it is used, so a legitimate mirror block is
- * titled `viafrei vX.Y.Z — Mirrors the server` and never fails. No bold lead at all is
+ * titled `viafrei vX.Y.Z — same tools, mirrors the server` (MIRROR_TITLE) and never fails. No bold lead at all is
  * a failure.
 
  * LATEST. True only when X.Y.Z is the highest plain `vX.Y.Z` tag the caller lists
  * (the tag itself included), compared as numbers, not as strings.
  *
- * Exit codes: 0 done; 1 the CHANGELOG cannot back a page — the block is missing, empty
- * or has no bold lead — and the message names the tag, because an empty page is never
+ * Exit codes: 0 done; 1 the CHANGELOG cannot back a page — the block is missing, empty,
+ * has no bold lead, or leaves a changed surface undescribed — and the message names the tag, because an empty page is never
  * the fallback; 2 usage, or an input that could not be read.
  *
  * Usage:
@@ -104,9 +118,12 @@ export function boldLeads(block) {
     return leads;
 }
 
+/** The title of a pure mirror, whose only bold lead is MIRROR_LEAD. */
+export const MIRROR_TITLE = 'same tools, mirrors the server';
+
 /**
  * `viafrei vX.Y.Z — <first bold lead that is not MIRROR_LEAD>`, falling back to
- * MIRROR_LEAD when it is the only one. Throws NotesError when the block has none.
+ * MIRROR_TITLE when MIRROR_LEAD is the only one. Throws NotesError when the block has none.
  * @param {string} block
  * @param {string} version
  */
@@ -116,7 +133,7 @@ export function titleFor(block, version) {
         throw new NotesError(`v${version}: the "## [${version}]" block has no bold lead to title the page with`);
     }
     const mirror = normaliseLead(MIRROR_LEAD);
-    const lead = leads.find((l) => l !== mirror) ?? leads[0];
+    const lead = leads.find((l) => l !== mirror) ?? (leads[0] === mirror ? MIRROR_TITLE : leads[0]);
     return `viafrei v${version} — ${lead}`;
 }
 
@@ -139,10 +156,88 @@ export function isHighest(version, tags) {
     return versions.every((v) => compareSemver(version, v) >= 0);
 }
 
+/** The highest plain vX.Y.Z tag below `version`, or null when there is none. */
+export function previousTag(version, tags) {
+    const lower = tags.map((t) => t.trim()).filter((t) => /^v\d+\.\d+\.\d+$/.test(t)).map((t) => t.slice(1))
+        .filter((v) => compareSemver(v, version) < 0).sort(compareSemver);
+    return lower.length > 0 ? `v${lower.at(-1)}` : null;
+}
+
+const REPO_URL = 'https://github.com/mavrovde/viafrei-mcp';
+
+/**
+ * Join the CHANGELOG's hard-wrapped lines back into one line per paragraph or list item.
+ * A release page renders every newline as a line break, so a block wrapped at 90
+ * columns would show ragged lines. Headings, list items, table rows and code fences
+ * keep their own lines; an indented line continues the list item above it.
+ */
+export function unwrap(paragraph) {
+    if (/^\s*(```|~~~)/mu.test(paragraph)) return paragraph;
+    const lines = [];
+    for (const line of paragraph.split('\n')) {
+        const starts = /^(#{1,6}\s|\s*[-*]\s|\s*\d+\.\s|\|)/u.test(line);
+        if (lines.length === 0 || starts) lines.push(line.trimEnd());
+        else lines[lines.length - 1] = `${lines.at(-1)} ${line.trim()}`;
+    }
+    return lines.join('\n');
+}
+const DIFFERENCE_LINE = /^- [a-z]+: .+ differs between the server and the snapshot$/u;
+const INSTRUCTION = /^\*\*A person must /u;
+
+/**
+ * The page body for `version` from its block — see BODY in the header. Throws NotesError
+ * when the block still holds what only a person can turn into a release note.
+ * @param {string} block
+ * @param {string} version
+ * @param {string[]} tags
+ */
+export function pageBody(block, version, tags) {
+    const paragraphs = block.split(/\n\s*\n/u);
+    const out = [];
+    const mirror = normaliseLead(MIRROR_LEAD);
+    const first = paragraphs[0] ?? '';
+    const m = /^\*\*(.+?)\*\*/u.exec(first);
+    let rest = paragraphs;
+    if (m && normaliseLead(m[1]) === mirror) {
+        const flat = first.replace(/\s+/gu, ' ');
+        const unchanged = /surface \*\*unchanged\*\*/u.test(flat);
+        out.push(unchanged
+            ? `This release mirrors server ${version}. The tools, prompts and resources are unchanged, so every client keeps working as it is.`
+            : `This release mirrors server ${version}.`);
+        rest = paragraphs.slice(1);
+        if (!unchanged) {
+            // What is left once the raw difference list is gone must be a person's prose.
+            const prose = rest.map((p) => p.split('\n').filter((l) => !DIFFERENCE_LINE.test(l.trim())).join('\n').trim())
+                .filter((p) => p !== '' && !/^#{3,6}\s/u.test(p));
+            if (prose.length === 0) {
+                throw new NotesError(`v${version}: the server's surface changed and the "## [${version}]" block does not say how — describe it before the page is written`);
+            }
+        }
+    }
+    for (const paragraph of rest) {
+        const kept = paragraph.split('\n').filter((l) => !DIFFERENCE_LINE.test(l.trim())).join('\n').trim();
+        if (kept === '') continue;
+        if (INSTRUCTION.test(kept)) {
+            throw new NotesError(`v${version}: the "## [${version}]" block still carries the proposer's instruction to a person ("${kept.split('\n')[0].slice(0, 60)}…") — do what it says and remove it`);
+        }
+        out.push(unwrap(kept));
+    }
+    if (out.length === 1 && m && normaliseLead(m[1]) === mirror) {
+        out.push(`No code changed in the bridge itself; only its version moved to ${version}.`);
+    }
+    if (!out.some((p) => p.includes('npx -y viafrei@'))) {
+        out.push('## Install', '```\nnpx -y viafrei@' + version + '\n```',
+            `Requires Node.js 22 or newer. Published through npm Trusted Publishing, with provenance. See the [README](${REPO_URL}#readme) for client setup, or connect through [Smithery](https://smithery.ai/servers/viafrei/viafrei) with no local install.`);
+        const previous = previousTag(version, tags);
+        if (previous) out.push(`**Full changelog:** ${REPO_URL}/compare/${previous}...v${version}`);
+    }
+    return out.join('\n\n');
+}
+
 /** Everything the page needs, from the three inputs. */
 export function releaseNotes(changelog, version, tags) {
-    const body = extractBlock(changelog, version);
-    return { body, title: titleFor(body, version), latest: isHighest(version, tags) };
+    const block = extractBlock(changelog, version);
+    return { body: pageBody(block, version, tags), title: titleFor(block, version), latest: isHighest(version, tags) };
 }
 
 function usage(message) {

@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createChecker } from './check-harness.mjs';
-import { MIRROR_LEAD, NotesError, boldLeads, compareSemver, extractBlock, isHighest, releaseNotes, titleFor } from './release-notes.mjs';
+import { MIRROR_LEAD, MIRROR_TITLE, NotesError, boldLeads, compareSemver, extractBlock, isHighest, pageBody, releaseNotes, titleFor, unwrap } from './release-notes.mjs';
 import { nodePath, runTool } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -128,8 +128,8 @@ const realAfter = `${MIRROR}\n\n### Added\n\n- **The repository is now \`a/b\`**
 check('title: a mirror line followed by a real lead takes the real lead',
     titleFor(realAfter, '1.0.0') === 'viafrei v1.0.0 — The repository is now a/b', titleFor(realAfter, '1.0.0'));
 const mirrorOnly = `${MIRROR} The probe reported the surface **unchanged** today.`;
-check('title: a mirror-only block falls back to the mirror line',
-    titleFor(mirrorOnly, '1.0.0') === 'viafrei v1.0.0 — Mirrors the server', titleFor(mirrorOnly, '1.0.0'));
+check('title: a mirror-only block is titled MIRROR_TITLE, not the proposer\'s bold lead',
+    titleFor(mirrorOnly, '1.0.0') === `viafrei v1.0.0 — ${MIRROR_TITLE}`, titleFor(mirrorOnly, '1.0.0'));
 check('title: the mirror line is recognised after normalisation (no period, extra spaces)',
     titleFor('**Mirrors  the server**\n\n**Real one.**', '1.0.0') === 'viafrei v1.0.0 — Real one');
 check('title: a real lead BEFORE the mirror line is still the first one',
@@ -139,8 +139,8 @@ const wrapped = `${MIRROR} The probe reported the surface\n**unchanged** — onl
 check('title: bold at the start of a WRAPPED line is not a lead (the proposer wraps **unchanged** there)',
     titleFor(wrapped, '1.0.0') === 'viafrei v1.0.0 — The real change', titleFor(wrapped, '1.0.0'));
 const wrappedOnly = `${MIRROR} The probe reported the surface\n**unchanged** — only the version string moved.`;
-check('title: a mirror-only block whose wrapped line starts with bold still falls back to the mirror line',
-    titleFor(wrappedOnly, '1.0.0') === 'viafrei v1.0.0 — Mirrors the server', titleFor(wrappedOnly, '1.0.0'));
+check('title: a mirror-only block whose wrapped line starts with bold is still titled MIRROR_TITLE',
+    titleFor(wrappedOnly, '1.0.0') === `viafrei v1.0.0 — ${MIRROR_TITLE}`, titleFor(wrappedOnly, '1.0.0'));
 
 // One copy of the boilerplate: the proposer must open its blocks with exactly MIRROR_LEAD.
 const proposer = readFileSync(join(HERE, 'propose-release.mjs'), 'utf8');
@@ -156,7 +156,46 @@ check('Latest: a lower tag is not, even when it sorts higher as a string', isHig
 check('Latest: other tag shapes are ignored', isHighest('1.7.0', ['v1.7.0', 'v2.0.0-rc.1', 'smithery-9', 'v9']) === true);
 check('releaseNotes: body, title and latest together',
     JSON.stringify(releaseNotes(FIXTURE, '1.7.10', ['v1.7.10', 'v1.7.1'])) ===
-    JSON.stringify({ body: b1710, title: 'viafrei v1.7.10 — Ten, not one', latest: true }));
+    JSON.stringify({ body: pageBody(b1710, '1.7.10', ['v1.7.10', 'v1.7.1']), title: 'viafrei v1.7.10 — Ten, not one', latest: true }));
+
+// --- the page body (owner 2026-10-05: "normal release notes") ---------------------------
+
+const TAGS = ['v1.0.0', 'v0.9.0', 'v0.10.0', 'v2.0.0-rc.1'];
+const pure = pageBody(`${MIRROR} The probe reported the surface\n**unchanged** — only the version string moved.`, '1.0.0', TAGS);
+check('page: a pure mirror opens with one plain sentence, not the proposer\'s paragraph',
+    pure.startsWith('This release mirrors server 1.0.0. The tools, prompts and resources are unchanged')
+    && !pure.includes(MIRROR_LEAD) && !pure.includes('probe') && !pure.includes('registry'), pure);
+check('page: a pure mirror says the bridge code did not change', pure.includes('No code changed in the bridge itself'), pure);
+check('page: an Install section with the exact version', pure.includes('## Install') && pure.includes('npx -y viafrei@1.0.0'), pure);
+check('page: Full changelog compares with the previous plain tag, numerically (0.10.0, not 0.9.0)',
+    pure.endsWith('compare/v0.10.0...v1.0.0'), pure.split('\n').at(-1));
+check('page: no previous tag, no Full changelog line', !pageBody('**First.** Ever.', '0.0.1', ['v0.0.1']).includes('Full changelog'));
+check('page: a block with its own install line gets no second Install section',
+    !pageBody('**Hand-written.**\n\n```\nnpx -y viafrei@1.0.0\n```', '1.0.0', TAGS).includes('## Install'));
+
+const described = `${MIRROR} The probe reported the surface **CHANGED** — the automation knows what moved:\n\n`
+    + '- tools: find_x differs between the server and the snapshot\n- resources: viafrei://y differs between the server and the snapshot\n\n'
+    + '**`find_x` takes a longer window.** Its limit moves\nfrom 90 to 92 days.';
+const db = pageBody(described, '1.0.0', TAGS);
+check('page: a described change keeps the prose and drops the raw difference lines',
+    db.startsWith('This release mirrors server 1.0.0.\n\n**`find_x` takes a longer window.**') && !db.includes('differs between') && !db.includes('unchanged'), db);
+check('page: hard-wrapped prose is joined into one line', db.includes('Its limit moves from 90 to 92 days.'), db);
+const listWrap = unwrap('- **One.** Starts\n  and continues.\n- **Two.**');
+check('page: a wrapped list item continues its item; the next item keeps its own line',
+    listWrap === '- **One.** Starts and continues.\n- **Two.**', JSON.stringify(listWrap));
+
+const undescribed = refusal(() => pageBody(`${MIRROR} The probe reported the surface **CHANGED**:\n\n- tools: find_x differs between the server and the snapshot`, '1.0.0', TAGS));
+check('page: a CHANGED surface nobody described FAILS and names the tag',
+    undescribed !== null && undescribed.startsWith('v1.0.0:') && undescribed.includes('does not say how'), undescribed ?? 'no refusal');
+const unclassified = refusal(() => pageBody(`${MIRROR} The probe reported the surface **UNCLASSIFIED** — nobody knows.`, '1.0.0', TAGS));
+check('page: an UNCLASSIFIED surface with no prose FAILS', unclassified !== null && unclassified.includes('does not say how'), unclassified ?? 'no refusal');
+const leftover = refusal(() => pageBody(`${described}\n\n**A person must describe the change above before this merges.** Text.`, '1.0.0', TAGS));
+check('page: the proposer\'s "A person must" instruction left in the block FAILS',
+    leftover !== null && leftover.includes('instruction to a person'), leftover ?? 'no refusal');
+
+const human = pageBody('This release does things.\n\n### Added\n\n- **A thing.**', '1.0.0', TAGS);
+check('page: a block not written by the proposer is kept as written, with the footer added',
+    human.startsWith('This release does things.') && human.includes('### Added') && !human.includes('mirrors server'), human);
 
 // --- the CLI ---------------------------------------------------------------------------
 
@@ -178,7 +217,7 @@ try {
 
     const ok = cli(['1.7.1', changelog, tags, body]);
     check('CLI: exit 0, title and latest on stdout', ok.status === 0 && ok.out.includes('title=viafrei v1.7.1 — A small fix\n') && ok.out.includes('latest=false\n'), ok.out);
-    check('CLI: the body file is the block', readFileSync(body, 'utf8') === `${b171}\n`);
+    check('CLI: the body file is the page built from the block', readFileSync(body, 'utf8') === `${pageBody(b171, '1.7.1', ['v1.7.10', 'v1.7.1', 'v0.0.9'])}\n`);
 
     const miss = cli(['2.0.0', changelog, join(dir, 'tags2'), body]);
     check('CLI: an unreadable tag list is exit 2', miss.status === 2, `${miss.status} ${miss.out}`);

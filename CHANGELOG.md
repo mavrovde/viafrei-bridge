@@ -5,6 +5,17 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- **Release pages read as normal release notes.** The page is no longer the CHANGELOG
+  block verbatim. The Version sync paragraph meant for the maintainer (registry numbers,
+  the probe's verdict, the raw "differs between the server and the snapshot" list)
+  becomes one sentence, "This release mirrors server X.Y.Z.", plus "the tools, prompts
+  and resources are unchanged" when that is true. Wrapped lines are joined, and every
+  page ends with an Install section and a Full changelog link. A pure mirror is titled
+  "same tools, mirrors the server". A changed surface that nobody described now fails
+  the page rather than publishing a list of tool names.
+
 ## [1.7.5] - 2026-10-05
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it

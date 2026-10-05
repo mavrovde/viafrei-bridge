@@ -4,15 +4,20 @@ name: Release page
 # release of that tag has been VERIFIED — a page must never announce a version
 # npm does not serve.
 #
-# Body : the tag's `## [X.Y.Z]` block, read from CHANGELOG.md AT THE TAG.
+# Body : a normal release note built from the tag's `## [X.Y.Z]` block, read from
+#        CHANGELOG.md AT THE TAG: the proposer's maintainer paragraph becomes one
+#        plain sentence, raw difference lines are dropped, and an Install section
+#        and a Full changelog link are added.
 # Title: "viafrei vX.Y.Z — <the block's first bold lead>", skipping the Version
-#        sync proposer's "Mirrors the server" unless it is the only one.
+#        sync proposer's "Mirrors the server"; a pure mirror is titled
+#        "same tools, mirrors the server".
 # Latest: only when the tag is the highest vX.Y.Z tag in the repository.
 # scripts/release-notes.mjs owns all three rules, and its self-test pins them.
 #
 # Never destructive: if a page for the tag already exists (published or draft),
-# it is left exactly as it is and the run says so. A missing or empty block is a
-# failure naming the tag, never an empty page.
+# it is left exactly as it is and the run says so. A missing or empty block, or a
+# changed surface nobody described, is a failure naming the tag, never an empty
+# or misleading page.
 #
 # The Version sync workflow's automatic path dispatches this with `tag` once
 # the npm run it dispatched has concluded success; the workflow_run trigger
