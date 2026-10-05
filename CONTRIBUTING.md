@@ -169,19 +169,34 @@ Nobody writes a GitHub release page by hand. After the npm workflow has publishe
 a `v*` tag and verified it, the `Release page` workflow
 (`.github/workflows/release-page.yml`) creates the page for that tag:
 
-- **Body:** the tag's `## [X.Y.Z]` block of `CHANGELOG.md`, read at the tag, without
-  its heading. A missing or empty block fails the run and names the tag; there is
-  never an empty page.
+- **Body:** a normal release note built from the tag's `## [X.Y.Z]` block of
+  `CHANGELOG.md`, read at the tag. The Version sync proposer's opening paragraph is
+  written for whoever merges the pull request (registry numbers, the probe's verdict,
+  the raw list of catalogue differences: tools, prompts or resources added, removed or
+  changed, and `initialize` fields moved), so on the page it becomes one sentence:
+  "This release mirrors server X.Y.Z." — plus "the tools, prompts and resources are
+  unchanged" when the probe said so — and the raw difference list is dropped, whatever
+  shape its items take and however they wrap. Everything you wrote below it is kept,
+  with hard-wrapped lines joined, because a page renders every newline as a line
+  break. A pure mirror gets a line saying no bridge code changed. Every page ends with
+  an **Install** section (`npx -y viafrei@X.Y.Z`, left out when the block already
+  carries an install line) and a **Full changelog** link to the previous tag. Fenced
+  code is kept as written. A missing or empty block fails the run and names the tag,
+  and so does a CHANGED or UNCLASSIFIED surface that nobody described, or a leftover
+  "A person must ..." instruction: a page cannot say what nobody wrote. **So when the
+  surface changed, describe each change in prose for a reader of the package** (what a
+  user can now do, what moved), as the v1.7.0 page does.
 - **Title:** `viafrei vX.Y.Z — <lead>`, where the lead is the block's **first bold
   lead that is not "Mirrors the server"**. A bold lead is `**...**` opening a
   paragraph or a list item (not a wrapped line that happens to start with bold), with
   backticks and a trailing `.`, `:` or `;` dropped. "Mirrors the server" is the line
   the Version sync proposer opens every block with, so it is skipped and the first
   real change names the page; when it is the block's only bold lead (a pure
-  version-sync release) the title is `viafrei vX.Y.Z — Mirrors the server`. A block
-  with no bold lead at all fails the run. The string is one constant, `MIRROR_LEAD`
-  in `scripts/release-notes.mjs`, and the self-test fails if the proposer's opening
-  line stops matching it. Choose the title by the first real bold lead you write.
+  version-sync release) the title is `viafrei vX.Y.Z — same tools, mirrors the server`
+  (`MIRROR_TITLE`). A block with no bold lead at all fails the run. The string is one
+  constant, `MIRROR_LEAD` in `scripts/release-notes.mjs`, and the self-test fails if
+  the proposer's opening line stops matching it. Choose the title by the first real
+  bold lead you write.
 - **Latest:** only when the tag is the highest `vX.Y.Z` tag, compared as numbers.
 - **Never destructive:** a page that already exists for the tag, draft or published,
   is left unchanged and the run says so. To change a page, edit it on GitHub.
