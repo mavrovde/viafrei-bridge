@@ -17,7 +17,7 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.7.5 |
+| Server | `viafrei` 1.8.0 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
@@ -58,7 +58,7 @@ language the person is writing in rather than relying on the default.
 
 The server's own instructions to a connecting client, verbatim:
 
-> ViaFrei exposes German open transport data (Autobahn traffic and the curated German driving rules now; public-transport delays, fuel prices and departures next). Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice.
+> ViaFrei exposes German open transport data (Autobahn traffic and the curated German driving rules now; public-transport delays, fuel prices and departures next). Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice. ViaFrei is in beta: sources are still being added and answers and coverage can change, so when a decision depends on a closure, a departure or a price, tell the user to confirm it with the source the attribution line names.
 
 ## Tools
 
@@ -198,17 +198,17 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns the roadworks PLANNED on one German motorway inside a date window: the section and direction as published, what is restricted, and the start and end. Use when a date or window is named, the question says geplant, or someone asks how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.
+> Returns roadworks PLANNED on one German motorway, or on one Bundesstraße in Niedersachsen, in a date window: the section as published, what is restricted, and start and end. Use when a date or window is named, the question says geplant, or how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `road` | string | **yes** | — | pattern `^[Aa] ?\d{1,3}$` |
+| `road` | string | **yes** | — | pattern `^[AaBb] ?\d{1,3}$` |
 | `from` | string | no | — | pattern `^\d{4}-\d{2}-\d{2}$` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `10` | min 1; max 20 |
 | `to` | string | no | — | pattern `^\d{4}-\d{2}-\d{2}$` |
 
-- **`road`** — The Autobahn to look at, one per call, e.g. "A7" or "A100" — "A7", "A 7" and "a7" are the same road. Bundesautobahnen only: this feed carries no Bundesstraßen and no city streets. Ask again for a second motorway.
+- **`road`** — The road to look at, one per call: an Autobahn, e.g. "A7" or "A100", or a Bundesstraße in Niedersachsen, e.g. "B6" — "A7", "A 7" and "a7" are the same road. Bundesstraßen elsewhere, Landesstraßen and city streets are not covered. Ask again for a second road.
 - **`from`** — First day of the window, as YYYY-MM-DD in German local time. Omit for today. Resolve relative wording ("next Friday", "in den Sommerferien", "nächsten Monat") into real dates yourself, counted from today's date; this argument never takes words, and it never takes a fixed example date — the window a person means moves with the calendar.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — Maximum sites to return (1–20, default 10), ordered by planned start. Every returned site is in the structured result; the readable text prints the first 10 and says how many more of them are in the structured half. The answer always names how many sites the window holds in total, so a small limit never hides the size of the problem.
