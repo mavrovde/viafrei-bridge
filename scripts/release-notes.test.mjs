@@ -19,7 +19,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createChecker } from './check-harness.mjs';
-import { MIRROR_LEAD, MIRROR_TITLE, NotesError, boldLeads, compareSemver, extractBlock, isHighest, pageBody, releaseNotes, titleFor, unwrap } from './release-notes.mjs';
+import { DIFFERENCE_SHAPES, MIRROR_LEAD, MIRROR_TITLE, NotesError, boldLeads, compareSemver, extractBlock, isHighest, pageBody, paragraphsOf, releaseNotes, titleFor, unwrap, withoutDifferences } from './release-notes.mjs';
 import { nodePath, runTool } from './tools.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -192,6 +192,44 @@ check('page: an UNCLASSIFIED surface with no prose FAILS', unclassified !== null
 const leftover = refusal(() => pageBody(`${described}\n\n**A person must describe the change above before this merges.** Text.`, '1.0.0', TAGS));
 check('page: the proposer\'s "A person must" instruction left in the block FAILS',
     leftover !== null && leftover.includes('instruction to a person'), leftover ?? 'no refusal');
+
+// Every shape the probe writes, a key with capitals, and an item the proposer wrapped.
+const CHANGED = `${MIRROR} The probe reported the surface **CHANGED** — the automation knows what moved:`;
+const shapes = [
+    '- tools: the server has find_new, the snapshot does not',
+    '- prompts: the snapshot has old_prompt, the server does not',
+    '- resourceTemplates: viafrei://x/{id} differs between the server and the snapshot',
+    "- protocolVersion: the server's initialize answer differs from the snapshot's",
+    // 91 characters: the proposer wraps it at 88 with no indent, over two lines.
+    '- resources: viafrei://rules/driving-in-germany differs between the server and the',
+    'snapshot'
+].join('\n');
+const allShapes = pageBody(`${CHANGED}\n\n${shapes}\n\n**A new tool, \`find_new\`.** It finds new things.`, '1.0.0', TAGS);
+check('page: every probe shape, a capitalised key and a wrapped item are all dropped',
+    !/the server has|the snapshot has|differs|initialize answer|^snapshot$/mu.test(allShapes) && allShapes.includes('**A new tool, `find_new`.**'), allShapes);
+const addedOnly = refusal(() => pageBody(`${CHANGED}\n\n- tools: the server has find_new, the snapshot does not`, '1.0.0', TAGS));
+check('page: a CHANGED block whose only content is an added-tool line FAILS', addedOnly !== null && addedOnly.includes('does not say how'), addedOnly ?? 'no refusal');
+const instructionOnly = refusal(() => pageBody(`${CHANGED}\n\n${shapes}\n\n**A person must describe the change above before this merges.** Text.`, '1.0.0', TAGS));
+check('page: a CHANGED block left with only the instruction FAILS as undescribed', instructionOnly !== null && instructionOnly.includes('does not say how'), instructionOnly ?? 'no refusal');
+check('page: a human list item that is not a difference is kept',
+    withoutDifferences('- tools: now there are more of them\n- **Two.**') === '- tools: now there are more of them\n- **Two.**');
+
+// One copy of the shapes: every difference the probe can write is one of them.
+const probe = readFileSync(join(HERE, 'probe-catalogue.mjs'), 'utf8');
+const templates = [...probe.matchAll(/differences\.push\(`([^`]+)`\)/gu)].map((m) => m[1]
+    .replace('${list.key}', 'resourceTemplates').replace('${field}', 'protocolVersion').replace(/\$\{[^}]+\}/gu, 'viafrei://x'));
+check('the probe writes at least the four known difference shapes', templates.length >= 4, JSON.stringify(templates));
+for (const template of templates) {
+    check(`DIFFERENCE_SHAPES recognises the probe's "${template.slice(0, 50)}…"`, DIFFERENCE_SHAPES.some((shape) => shape.test(template)), template);
+}
+
+// A fenced sample with blank lines inside stays whole and is not unwrapped.
+const fence = '**Example.** Run:\n\n```\nfirst line\n\n\nsecond line\n```\n\nAfter.';
+check('page: a fence with blank lines inside is one paragraph', paragraphsOf(fence).length === 3, JSON.stringify(paragraphsOf(fence)));
+check('page: the fence is published exactly as written', pageBody(fence, '1.0.0', TAGS).includes('```\nfirst line\n\n\nsecond line\n```'), pageBody(fence, '1.0.0', TAGS));
+const ownInstall = pageBody('**Hand-written.** Run `npx -y viafrei@1.0.0` today.', '1.0.0', TAGS);
+check('page: a block naming its own install line still gets the Full changelog link',
+    !ownInstall.includes('## Install') && ownInstall.endsWith('compare/v0.10.0...v1.0.0'), ownInstall);
 
 const human = pageBody('This release does things.\n\n### Added\n\n- **A thing.**', '1.0.0', TAGS);
 check('page: a block not written by the proposer is kept as written, with the footer added',

@@ -172,14 +172,14 @@ a `v*` tag and verified it, the `Release page` workflow
 - **Body:** a normal release note built from the tag's `## [X.Y.Z]` block of
   `CHANGELOG.md`, read at the tag. The Version sync proposer's opening paragraph is
   written for whoever merges the pull request (registry numbers, the probe's verdict,
-  the raw `- tools: x differs between the server and the snapshot` list), so on the
-  page it becomes one sentence: "This release mirrors server X.Y.Z." — plus "the tools,
+  the raw list of catalogue differences: tools, prompts or resources added, removed or
+  changed, and `initialize` fields moved), so on the page it becomes one sentence: "This release mirrors server X.Y.Z." — plus "the tools,
   prompts and resources are unchanged" when the probe said so — and the raw difference
-  lines are dropped. Everything you wrote below it is kept, with hard-wrapped lines
+  list is dropped, whatever shape its items take and however they wrap. Everything you wrote below it is kept, with hard-wrapped lines
   joined, because a page renders every newline as a line break. A pure mirror gets a
   line saying no bridge code changed. Every page ends with an **Install** section
-  (`npx -y viafrei@X.Y.Z`) and a **Full changelog** link to the previous tag, unless the
-  block already carries an install line. A missing or empty block fails the run and
+  (`npx -y viafrei@X.Y.Z`, left out when the block already carries an install line) and
+  a **Full changelog** link to the previous tag. Fenced code is kept as written. A missing or empty block fails the run and
   names the tag, and so does a CHANGED or UNCLASSIFIED surface that nobody described,
   or a leftover "A person must ..." instruction: a page cannot say what nobody wrote.
   **So when the surface changed, describe each change in prose for a reader of the
