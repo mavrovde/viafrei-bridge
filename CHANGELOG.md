@@ -5,7 +5,30 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-05
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
+relays to. The running server reports 1.8.0 while the registry's latest is 1.7.5, so
+this release moves the package to the server's number and carries whatever had been
+waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
+reference was re-captured from the running server, and the probe reported the surface
+**CHANGED** — the automation knows what moved, not what it means:
+
+- tools: find_roadworks_ahead differs between the server and the snapshot
+- instructions: the server's initialize answer differs from the snapshot's
+
 ### Changed
+
+- **`find_roadworks_ahead` covers Bundesstraßen in Niedersachsen.** Besides an
+  Autobahn ("A7"), the `road` argument now takes a Bundesstraße in Niedersachsen
+  ("B6"), from the Land's planned-roadworks feed. Bundesstraßen elsewhere,
+  Landesstraßen and city streets are still not covered, and the tool says so.
+  The pattern accepts `B` as well as `A`; everything else is unchanged.
+
+- **The server tells the assistant that ViaFrei is in beta.** Its instructions now
+  add that sources are still being added and answers and coverage can change, so an
+  assistant asks the user to confirm a closure, a departure or a price with the
+  source the attribution line names when a decision depends on it.
 
 - **Release pages read as normal release notes.** The page is no longer the CHANGELOG
   block verbatim. The Version sync paragraph meant for the maintainer (registry numbers,
@@ -1983,6 +2006,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.8.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.0
 [1.7.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.5
 [1.7.4]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.4
 [1.7.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.3
