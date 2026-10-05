@@ -17,10 +17,18 @@ reference was re-captured from the running server, and the probe reported the su
 - tools: find_roadworks_ahead differs between the server and the snapshot
 - instructions: the server's initialize answer differs from the snapshot's
 
-**A person must describe the change above before this merges.** A release note that
-lists a tool name without saying what it does misleads the reader it exists for.
-
 ### Changed
+
+- **`find_roadworks_ahead` covers Bundesstraßen in Niedersachsen.** Besides an
+  Autobahn ("A7"), the `road` argument now takes a Bundesstraße in Niedersachsen
+  ("B6"), from the Land's planned-roadworks feed. Bundesstraßen elsewhere,
+  Landesstraßen and city streets are still not covered, and the tool says so.
+  The pattern accepts `B` as well as `A`; everything else is unchanged.
+
+- **The server tells the assistant that ViaFrei is in beta.** Its instructions now
+  add that sources are still being added and answers and coverage can change, so an
+  assistant asks the user to confirm a closure, a departure or a price with the
+  source the attribution line names when a decision depends on it.
 
 - **Release pages read as normal release notes.** The page is no longer the CHANGELOG
   block verbatim. The Version sync paragraph meant for the maintainer (registry numbers,
