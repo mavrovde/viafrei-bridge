@@ -218,7 +218,9 @@ check('page: a human list item that is not a difference is kept',
 const probe = readFileSync(join(HERE, 'probe-catalogue.mjs'), 'utf8');
 const templates = [...probe.matchAll(/differences\.push\(`([^`]+)`\)/gu)].map((m) => m[1]
     .replace('${list.key}', 'resourceTemplates').replace('${field}', 'protocolVersion').replace(/\$\{[^}]+\}/gu, 'viafrei://x'));
-check('the probe writes at least the four known difference shapes', templates.length >= 4, JSON.stringify(templates));
+const pushes = (probe.match(/differences\.push\(/gu) ?? []).length;
+check('the probe writes exactly the five known difference shapes, every one a template this test reads',
+    templates.length === 5 && pushes === templates.length, `${pushes} push call(s), ${templates.length} template(s): ${JSON.stringify(templates)}`);
 for (const template of templates) {
     check(`DIFFERENCE_SHAPES recognises the probe's "${template.slice(0, 50)}…"`, DIFFERENCE_SHAPES.some((shape) => shape.test(template)), template);
 }
