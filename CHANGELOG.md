@@ -5,6 +5,36 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.7.4] - 2026-10-05
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
+relays to. The running server reports 1.7.4 while the registry's latest is 1.7.3, so
+this release moves the package to the server's number and carries whatever had been
+waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
+reference was re-captured from the running server, and the probe reported the surface
+**CHANGED** — the automation knows what moved, not what it means:
+
+- tools: find_roadworks_ahead differs between the server and the snapshot
+- tools: check_transit_disruption differs between the server and the snapshot
+- resources: viafrei://coverage differs between the server and the snapshot
+
+**`find_roadworks_ahead` accepts a window of up to 92 days.** The limit in its
+description and in the `to` argument's description moves from 90 to 92 days, so a
+three-month question that spans two 31-day months fits in one call. The schema, the
+default of 7 days and the 20-site cap are unchanged.
+
+**`check_transit_disruption` names the conurbations it understands.** The `region`
+argument's description now lists Ruhrgebiet, Rhein-Ruhr and Rhein-Main beside a
+Bundesland, a city and a Kreis. The argument's type and length cap are unchanged.
+
+**The `viafrei://coverage` resource says which large cities hold no fuel price yet.**
+Only its description changed; its URI, name and media type are as before.
+
+No tool, prompt or resource was added or removed, and no output shape in the snapshot
+moved. This block describes what the catalogue shows; a change in how the server
+answers that leaves the published schemas and descriptions alone cannot be read off a
+snapshot and is not claimed here.
+
 ## [1.7.3] - 2026-10-05
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
@@ -1933,6 +1963,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.7.4]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.4
 [1.7.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.3
 [1.7.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.0
 [1.6.2]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.6.2

@@ -1,11 +1,11 @@
 {
   "$comment": "Captured from the PRODUCTION ViaFrei MCP server with initialize, tools/list, resources/list, resources/templates/list and prompts/list. No tool was invoked, so no data provider was contacted. ONE field is removed rather than stored: every tool's inputSchema carried a $schema URI naming the JSON Schema draft-07 dialect. It is dropped because storing it would put a host on this repository's allow-list that nothing else needs, and the dialect is a property of every draft-07 schema rather than a fact about this catalogue - API.md states it in words instead. Nothing else is altered: every tool, parameter, constraint, resource, template and prompt is as the server returned it. A SECOND substitution, for a different reason: two input schemas carried a 288-character regular expression validating an ISO-8601 date including leap years. Each is stored as patternLength rather than as its text, because such a regex spells its arithmetic as character classes of selected digits, and the leak sweep that guards this repository cannot tell a class of five digits from a five-digit internal value. The two ways to keep the text would both have been falsehoods - narrowing the sweep for every file, or an allow-list entry claiming a character class is a number this project publishes - so the text is not kept. Nothing about the constraint is hidden by this: API.md already summarised a pattern of over 60 characters by its length, which is what a reader gets either way, and the server hands anyone the full expression in tools/list.",
-  "capturedAt": "2026-10-04",
+  "capturedAt": "2026-10-05",
   "source": "https://mcp.viafrei.de/mcp",
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.7.3"
+    "version": "1.7.4"
   },
   "capabilities": {
     "tools": {
@@ -418,7 +418,7 @@
     },
     {
       "name": "find_roadworks_ahead",
-      "description": "Returns the roadworks PLANNED on one German motorway inside a date window: the section and direction as published, what is restricted, and the start and end. Use when a date or window is named, the question says geplant, or someone asks how long a site lasts (\"Baustellen auf der A7 in den Sommerferien?\"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 90 days, max 20 sites. Show the attribution line.",
+      "description": "Returns the roadworks PLANNED on one German motorway inside a date window: the section and direction as published, what is restricted, and the start and end. Use when a date or window is named, the question says geplant, or someone asks how long a site lasts (\"Baustellen auf der A7 in den Sommerferien?\"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -433,7 +433,7 @@
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
           "to": {
-            "description": "Last day of the window, inclusive, as YYYY-MM-DD. Omit for 7 days after `from`, which is the right window for \"am I going to hit roadworks on this drive\". The window may span at most 90 days. For \"how long will this last\" / \"wie lange dauert die Baustelle noch\", leave both dates out: the default 7 days already returns the site's planned end date. Only widen — 28 days is the sensible step — when the person asked about a period that long.",
+            "description": "Last day of the window, inclusive, as YYYY-MM-DD. Omit for 7 days after `from`, which is the right window for \"am I going to hit roadworks on this drive\". The window may span at most 92 days. For \"how long will this last\" / \"wie lange dauert die Baustelle noch\", leave both dates out: the default 7 days already returns the site's planned end date. Only widen — 28 days is the sensible step — when the person asked about a period that long.",
             "type": "string",
             "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
           },
@@ -928,7 +928,7 @@
         "type": "object",
         "properties": {
           "region": {
-            "description": "The German region to report on, as free text: a Bundesland (\"Bayern\", \"Bavaria\", \"Nordrhein-Westfalen\"), a city (\"Hamburg\", \"Köln\") or a Kreis (\"Landkreis Fulda\"). A town inside a Kreis is reported as that Kreis and the answer says so, because the data is filed at Kreis level. Not a stop, not a street, not an address. Give either region OR lat+lon, never both.",
+            "description": "The German region to report on, as free text: a Bundesland (\"Bayern\", \"Bavaria\", \"Nordrhein-Westfalen\"), a city (\"Hamburg\", \"Köln\"), a Kreis (\"Landkreis Fulda\") or one of the conurbations Ruhrgebiet, Rhein-Ruhr and Rhein-Main. A town inside a Kreis is reported as that Kreis and the answer says so, because the data is filed at Kreis level. Not a stop, not a street, not an address. Give either region OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -1381,7 +1381,7 @@
       "uri": "viafrei://coverage",
       "name": "coverage",
       "title": "Coverage",
-      "description": "Which feeds, places and vehicles ViaFrei can answer for right now — licence, cadence and freshness per feed, plus what is deliberately not covered. Generated from the feed catalogue.",
+      "description": "Which feeds, places and vehicles ViaFrei can answer for right now — licence, cadence and freshness per feed, which large cities hold no fuel price yet, plus what is deliberately not covered. Generated from the feed catalogue.",
       "mimeType": "application/json"
     },
     {

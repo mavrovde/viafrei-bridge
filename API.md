@@ -9,7 +9,7 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
-**It is a dated snapshot, taken on 2026-10-04.** Generating this file makes
+**It is a dated snapshot, taken on 2026-10-05.** Generating this file makes
 it impossible for the document and the snapshot to disagree — CI regenerates and
 compares — but it cannot keep the snapshot from ageing against the live server,
 because a capture is a point in time. **The source of truth is the running
@@ -17,11 +17,11 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.7.3 |
+| Server | `viafrei` 1.7.4 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
-| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-04 |
+| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-05 |
 | Surface | 20 tools, 10 resources, 2 resource templates, 9 prompts |
 | Parameter schemas | JSON Schema draft-07 |
 | Capabilities | `tools`, `resources`, `prompts`, `logging` |
@@ -198,7 +198,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns the roadworks PLANNED on one German motorway inside a date window: the section and direction as published, what is restricted, and the start and end. Use when a date or window is named, the question says geplant, or someone asks how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 90 days, max 20 sites. Show the attribution line.
+> Returns the roadworks PLANNED on one German motorway inside a date window: the section and direction as published, what is restricted, and the start and end. Use when a date or window is named, the question says geplant, or someone asks how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -212,7 +212,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`from`** — First day of the window, as YYYY-MM-DD in German local time. Omit for today. Resolve relative wording ("next Friday", "in den Sommerferien", "nächsten Monat") into real dates yourself, counted from today's date; this argument never takes words, and it never takes a fixed example date — the window a person means moves with the calendar.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — Maximum sites to return (1–20, default 10), ordered by planned start. Every returned site is in the structured result; the readable text prints the first 10 and says how many more of them are in the structured half. The answer always names how many sites the window holds in total, so a small limit never hides the size of the problem.
-- **`to`** — Last day of the window, inclusive, as YYYY-MM-DD. Omit for 7 days after `from`, which is the right window for "am I going to hit roadworks on this drive". The window may span at most 90 days. For "how long will this last" / "wie lange dauert die Baustelle noch", leave both dates out: the default 7 days already returns the site's planned end date. Only widen — 28 days is the sensible step — when the person asked about a period that long.
+- **`to`** — Last day of the window, inclusive, as YYYY-MM-DD. Omit for 7 days after `from`, which is the right window for "am I going to hit roadworks on this drive". The window may span at most 92 days. For "how long will this last" / "wie lange dauert die Baustelle noch", leave both dates out: the default 7 days already returns the site's planned end date. Only widen — 28 days is the sensible step — when the person asked about a period that long.
 
 ### `find_charging_station` — EV charging nearby
 
@@ -383,7 +383,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use region.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use region.
-- **`region`** — The German region to report on, as free text: a Bundesland ("Bayern", "Bavaria", "Nordrhein-Westfalen"), a city ("Hamburg", "Köln") or a Kreis ("Landkreis Fulda"). A town inside a Kreis is reported as that Kreis and the answer says so, because the data is filed at Kreis level. Not a stop, not a street, not an address. Give either region OR lat+lon, never both.
+- **`region`** — The German region to report on, as free text: a Bundesland ("Bayern", "Bavaria", "Nordrhein-Westfalen"), a city ("Hamburg", "Köln"), a Kreis ("Landkreis Fulda") or one of the conurbations Ruhrgebiet, Rhein-Ruhr and Rhein-Main. A town inside a Kreis is reported as that Kreis and the answer says so, because the data is filed at Kreis level. Not a stop, not a street, not an address. Give either region OR lat+lon, never both.
 - **`window_min`** — How many minutes back to look, 5–120 (default 60). The trend compares this window with the equally long one before it, so 60 means "the last hour against the hour before". Use a short window for "right now" and a long one for "has it been bad all morning".
 
 ### `check_weather_warnings` — Official weather warnings
@@ -533,7 +533,7 @@ The server's own instructions to a connecting client, verbatim:
 | `viafrei://addresses` | addresses | `application/json` |
 
 - **`viafrei://attribution`** — Licence and attribution text for every data source ViaFrei uses.
-- **`viafrei://coverage`** — Which feeds, places and vehicles ViaFrei can answer for right now — licence, cadence and freshness per feed, plus what is deliberately not covered. Generated from the feed catalogue.
+- **`viafrei://coverage`** — Which feeds, places and vehicles ViaFrei can answer for right now — licence, cadence and freshness per feed, which large cities hold no fuel price yet, plus what is deliberately not covered. Generated from the feed catalogue.
 - **`viafrei://rules/driving-in-germany`** — Curated, sourced and dated: low-emission zones, speed, winter tyres, alcohol, tolls, the Sunday lorry ban, equipment, emergencies and electric driving. German and English in one document.
 - **`viafrei://rules/low-emission-zones`** — Which German cities run a low-emission zone, which Feinstaubplakette they require and where to buy it. Düsseldorf is named but excluded: its zone data is under a closed licence.
 - **`viafrei://emergency`** — What to dial, how to form the Rettungsgasse, what to do in a breakdown or after a crash, and what the law requires you to carry. German and English.
@@ -679,5 +679,5 @@ single call.
 ---
 
 Generated from `catalogue.json` by `scripts/gen-api-doc.mjs`. The snapshot was
-read from `https://mcp.viafrei.de/mcp` on 2026-10-04; no tool was invoked to
+read from `https://mcp.viafrei.de/mcp` on 2026-10-05; no tool was invoked to
 produce it, so no data provider was contacted.
