@@ -18,8 +18,22 @@ reference was re-captured from the running server, and the probe reported the su
 - tools: check_transit_disruption differs between the server and the snapshot
 - resources: viafrei://coverage differs between the server and the snapshot
 
-**A person must describe the change above before this merges.** A release note that
-lists a tool name without saying what it does misleads the reader it exists for.
+**`find_roadworks_ahead` accepts a window of up to 92 days.** The limit in its
+description and in the `to` argument's description moves from 90 to 92 days, so a
+three-month question that spans two 31-day months fits in one call. The schema, the
+default of 7 days and the 20-site cap are unchanged.
+
+**`check_transit_disruption` names the conurbations it understands.** The `region`
+argument's description now lists Ruhrgebiet, Rhein-Ruhr and Rhein-Main beside a
+Bundesland, a city and a Kreis. The argument's type and length cap are unchanged.
+
+**The `viafrei://coverage` resource says which large cities hold no fuel price yet.**
+Only its description changed; its URI, name and media type are as before.
+
+No tool, prompt or resource was added or removed, and no output shape in the snapshot
+moved. This block describes what the catalogue shows; a change in how the server
+answers that leaves the published schemas and descriptions alone cannot be read off a
+snapshot and is not claimed here.
 
 ## [1.7.3] - 2026-10-05
 
