@@ -2,9 +2,9 @@
 
 # ViaFrei
 
-[![smithery badge](https://smithery.ai/badge/viafrei/viafrei)](https://smithery.ai/servers/viafrei/viafrei)
+[![Smithery](https://img.shields.io/badge/Smithery-viafrei-ff5a1f)](https://smithery.ai/servers/viafrei/viafrei)
 [![npm](https://img.shields.io/npm/v/viafrei)](https://www.npmjs.com/package/viafrei)
-[![Glama](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge/badge)](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge)
+[![Glama](https://glama.ai/mcp/servers/mavrovde/viafrei-mcp/badge)](https://glama.ai/mcp/servers/mavrovde/viafrei-mcp)
 
 ### Germany's traffic, trains, charging and roads — in your AI assistant.
 
@@ -41,8 +41,8 @@ German open data, live, with the source named in every answer.
 > (nextbike and Donkey Republic). **Berlin and Brandenburg** punctuality now
 > comes from VBB's own realtime feed. Road answers now include police and city
 > traffic reports from Baden-Württemberg, Schleswig-Holstein and Berlin (and
-> from Köln and Hannover whenever those cities publish one), and roadworks on Bundes- and Landesstraßen in Niedersachsen,
-> Sachsen and Thüringen. **Charging** gains the Bundesnetzagentur register and
+> from Köln and Hannover whenever those cities publish one), and roadworks on
+> Bundes- and Landesstraßen in Niedersachsen, Sachsen and Thüringen. **Charging** gains the Bundesnetzagentur register and
 > more live status, and **parking** gains Hamburg, Münster and NRW car parks.
 > Every source is listed in [SOURCES.md](SOURCES.md).
 
@@ -67,8 +67,10 @@ comes back in the language you asked in.
 | 🇩🇪 **new to German roads** | *Do I need an emission sticker for Stuttgart?* · *Is there a speed limit on the Autobahn?* |
 | ⏳ **waiting for news** | *Tell me as soon as the closure on the A7 is lifted.* · *Sag mir Bescheid, wenn in Köln ein Viertel oder mehr der Bus- und Bahnfahrten verspätet ist.* · *Warn me when a DWD severe-weather warning comes into force for Cologne.* |
 
-**What the answers cover, honestly.** Traffic is the motorways and federal
-roads: in cities that means the urban motorways, not the streets in between.
+**What the answers cover, honestly.** Live traffic is the motorways. Closures
+and roadworks also cover federal roads, Land roads in Niedersachsen, Sachsen and
+Thüringen, and the traffic reports some Länder and cities publish (Baden-Württemberg,
+Schleswig-Holstein, Berlin, Köln, Hannover); other city streets are not covered.
 Places and addresses come from OpenStreetMap, so what is not mapped there cannot
 be found, and opening hours and ratings are not part of it. A **watch** lives in
 the conversation that opened it: the server keeps every change there, and your
@@ -79,41 +81,43 @@ whole, not one section of it.
 
 ## 💬 Real answers
 
-These came back from the production server at `https://mcp.viafrei.de/mcp` on
-**2026-10-03, 23:54 Berlin time**. They are not mock-ups. Each one shows the
-first lines of what the tool returned, and the source line exactly as it was
-sent.
+These came back from the production server at `https://mcp.viafrei.de/mcp`
+(server 1.8.18) on **2026-10-06, 23:00 Berlin time**. They are not mock-ups. Each
+one shows the first lines of what the tool returned, and the source line exactly
+as it was sent, shortened where marked.
 
 <details open>
 <summary><b>🚆 "Welche Züge fahren als Nächstes ab Hamburg Hbf?"</b> — <code>get_train_departures</code></summary>
 
 ```text
 Abfahrten ab Hamburg Hbf (nächste 60 Minuten):
-23:56 NBE RB61 → Elmshorn, Gleis 14D-F (statt 13D-F), +5 min (ca. 04.10. 00:01)
-04.10. 00:06 RE RE5 → Stade, Gleis 12A-B, pünktlich
-23:22 ICE 2514 → Hamburg-Altona, Gleis 11, +51 min (ca. 04.10. 00:13)
-04.10. 00:17 NBE RB71 → Wrist, Gleis 13D-F, pünktlich
+23:00 S S5 → Hamburg Elbgaustraße, ab Hamburg Hbf (S-Bahn), Gleis 2, pünktlich
+23:00 S S7 → Hamburg-Altona(S), ab Hamburg Hbf (S-Bahn), Gleis 1, pünktlich
+23:02 S S5 → Hamburg-Neugraben, ab Hamburg Hbf (S-Bahn), Gleis 4, pünktlich
+23:06 RE RE5 → Cuxhaven, ab Hamburg Hbf, Gleis 14A-C, pünktlich
 
-Stand 23:54 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet (https://developers.deutschebahn.com) · …
+Stand 22:59 · Quelle: Fahrplandaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet (https://developers.deutschebahn.com; …) · …
 ```
-Platform changes, delays and the estimated real departure, in one line each.
-*Edited: one of five departures omitted, and the second source of the line cut to `…`.*
+Platform, delay and the estimated real departure, in one line each.
+*Edited: six of ten departures omitted. The board listed the first two S-Bahn rows twice; that is a known defect being fixed, and the repeats are among the omitted rows.*
 </details>
 
 <details>
 <summary><b>♿ "Funktioniert der Aufzug am Bahnhof Köln Messe/Deutz?"</b> — <code>check_station_facilities</code></summary>
 
 ```text
-In Köln Messe/Deutz sind alle 10 gemeldeten Anlagen in Betrieb.
+In Köln Messe/Deutz ist 1 von 10 gemeldeten Anlagen außer Betrieb.
+Fahrtreppe zu Gleis 4/5: außer Betrieb
 Aufzug Aufzug Gl. 12 KVB Tunnel: in Betrieb
-Aufzug Aufzug tief Gleis 12: in Betrieb
-Fahrtreppe Fahrtreppe Gl. 1/2: in Betrieb
+Aufzug zu Gleis 11: in Betrieb
 …
-Stand 23:54 · Quelle: Aufzüge und Fahrtreppen: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet (https://developers.deutschebahn.com) · …
+Stadtbahn Köln Bf Deutz/Messe LANXESS arena (Störungsliste Stand 22:59): 1 von 17 gemeldeten Anlagen ist außer Betrieb. …
+Fahrtreppe 60 - HÜ 083 (Bf. Deutz/Messe): außer Betrieb, gemeldet seit 17:32
 ```
-For anyone with a wheelchair, a pram or a heavy suitcase, this is the difference
-between a station being usable and not.
-*Edited: seven of ten facilities omitted.*
+The railway station and the Stadtbahn stop below it, from two operators, in one
+answer. For anyone with a wheelchair, a pram or a heavy suitcase, this is the
+difference between a station being usable and not.
+*Edited: most facilities of both lists omitted, and the source lines cut.*
 </details>
 
 <details>
@@ -121,31 +125,36 @@ between a station being usable and not.
 
 ```text
 Charging around Leipzig (within 10 km, Type 2), nearest first:
-1. Leipzig, Petersstr. eBox1, Petersstraße 36-44, 04109 Leipzig (E.ON Drive) — 0.3 km, Type 2, up to 3.7 kW, no status data
-3. Pocher Service e.K. - Nordstraße, Nordstraße 3, 04105 Leipzig (EA EnergieArchitektur GmbH) — 0.8 km, Type 2, up to 22 kW, 1.20 €/kWh, no status data
-4. CCEL-L-Elsterstraße, Elsterstraße 22, 04109 Leipzig (City Concept E-Ladestationen GmbH) — 1.0 km, Type 2, up to 22 kW, 0.80 €/kWh, no status data
+1. Parkhaus Neumarkt, Neumarkt 30, 04109 Leipzig (Parkhaus Neumarkt) — 0.2 km, Type 2, up to 22 kW, no status data, per charging point register
+2. Motel One Leipzig Nikolaikirche, Schuhmachergäßchen 5, 04109 Leipzig (Wirelane GmbH) — 0.3 km, Type 2, up to 11 kW, no status data, per charging point register
+…
 Only a few operators publish live occupancy; "no status data" means unknown, not free.
+Charging point register as of 2026-09-01 — chargers as reported by their operators to the Bundesnetzagentur, with no live occupancy and no warranty of accuracy or completeness.
 
-As of 23:54 · Source: Ladepunkte: Eco-Movement via Mobilithek, CC BY 4.0, bearbeitet (https://mobilithek.info/offers/954064102947180544) · …
+As of 23:00 · Source: Ladesäulenregister: Bundesnetzagentur.de, CC BY 4.0, bearbeitet (…) · …
 ```
 It says what it does not know: "no status data" is unknown, never free.
-*Edited: entry 2 omitted, a municipality key removed from the heading, and the second source cut to `…`.*
+*Edited: entries 3–5 omitted, a municipality key removed from the heading, and the sources cut to `…`.*
 </details>
 
 <details>
 <summary><b>🚦 "Is public transport in North Rhine-Westphalia running on time?"</b> — <code>check_transit_disruption</code></summary>
 
 ```text
-North Rhine-Westphalia: 11% of observed trips more than 5 minutes late (308 of 2,790 trips
-in the last 60 minutes, from 30,988 reports at 12,939 stops), 38 trips with cancelled stops.
+North Rhine-Westphalia: 8% of observed trips more than 5 minutes late (324 of 4,088 trips
+in the last 60 minutes, from 60,858 reports at 18,923 stops), 90 trips with cancelled stops.
 …
-As of 23:52 · Source: Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA (https://mobilithek.info)
-These figures are licensed CC BY-SA (share-alike): anyone who passes them on, or builds
-something on them, must release the result under the same licence and with this attribution.
+Trend: about the same as the 60 minutes before (9%).
+…
+Published service alerts for North Rhine-Westphalia, in force now (1):
+- Line 515: Straßensperrung Liebigstraße / Haltestellenentfall (valid 2026-05-18 to 2026-11-12)
+
+As of 22:58 · Source: Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA, bearbeitet (…) · …
 ```
-Region-wide, with the method stated. The share-alike condition arrives as part
-of the answer, because it is part of the data.
-*Edited: four method paragraphs between the figure and the source line omitted.*
+Region-wide, with the method stated, and the operators' own service alerts
+beside the figure. The share-alike condition arrives as part of the answer,
+because it is part of the data.
+*Edited: the method paragraphs between the figure and the alerts omitted, and the sources cut to `…`.*
 </details>
 
 <details>
@@ -154,14 +163,15 @@ of the answer, because it is part of the data.
 ```text
 Description of 52.5163, 13.3777:
 - Nearest address: Pariser Platz 1, 10117 Berlin (3 m)
-- settlement: Unter den Linden (0.7 km)
-- district: Berlin (1.9 km)
-- junction: AS Sachsendamm (A100) (5.0 km)
+- Settlement: Unter den Linden (0.7 km)
+- District: Berlin (1.9 km)
+- Administrative area: Berlin (2.3 km)
+- Junction: AS Sachsendamm (A100) (5.0 km)
 
-Address data as of 2026-09-22
-As of 23:54 · Source: Ortsdaten: © GeoNames (CC BY 4.0), bearbeitet (…) · … · OSM-Standortdaten: © OpenStreetMap-Mitwirkende, ODbL 1.0 (https://www.openstreetmap.org/copyright)
+Address data as of 2026-10-04
+As of 23:00 · Source: Ortsdaten: © GeoNames (CC BY 4.0), bearbeitet (…) · … · OSM-Standortdaten: © OpenStreetMap-Mitwirkende, ODbL 1.0 (https://www.openstreetmap.org/copyright; …)
 ```
-That's the Brandenburg Gate. *Edited: one line ("administrative area") omitted, and two of four sources cut to `…`.*
+That's the Brandenburg Gate. *Edited: two of four sources cut to `…`.*
 </details>
 
 <details>
@@ -171,13 +181,12 @@ That's the Brandenburg Gate. *Edited: one line ("administrative area") omitted, 
 Low-emission zone Stuttgart: yes, you need the green Feinstaubplakette.
 • Stuttgart: Zone covering the entire city area — it starts at the city boundary, not at the centre.
   Required: the green plaque (emission group 4). …
-• A French Crit'Air sticker or any other foreign environmental badge is not valid in Germany —
-  only the German Feinstaubplakette counts. (Umweltbundesamt, Umweltzonen in Deutschland)
+  [to verify: Stuttgart's additional diesel restrictions have changed repeatedly; check the city's current position]
+  (Umweltbundesamt, Umweltzonen in Deutschland)
 …
-Reviewed 2026-09-19 · Informational, not legal advice.
 ```
-Every statement carries its source and the date it was checked, and says
-*[to verify]* where we could not confirm it. *Edited: eight of eleven points omitted.*
+Every statement carries its source, and says *[to verify]* where we could not
+confirm it. *Edited: most points omitted.*
 </details>
 
 <details>
@@ -188,10 +197,10 @@ Parking along the A9:
 1. Aster Moos O — Lorry parking (Lkw-Parkplatz), 14 lorry spaces, no occupancy published
 2. Baarer Weiher O — Lorry parking (Lkw-Parkplatz), 45 lorry spaces, no occupancy published
 …
-As of 23:54 · Source: Verkehrsdaten: Autobahn GmbH des Bundes (https://verkehr.autobahn.de)
+As of 23:00 · Source: Verkehrsdaten: Autobahn GmbH des Bundes (https://verkehr.autobahn.de)
 Where no "free" count is shown the operator publishes no occupancy — it does not mean the site is full.
 ```
-*Edited: two of four sites omitted.*
+*Edited: three of five sites omitted.*
 </details>
 
 **Why the source line matters.** Every answer ends with one, and it is the
@@ -254,7 +263,7 @@ Restart the client and ask one of the questions above.
   version and this README.
 - **Smithery — [smithery.ai/servers/viafrei/viafrei](https://smithery.ai/servers/viafrei/viafrei).**
   Connect through Smithery's hosted connection, with no local install.
-- **Glama — [glama.ai/mcp/servers/mavrovde/viafrei-bridge](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge).**
+- **Glama — [glama.ai/mcp/servers/mavrovde/viafrei-mcp](https://glama.ai/mcp/servers/mavrovde/viafrei-mcp).**
   The directory listing for this repository, with the tool list.
 
 ## 🧰 Everything it can do
@@ -303,7 +312,7 @@ Restart the client and ask one of the questions above.
 
 | tool | what it answers |
 |---|---|
-| [`find_sharing`](API.md#find_sharing--shared-bikes-nearby) — Shared bikes nearby | Returns rentable shared bikes near a place or coordinate: bike-sharing stations with bikes and free docks now, and free-floating bikes around, with distance and data age (nextbike incl. |
+| [`find_sharing`](API.md#find_sharing--shared-bikes-nearby) — Shared bikes nearby | Returns rentable shared bikes near a place or coordinate: bike-sharing stations with bikes and free docks now, and free-floating bikes around, with distance and data age (nextbike incl. KVB Rad, MyRadl, VAG_Rad; Donkey Republic). |
 
 #### 🌦️ Weather and rules
 

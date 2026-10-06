@@ -46,9 +46,18 @@ const cell = (s) => flat(s).replaceAll('|', String.raw`\|`);
 /** The first sentence of a description: up to the first ". " (or the whole text). */
 export function firstSentence(text) {
   const t = flat(text);
-  const m = /^(.+?[.!?])(\s|$)/.exec(t);
-  return m ? m[1] : t;
+  // A full stop after an abbreviation does not end the sentence: find_sharing's
+  // "(nextbike incl. KVB Rad, …)" was cut to "… (nextbike incl." in 1.8.18.
+  for (const m of t.matchAll(/[.!?](?=\s|$)/g)) {
+    const before = t.slice(0, m.index + 1);
+    if (m[0] === '.' && ABBREVIATIONS.test(before)) continue;
+    return before;
+  }
+  return t;
 }
+
+/** Abbreviations the server's descriptions use mid-sentence (English and German). */
+const ABBREVIATIONS = /(?:^|[\s(])(?:incl|e\.g|i\.e|etc|ca|approx|vs|no|Nr|z|z\.\s?B|bzw|usw|ggf|inkl|St|Dr)\.$/u;
 
 /** GitHub's heading anchor: lower case, punctuation dropped, spaces to hyphens. */
 export function anchor(heading) {
