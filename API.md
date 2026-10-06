@@ -9,7 +9,7 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
-**It is a dated snapshot, taken on 2026-10-05.** Generating this file makes
+**It is a dated snapshot, taken on 2026-10-06.** Generating this file makes
 it impossible for the document and the snapshot to disagree — CI regenerates and
 compares — but it cannot keep the snapshot from ageing against the live server,
 because a capture is a point in time. **The source of truth is the running
@@ -17,11 +17,11 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.8.0 |
+| Server | `viafrei` 1.8.9 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
-| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-05 |
+| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-06 |
 | Surface | 20 tools, 10 resources, 2 resource templates, 9 prompts |
 | Parameter schemas | JSON Schema draft-07 |
 | Capabilities | `tools`, `resources`, `prompts`, `logging` |
@@ -58,7 +58,7 @@ language the person is writing in rather than relying on the default.
 
 The server's own instructions to a connecting client, verbatim:
 
-> ViaFrei exposes German open transport data (Autobahn traffic and the curated German driving rules now; public-transport delays, fuel prices and departures next). Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice. ViaFrei is in beta: sources are still being added and answers and coverage can change, so when a decision depends on a closure, a departure or a price, tell the user to confirm it with the source the attribution line names.
+> ViaFrei answers from German open transport data, live: motorway traffic, closures and roadworks (plus Land and city traffic messages where a feed carries them), fuel prices, EV charging, parking, train and public-transport departures, regional public-transport punctuality and service alerts, station lifts and escalators, DWD weather warnings, places and addresses, and the curated German driving rules. Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote` or `_meta.conditionNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice. ViaFrei is in beta: sources are still being added and answers and coverage can change, so when a decision depends on a closure, a departure or a price, tell the user to confirm it with the source the attribution line names.
 
 ## Tools
 
@@ -174,7 +174,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns whether one German motorway or federal road is open, closed or restricted, now and in the coming days. Use when the question is whether the road is open or passable — "ist die A8 offen", "ist die A8 in diesem Moment gesperrt", "komme ich durch" — at any clock, plus closures tonight, at the weekend or with no time word. Do NOT use for jams and delays, a whole multi-motorway route, or what is reported on a motorway this minute — call check_autobahn_traffic; for roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.
+> Returns whether a motorway, Bundesstraße or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, city/Land messages near it, not one named street. Use when asked if a road is open/passable — "ist die A8 in diesem Moment gesperrt", "komme ich durch", at any clock, plus closures tonight, this weekend or with no time word. Do NOT use for jams, delays, a multi-motorway route, or what a motorway reports this minute — check_autobahn_traffic; roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -184,7 +184,7 @@ The server's own instructions to a connecting client, verbatim:
 | `limit` | integer | no | `10` | min 1; max 11 |
 | `lon` | number | no | — | min -180; max 180 |
 | `place` | string | no | — | min length 1; max length 120 |
-| `road` | string | no | — | pattern `^[ABab] ?\d{1,3}$` |
+| `road` | string | no | — | pattern `^(?:[ABab] ?\d{1,3}\|[LlSs] ?\d{1,4})$` |
 
 - **`horizon_days`** — How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for "this weekend", 7 for "next week", and for a named weekday ("am Freitag", "on Friday") the number of days from today to that day. A bare "is the A8 open?" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
@@ -192,23 +192,23 @@ The server's own instructions to a connecting client, verbatim:
 - **`limit`** — Maximum entries to return (1–11, default 10). Closures come first, then restrictions in force, then planned works.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
 - **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
-- **`road`** — One German motorway or federal road, e.g. "A8" or "B27". "A8", "A 8" and "a8" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.
+- **`road`** — One German motorway or federal road, e.g. "A8" or "B27", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. "L1025" or "S296". "A8", "A 8" and "a8" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.
 
 ### `find_roadworks_ahead` — Planned roadworks
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns roadworks PLANNED on one German motorway, or on one Bundesstraße in Niedersachsen, in a date window: the section as published, what is restricted, and start and end. Use when a date or window is named, the question says geplant, or how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.
+> Returns roadworks PLANNED on one German motorway, or one Bundes- or Landesstraße in Niedersachsen, Sachsen or Thüringen, in a date window: section, restriction, start and end. Use when a date or window is named, the question says geplant, or how long a site lasts ("Baustellen auf der A7 in den Sommerferien?"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
-| `road` | string | **yes** | — | pattern `^[AaBb] ?\d{1,3}$` |
+| `road` | string | **yes** | — | pattern `^(?:[AaBb] ?\d{1,3}\|[LlSs] ?\d{1,4})$` |
 | `from` | string | no | — | pattern `^\d{4}-\d{2}-\d{2}$` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `10` | min 1; max 20 |
 | `to` | string | no | — | pattern `^\d{4}-\d{2}-\d{2}$` |
 
-- **`road`** — The road to look at, one per call: an Autobahn, e.g. "A7" or "A100", or a Bundesstraße in Niedersachsen, e.g. "B6" — "A7", "A 7" and "a7" are the same road. Bundesstraßen elsewhere, Landesstraßen and city streets are not covered. Ask again for a second road.
+- **`road`** — The road to look at, one per call: an Autobahn, e.g. "A7" or "A100", or a Bundesstraße, Landesstraße or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. "B6", "L1025", "S296" — "A7", "A 7" and "a7" are the same road. B and L roads in other Länder, Kreisstraßen and city streets are not covered. Ask again for a second road.
 - **`from`** — First day of the window, as YYYY-MM-DD in German local time. Omit for today. Resolve relative wording ("next Friday", "in den Sommerferien", "nächsten Monat") into real dates yourself, counted from today's date; this argument never takes words, and it never takes a fixed example date — the window a person means moves with the calendar.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — Maximum sites to return (1–20, default 10), ordered by planned start. Every returned site is in the structured result; the readable text prints the first 10 and says how many more of them are in the structured half. The answer always names how many sites the window holds in total, so a small limit never hides the size of the problem.
@@ -277,7 +277,7 @@ The server's own instructions to a connecting client, verbatim:
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
 | `name` | string | **yes** | — | min length 2; max length 120 |
-| `category` | string | no | — | one of `"office"`, `"amenity"`, `"shop"`, `"tourism"`, `"healthcare"`, `"leisure"`, `"industrial"`, `"building"` |
+| `category` | string | no | — | one of `"office"`, `"amenity"`, `"shop"`, `"tourism"`, `"healthcare"`, `"leisure"`, `"industrial"`, `"historic"`, `"natural"`, `"building"` |
 | `in` | string | no | — | max length 120 |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `lat` | number | no | — | min -90; max 90 |
@@ -287,7 +287,7 @@ The server's own instructions to a connecting client, verbatim:
 | `radius_km` | number | no | `10` | min 1; max 50 |
 
 - **`name`** — The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: "adesso" finds "adesso SE". A chain name works too, because brands are matched as well as names.
-- **`category`** — Narrow to one OpenStreetMap family: "office" (companies, agencies), "shop", "amenity" (fuel, pharmacy, school, restaurant), "healthcare", "tourism" (hotels, attractions), "leisure", "industrial" or "building". Omit unless the person was specific.
+- **`category`** — Narrow to one OpenStreetMap family: "office" (companies, agencies), "shop", "amenity" (fuel, pharmacy, school, restaurant, town hall), "healthcare", "tourism" (hotels, attractions), "leisure", "industrial", "historic" (castles, monuments, city gates), "natural" (mountain peaks) or "building". Omit unless the person was specific.
 - **`in`** — A town to search in — "Dortmund", "Fulda". Strongly preferred: it is both far faster and far less ambiguous than a nationwide search. Use this OR near/lat+lon, not both.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude of the point to search around, when the caller already holds a coordinate.
@@ -370,7 +370,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is unavailable; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 min. CC BY-SA (share-alike): show the attribution line to the user.
+> Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend, and the published service alerts in force there (diversions, closed stops, by line). Use when the user asks whether buses and trains are running normally, or whether a strike, storm or works disrupt local transport. Do NOT use for one trip or station's departures (use get_train_departures); delay figures are not per line. Window ≤ 120 min. CC BY-SA (share-alike): show the attribution line to the user.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -541,7 +541,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`viafrei://status/feeds`** — Per feed: is it still arriving? green (a cycle inside the feed's own freshness window), red (stale or errored) or grey (never ran here). Subscribe to be told when a feed changes colour.
 - **`viafrei://watches`** — The watches THIS conversation has open, with what each one is watching and when it expires. Session-scoped: another conversation's watches are not listed and cannot be reached.
 - **`viafrei://gazetteer`** — What the place index (gazetteer_places) holds: rows and last load per source and kind, how many carry an English name, and the sixteen Länder it can name — the coverage behind find_place/find_poi/find_nearby's place answers.
-- **`viafrei://addresses`** — What the OSM-derived address table (osm_addresses) holds per Bundesland — rows and the extract date — plus the ODbL § 4.6 offer owed to anyone who receives an address-derived result.
+- **`viafrei://addresses`** — What the OSM-derived address table (osm_addresses) holds per Bundesland — the Länder and each one's extract date read from the rows, the row counts estimated from the planner's statistics and labelled so — plus the ODbL § 4.6 offer owed to anyone who receives an address-derived result.
 
 ## Resource templates
 
@@ -679,5 +679,5 @@ single call.
 ---
 
 Generated from `catalogue.json` by `scripts/gen-api-doc.mjs`. The snapshot was
-read from `https://mcp.viafrei.de/mcp` on 2026-10-05; no tool was invoked to
+read from `https://mcp.viafrei.de/mcp` on 2026-10-06; no tool was invoked to
 produce it, so no data provider was contacted.
