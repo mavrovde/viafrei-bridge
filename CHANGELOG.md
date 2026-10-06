@@ -5,6 +5,62 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.18] - 2026-10-06
+
+**The bridge catches up with eighteen server releases, and the service enters a
+stabilisation phase.** The package now matches the server's 1.8.18. Since 1.8.0 the
+server has gained a twenty-first tool, many more sources and a large round of
+fixes. This release describes them, and it carries the beta notice the server's
+instructions already give.
+
+### Added
+- **`find_sharing`** — shared bikes near a place, from nextbike's and Donkey
+  Republic's public GBFS feeds (CC0 1.0): stations with bikes and free docks
+  now, and free-floating bikes around, with distance and data age (within 5 km;
+  e-scooters are not covered). It is read-only, and the README lists it under
+  its own group.
+- **More road sources:** police and city traffic reports from Baden-Württemberg,
+  Schleswig-Holstein and Berlin (and from Köln and Hannover whenever those
+  cities publish one), roadworks on state roads in Niedersachsen, and on
+  federal and state roads in Sachsen and Thüringen.
+- **Berlin and Brandenburg punctuality** from VBB's own realtime feed (CC BY
+  4.0). DELFI remains the source for the rest of Germany.
+- **Charging:** the Bundesnetzagentur charging register, and live status from
+  more operators.
+- **Parking:** car parks in Hamburg, Münster and North Rhine-Westphalia, and
+  occupancy where the operator publishes it.
+- **SOURCES.md** now has one row for every source in the server's
+  `viafrei://attribution` resource, with its attribution line, its licence and a
+  status measured on 2026-10-06 from 1,081 real answers.
+
+### Changed
+- **Beta notice.** ViaFrei is being stabilised: sources are still being added,
+  and answers and coverage can change. Answers are written by an AI assistant
+  from our data and can contain mistakes. Check anything important (a closure,
+  a departure, a price) against the source the answer names. The README says
+  this at the top.
+- Tool descriptions were refined for `check_road_status`, `find_roadworks_ahead`,
+  `find_poi`, `check_transit_disruption` and `check_station_facilities`. So were
+  the `viafrei://addresses` resource and the `compare_travel_options` and
+  `plan_commute` prompts. `API.md` and the README catalogue are regenerated from
+  the running server.
+- **New parameter values.** `find_poi`'s `category` accepts `historic` and
+  `natural`; the `road` argument of `check_road_status` and
+  `find_roadworks_ahead` accepts state roads (`L 3`, `S 84`) as well as
+  motorways and federal roads.
+- **New server instructions.** The `initialize` instructions now name the
+  source families and ask clients to show `_meta.conditionNote` verbatim, as
+  they already show `purposeNote`: some sources attach a condition to how
+  their data may be shown.
+
+### Fixed
+- **Punctuality for a whole region answers again.** Large regions such as Bayern,
+  Nordrhein-Westfalen, Hamburg, München, Köln, Rhein-Main and the Ruhr area had
+  stopped answering after 10 seconds. They now answer in 0.3–4 seconds. One
+  Land, Niedersachsen, is still being fixed.
+- **A Berlin/Brandenburg answer no longer states a licence limit that VBB does
+  not set.**
+
 ## [1.8.0] - 2026-10-05
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
@@ -2006,6 +2062,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.8.18]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.18
 [1.8.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.0
 [1.7.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.5
 [1.7.4]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.4

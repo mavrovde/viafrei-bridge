@@ -29,7 +29,7 @@ You do not need a template. Three things carry almost all the signal:
    the older HTTP+SSE at `https://mcp.viafrei.de/sse`, this stdio bridge through
    `npx viafrei` (the npm package [`viafrei`](https://www.npmjs.com/package/viafrei)),
    or the hosted connection on [Smithery](https://smithery.ai/servers/viafrei/viafrei).
-   If you found ViaFrei through its [Glama listing](https://glama.ai/mcp/servers/mavrovde/viafrei-bridge),
+   If you found ViaFrei through its [Glama listing](https://glama.ai/mcp/servers/mavrovde/viafrei-mcp),
    say which of these you then connected with.
 
 If the answer was *wrong* rather than missing, say what the right answer was and
@@ -37,8 +37,8 @@ how you know. A wrong answer with a correction attached usually turns into a fix
 a wrong answer without one usually turns into a question back to you.
 
 **Please do not paste fuel prices** into an issue or a Discussion. Those figures
-are consumer information only under their source's terms, which do not permit
-redistribution — describe the problem instead ("the cheapest diesel near X came
+may be used for consumer information only, and we ask that they are not
+redistributed — describe the problem instead ("the cheapest diesel near X came
 back as a station 40 km away"). Every other kind of result is fine to paste.
 
 ## What to expect

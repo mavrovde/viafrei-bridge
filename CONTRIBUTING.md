@@ -125,19 +125,20 @@ analysis of `main` follows such a merge has not been checked here. This is accep
 because the tree was green on the pull request and `publish.yml` runs every gate again
 against the tag before it uploads anything.
 
-**Things that have not been checked yet:**
+**Checked once, by the first automatic release (v1.7.5, #59, 2026-10-05):**
 
 - *npm trusted publishing from a dispatched run.* The trusted publisher is matched on
-  the repository, the workflow file name (`publish.yml`) and the `npm` environment.
-  It has no field for the ref or the event. npm's documentation
+  the repository, the workflow file name (`publish.yml`) and the `npm` environment,
+  with no field for the ref or the event; npm's documentation
   (docs.npmjs.com/trusted-publishers) warns that with `workflow_call`, "or
   workflow_dispatch", validation may check the calling workflow's name. Here
-  `publish.yml` itself is dispatched, not called from another file, so the name should
-  match. No release has yet been published from a dispatched run (every one so far
-  came from a pushed tag). The first automatic release is the first time this path
-  runs. If it fails, the recovery below applies.
-- *Who `mergedBy` names when the workflow merges.* The stuck-release check accepts
-  `github-actions`, `github-actions[bot]` and `app/github-actions`.
+  `publish.yml` itself is dispatched, and v1.7.5 was published from a dispatched run
+  with provenance attested. If it ever fails, the recovery below applies.
+- *Who `mergedBy` names when the workflow merges.* `app/github-actions` on #59. The
+  stuck-release check accepts that, `github-actions` and `github-actions[bot]`.
+
+**Not checked yet:**
+
 - *Approving the held CI run.* For a pull request opened with `GITHUB_TOKEN`, GitHub
   holds the CI run until it is approved. The workflow approves it with the same token,
   and that call is known to work: the Version sync run that opened #53 logged the
@@ -405,13 +406,14 @@ looks.
 
 If you write an example, a fixture or a README snippet that shows a result:
 
-- **MTS-K fuel prices are consumer information only** — no redistribution in any
-  form, aggregates and comparisons included. Do not build an example that shows
-  a price table.
-- **DELFI public-transport data is Creative Commons Attribution-ShareAlike** —
-  share-alike travels with anything you *derive* from it, a rearrangement
-  included. The realtime feed's catalogue entry states no licence version, so do
-  not write one into an example; `SOURCES.md` has the evidence.
+- **MTS-K fuel prices are consumer information only** — and we ask for no
+  redistribution in any form, aggregates and comparisons included. Do not build
+  an example that shows a price table.
+- **DELFI's realtime and disruption feeds are Creative Commons
+  Attribution-ShareAlike** — share-alike travels with anything you *derive* from
+  them, a rearrangement included. The realtime feeds' catalogue entries state no
+  licence version, so do not write one into an example; `SOURCES.md` has the
+  evidence.
 - Every result carries an attribution line, and an example that drops it teaches
   the wrong thing.
 

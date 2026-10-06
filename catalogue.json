@@ -1,11 +1,11 @@
 {
   "$comment": "Captured from the PRODUCTION ViaFrei MCP server with initialize, tools/list, resources/list, resources/templates/list and prompts/list. No tool was invoked, so no data provider was contacted. ONE field is removed rather than stored: every tool's inputSchema carried a $schema URI naming the JSON Schema draft-07 dialect. It is dropped because storing it would put a host on this repository's allow-list that nothing else needs, and the dialect is a property of every draft-07 schema rather than a fact about this catalogue - API.md states it in words instead. Nothing else is altered: every tool, parameter, constraint, resource, template and prompt is as the server returned it. A SECOND substitution, for a different reason: two input schemas carried a 288-character regular expression validating an ISO-8601 date including leap years. Each is stored as patternLength rather than as its text, because such a regex spells its arithmetic as character classes of selected digits, and the leak sweep that guards this repository cannot tell a class of five digits from a five-digit internal value. The two ways to keep the text would both have been falsehoods - narrowing the sweep for every file, or an allow-list entry claiming a character class is a number this project publishes - so the text is not kept. Nothing about the constraint is hidden by this: API.md already summarised a pattern of over 60 characters by its length, which is what a reader gets either way, and the server hands anyone the full expression in tools/list.",
-  "capturedAt": "2026-10-05",
+  "capturedAt": "2026-10-06",
   "source": "https://mcp.viafrei.de/mcp",
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.8.0"
+    "version": "1.8.18"
   },
   "capabilities": {
     "tools": {
@@ -20,7 +20,7 @@
     },
     "logging": {}
   },
-  "instructions": "ViaFrei exposes German open transport data (Autobahn traffic and the curated German driving rules now; public-transport delays, fuel prices and departures next). Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice. ViaFrei is in beta: sources are still being added and answers and coverage can change, so when a decision depends on a closure, a departure or a price, tell the user to confirm it with the source the attribution line names.",
+  "instructions": "ViaFrei answers from German open transport data, live: motorway traffic, closures and roadworks (plus Land and city traffic messages where a feed carries them), fuel prices, EV charging, parking, train and public-transport departures, regional public-transport punctuality and service alerts, station lifts and escalators, DWD weather warnings, places and addresses, and the curated German driving rules. Always show the attribution line of a result to the user, and when a result carries `_meta.purposeNote` or `_meta.conditionNote`, show that sentence verbatim as well — it is a legal condition of the data, not a caption. Times are Europe/Berlin; the rules answers carry a review date and are informational, not legal advice. ViaFrei is in beta: sources are still being added and answers and coverage can change, so when a decision depends on a closure, a departure or a price, tell the user to confirm it with the source the attribution line names.",
   "tools": [
     {
       "name": "check_autobahn_traffic",
@@ -353,14 +353,14 @@
     },
     {
       "name": "check_road_status",
-      "description": "Returns whether one German motorway or federal road is open, closed or restricted, now and in the coming days. Use when the question is whether the road is open or passable — \"ist die A8 offen\", \"ist die A8 in diesem Moment gesperrt\", \"komme ich durch\" — at any clock, plus closures tonight, at the weekend or with no time word. Do NOT use for jams and delays, a whole multi-motorway route, or what is reported on a motorway this minute — call check_autobahn_traffic; for roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.",
+      "description": "Returns whether a motorway, Bundesstraße or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, city/Land messages near it, not one named street. Use when asked if a road is open/passable — \"ist die A8 in diesem Moment gesperrt\", \"komme ich durch\", at any clock, plus closures tonight, this weekend or with no time word. Do NOT use for jams, delays, a multi-motorway route, or what a motorway reports this minute — check_autobahn_traffic; roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "road": {
-            "description": "One German motorway or federal road, e.g. \"A8\" or \"B27\". \"A8\", \"A 8\" and \"a8\" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.",
+            "description": "One German motorway or federal road, e.g. \"A8\" or \"B27\", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. \"L1025\" or \"S296\". \"A8\", \"A 8\" and \"a8\" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.",
             "type": "string",
-            "pattern": "^[ABab] ?\\d{1,3}$"
+            "pattern": "^(?:[ABab] ?\\d{1,3}|[LlSs] ?\\d{1,4})$"
           },
           "place": {
             "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
@@ -389,7 +389,7 @@
           },
           "limit": {
             "default": 10,
-            "description": "Maximum entries to return (1–11, default 10). Closures come first, then restrictions in force, then planned works.",
+            "description": "Maximum entries to return (1–11, default 10). By road, closures come first, then restrictions in force, then planned works; by place, nearest first.",
             "type": "integer",
             "minimum": 1,
             "maximum": 11
@@ -418,14 +418,14 @@
     },
     {
       "name": "find_roadworks_ahead",
-      "description": "Returns roadworks PLANNED on one German motorway, or on one Bundesstraße in Niedersachsen, in a date window: the section as published, what is restricted, and start and end. Use when a date or window is named, the question says geplant, or how long a site lasts (\"Baustellen auf der A7 in den Sommerferien?\"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.",
+      "description": "Returns roadworks PLANNED on one German motorway, or one Bundes- or Landesstraße in Niedersachsen, Sachsen or Thüringen, in a date window: section, restriction, start and end. Use when a date or window is named, the question says geplant, or how long a site lasts (\"Baustellen auf der A7 in den Sommerferien?\"). ONE road per call. Do NOT use when more than one motorway is named, for the situation this minute, or for Baustellen with neither date nor geplant — all three are check_autobahn_traffic; whether a road is open — call check_road_status. ≤ 92 days, max 20 sites. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "road": {
             "type": "string",
-            "pattern": "^[AaBb] ?\\d{1,3}$",
-            "description": "The road to look at, one per call: an Autobahn, e.g. \"A7\" or \"A100\", or a Bundesstraße in Niedersachsen, e.g. \"B6\" — \"A7\", \"A 7\" and \"a7\" are the same road. Bundesstraßen elsewhere, Landesstraßen and city streets are not covered. Ask again for a second road."
+            "pattern": "^(?:[AaBb] ?\\d{1,3}|[LlSs] ?\\d{1,4})$",
+            "description": "The road to look at, one per call: an Autobahn, e.g. \"A7\" or \"A100\", or a Bundesstraße, Landesstraße or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. \"B6\", \"L1025\", \"S296\" — \"A7\", \"A 7\" and \"a7\" are the same road. B and L roads in other Länder, Kreisstraßen and city streets are not covered. Ask again for a second road."
           },
           "from": {
             "description": "First day of the window, as YYYY-MM-DD in German local time. Omit for today. Resolve relative wording (\"next Friday\", \"in den Sommerferien\", \"nächsten Monat\") into real dates yourself, counted from today's date; this argument never takes words, and it never takes a fixed example date — the window a person means moves with the calendar.",
@@ -673,7 +673,7 @@
             "maximum": 180
           },
           "category": {
-            "description": "Narrow to one OpenStreetMap family: \"office\" (companies, agencies), \"shop\", \"amenity\" (fuel, pharmacy, school, restaurant), \"healthcare\", \"tourism\" (hotels, attractions), \"leisure\", \"industrial\" or \"building\". Omit unless the person was specific.",
+            "description": "Narrow to one OpenStreetMap family: \"office\" (companies, agencies), \"shop\", \"amenity\" (fuel, pharmacy, school, restaurant, town hall), \"healthcare\", \"tourism\" (hotels, attractions), \"leisure\", \"industrial\", \"historic\" (castles, monuments, city gates), \"natural\" (mountain peaks) or \"building\". Omit unless the person was specific.",
             "type": "string",
             "enum": [
               "office",
@@ -683,6 +683,8 @@
               "healthcare",
               "leisure",
               "industrial",
+              "historic",
+              "natural",
               "building"
             ]
           },
@@ -873,6 +875,71 @@
       }
     },
     {
+      "name": "find_sharing",
+      "description": "Returns rentable shared bikes near a place or coordinate: bike-sharing stations with bikes and free docks now, and free-floating bikes around, with distance and data age (nextbike incl. KVB Rad, MyRadl, VAG_Rad; Donkey Republic). Use when someone asks for a rental or shared bike (\"Leihrad\", \"Fahrradverleih\", \"nächstes nextbike\", \"bike share near me\"). Do NOT use for parking (find_parking) or a general look around a place (find_nearby). Radius ≤ 5 km, ≤ 20 stations; e-scooters are not covered. Shows each source's attribution.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "place": {
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "lat": {
+            "description": "Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "lon": {
+            "description": "Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "language": {
+            "default": "de",
+            "description": "Set this on every call to the language the person is writing in: \"en\" if they wrote English, \"de\" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.",
+            "type": "string",
+            "enum": [
+              "de",
+              "en"
+            ]
+          },
+          "radius_km": {
+            "default": 1,
+            "description": "Search radius around place or lat+lon in kilometres (0.1–5, default 1). Example: 1",
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 5
+          },
+          "limit": {
+            "default": 8,
+            "description": "How many stations to list, nearest first (1–20, default 8). Free-floating bikes are summarised, not listed one by one.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20
+          },
+          "only_available": {
+            "default": true,
+            "description": "true (default): list only stations with at least one bike to rent right now. false: also list empty stations, e.g. to find a free dock to return a bike.",
+            "type": "boolean"
+          }
+        }
+      },
+      "annotations": {
+        "title": "Shared bikes nearby",
+        "readOnlyHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
       "name": "get_driving_rules",
       "description": "Returns the German road rules a visitor needs: low-emission zones (Umweltzone) and which Feinstaubplakette a city requires, speed limits (advisory 130), winter tyres, alcohol, the Sunday lorry ban, tolls (no car toll), Rettungsgasse, what must be in the car, and electric cars (E-Kennzeichen, ad-hoc payment, plugs). Use when someone drives through Germany or asks whether they may enter a city. Do NOT use for live traffic or closures: check_autobahn_traffic; to FIND a charger: find_charging_station. Optional city narrows to its zone. Sourced and dated; show the attribution. Not legal advice.",
       "inputSchema": {
@@ -923,7 +990,7 @@
     },
     {
       "name": "check_transit_disruption",
-      "description": "Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend against the previous window, and how many trips that rests on. Use when the user asks whether buses and trains are running normally, or whether a strike or storm is disrupting local transport. Do NOT use for one line, trip or station — per-line realtime is unavailable; the region's figures are the answer. Region-wide aggregates only; window ≤ 120 min. CC BY-SA (share-alike): show the attribution line to the user.",
+      "description": "Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend, and the published service alerts in force there (diversions, closed stops, by line). Use when the user asks whether buses and trains are running normally, or whether a strike, storm or works disrupt local transport. Do NOT use for one trip or station's departures (use get_train_departures); delay figures are not per line. Window ≤ 120 min. CC BY-SA (DELFI) or CC BY 4.0 (VBB, Berlin/Brandenburg): show attribution.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1163,12 +1230,12 @@
     },
     {
       "name": "check_station_facilities",
-      "description": "Report whether a German railway station's lifts and escalators are working right now: each one, where it is, its state (in service / out of service / unknown) and the operator's own explanation. Use when someone asks about step-free access or a broken lift — \"Funktioniert der Aufzug am Kölner Hauptbahnhof?\", \"is the lift at Hamburg Hbf working?\", \"Rolltreppe kaputt?\", travelling with a wheelchair, a pram or heavy luggage. Do NOT use for train times, platforms or delays — call get_train_departures. At most 50 facilities, out-of-service ones first. Results carry their attribution line.",
+      "description": "Report whether the lifts and escalators of a German railway station — or of a Köln Stadtbahn stop — are working now: each one, where it is, its state (in service / out of service / unknown) and the operator's explanation. Use when asked about step-free access or a broken lift: \"Funktioniert der Aufzug am Kölner Hauptbahnhof?\", \"is the lift at Hamburg Hbf working?\", \"Rolltreppe am Neumarkt kaputt?\", wheelchair, pram, heavy luggage. Do NOT use for train times, platforms or delays — call get_train_departures. At most 50 facilities, out-of-service ones first. Results carry their attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "station": {
-            "description": "The railway station, as the person says it: \"Köln Hbf\", \"Hamburg Hbf\", \"Munich Central\". Pass their words — English names and \"central station\" are understood. If the name fits several stations the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.",
+            "description": "The railway station — or Köln Stadtbahn stop — as the person says it: \"Köln Hbf\", \"Hamburg Hbf\", \"Munich Central\", \"Neumarkt Köln\". Pass their words — English names and \"central station\" are understood. If the name fits several stations the result lists them and asks which; do not guess one yourself. Give either station OR eva_no, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -1437,7 +1504,7 @@
       "uri": "viafrei://addresses",
       "name": "addresses",
       "title": "Address coverage",
-      "description": "What the OSM-derived address table (osm_addresses) holds per Bundesland — rows and the extract date — plus the ODbL § 4.6 offer owed to anyone who receives an address-derived result.",
+      "description": "What the OSM-derived address table (osm_addresses) holds per Bundesland — the Länder and each one's extract date read from the rows, the row counts estimated from the planner's statistics and labelled so — plus the ODbL § 4.6 offer owed to anyone who receives an address-derived result.",
       "mimeType": "application/json"
     }
   ],
@@ -1493,7 +1560,7 @@
     {
       "name": "compare_travel_options",
       "title": "Drive or take the train? — Auto oder Bahn?",
-      "description": "Weighs one trip by car against the same trip by rail: closures and live jams on the motorway side, the next departures and the region's punctuality on the rail side, as two paragraphs the traveller can compare. Use when the traveller has not decided how to travel. Do NOT use once the decision is made — brief the drive with plan_departure, the rail leg with plan_commute. The punctuality figures are share-alike and keep their own attribution; show every attribution line.",
+      "description": "Weighs one trip by car against the same trip by rail: closures and live jams on the motorway side, the next departures and the region's punctuality on the rail side, as two paragraphs the traveller can compare. Use when the traveller has not decided how to travel. Do NOT use once the decision is made — brief the drive with plan_departure, the rail leg with plan_commute. The punctuality figures keep their own attribution (share-alike unless VBB answered); show every attribution line.",
       "arguments": [
         {
           "name": "origin",
@@ -1584,7 +1651,7 @@
     {
       "name": "plan_commute",
       "title": "Plan today's commute by train — Pendelfahrt für heute planen",
-      "description": "Plans one public-transport leg on the day itself: the next departures from the station with delays, platforms and cancellations, and whether the region's buses and trains are running normally at this hour. Use when the train is already the decision — a daily commute, or any leg where they need the next departures and nothing else. Do NOT use to weigh rail against driving — that is compare_travel_options — and not for motorway traffic, which is plan_departure. The punctuality figures are share-alike and stay in their own paragraph; show every attribution line.",
+      "description": "Plans one public-transport leg on the day itself: the next departures from the station with delays, platforms and cancellations, and whether the region's buses and trains are running normally at this hour. Use when the train is already the decision — a daily commute, or any leg where they need the next departures and nothing else. Do NOT use to weigh rail against driving — that is compare_travel_options — and not for motorway traffic, which is plan_departure. The punctuality figures (share-alike unless VBB answered) stay in their own paragraph; show every attribution line.",
       "arguments": [
         {
           "name": "from_station",
