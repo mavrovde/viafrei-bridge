@@ -29,8 +29,9 @@ instructions already give.
   more operators.
 - **Parking:** car parks in Hamburg, Münster and North Rhine-Westphalia, and
   occupancy where the operator publishes it.
-- **SOURCES.md** now ends with every source the server names today, copied from
-  its `viafrei://attribution` resource.
+- **SOURCES.md** now has one row for every source in the server's
+  `viafrei://attribution` resource, with its attribution line, its licence and a
+  status measured on 2026-10-06 from 1,081 real answers.
 
 ### Changed
 - **Beta notice.** ViaFrei is being stabilised: sources are still being added,

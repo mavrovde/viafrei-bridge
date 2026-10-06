@@ -10,10 +10,11 @@ keeps its provider's own terms. Those terms travel with the answer, not with
 this package, and several of them are share-alike or purpose-limited. In
 particular:
 
-  - DELFI public-transport data is Creative Commons Attribution-ShareAlike. The
-    catalogue record for the realtime feed names no version (see SOURCES.md), so
-    treat the share-alike as applying and do not rely on a version for a
-    derivative. Share-alike reaches ADAPTATIONS, not aggregations: if you
+  - DELFI's public-transport realtime and disruption feeds are Creative Commons
+    Attribution-ShareAlike (its static timetable and stop directory are CC BY
+    4.0). The catalogue records for the two realtime feeds name no version (see
+    SOURCES.md), so treat the share-alike as applying and do not rely on a
+    version for a derivative. Share-alike reaches ADAPTATIONS, not aggregations: if you
     recompute, reshape or rearrange the data you must license that under BY-SA -
     art. 1(a) of the 4.0 text names material "translated, altered, arranged,
     transformed, or otherwise modified", so a rearrangement is inside the
@@ -21,8 +22,10 @@ particular:
     is an aggregation and puts no obligation on the other source. Which version
     applies is the open question SOURCES.md sets out; the words above are quoted
     from 4.0 because that is the text we read.
-  - MTS-K fuel prices (Tankerkönig) are consumer information only. No
-    redistribution in any form, aggregates and derived tables included.
+  - MTS-K fuel prices (Tankerkönig) are consumer information only: any other
+    use is unlawful in any form, aggregates and derived tables included, and the
+    data must never reach the fuel industry or its IT providers. We ask for no
+    redistribution at all.
   - Address, point-of-interest and place results can be derived from
     OpenStreetMap under the ODbL 1.0. What decides it is which TABLE answered,
     not which tool you called: place resolution falls through our own gazetteer
@@ -35,8 +38,14 @@ particular:
     them, under ODbL 1.0 and free of charge. Ask by opening an issue on this
     repository, or by the e-mail address in the Impressum at
     https://viafrei.de/impressum if you have no GitHub account.
-  - Autobahn GmbH, BKG, DWD, Deutsche Bahn, GeoNames and the AFIR charging
-    feeds each carry their own licence and attribution string.
+  - Lorry parking from Trucklounge Ecopark (ENMO GmbH & Co.KG) is a second,
+    separate ODbL 1.0 database, and P+R NRW (NRW.Mobidrom) is CC BY-SA. Both
+    come back in lists of their own, and both are offered on request, free of
+    charge, as SOURCES.md describes.
+  - Every other source - Autobahn GmbH, BKG, DWD, Deutsche Bahn, GeoNames, VBB,
+    the Bundesnetzagentur, the charging, parking, traffic-message and
+    bike-sharing feeds - carries its own licence and attribution string, and a
+    few carry a condition of use that the answer states.
 
 Every tool result from the server carries its own attribution line, and the
 server exposes the full register at the resource `viafrei://attribution`. Show

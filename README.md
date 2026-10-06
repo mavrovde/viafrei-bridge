@@ -524,19 +524,22 @@ covers, its licence, and the exact line to reproduce.
 Two constraints matter more than the rest, because getting them wrong is a
 licence breach rather than a style problem:
 
-- **MTS-K fuel prices are consumer information only.** No redistribution in any
-  form, including aggregates, comparisons, price tables and anything derived.
-  Answer the person who asked; do not build a product out of it. (This is also
-  why this page shows no fuel price.)
-- **DELFI public-transport data is Creative Commons Attribution-ShareAlike.**
-  Share-alike travels with anything you *derive* from it: recompute it, reshape
-  it, rearrange it or build a delay table out of it, and that is Adapted
-  Material you must license under BY-SA (art. 1(a) names material "translated,
-  altered, arranged, transformed, or otherwise modified"). Merely **showing** it
-  beside another source's data is an aggregation and puts no obligation on the
-  other source. The catalogue record for the realtime feed names no licence
-  version, so do not rely on one for a derivative; [SOURCES.md](SOURCES.md) has
-  the detail.
+- **MTS-K fuel prices are consumer information only.** Any other use is
+  unlawful in any form, raw, reformatted or aggregated, and never for the fuel
+  industry or its IT providers. On top of that we ask for no redistribution at
+  all: answer the person who asked; do not build a product out of it. (This is
+  also why this page shows no fuel price.)
+- **DELFI's realtime and disruption feeds are Creative Commons
+  Attribution-ShareAlike** (its static timetable and stop directory are CC BY 4.0,
+  and so is VBB's Berlin-Brandenburg feed). Share-alike travels with anything you
+  *derive* from it: recompute it, reshape it, rearrange it or build a delay table
+  out of it, and that is Adapted Material you must license under BY-SA (art. 1(a)
+  names material "translated, altered, arranged, transformed, or otherwise
+  modified"). Merely **showing** it beside another source's data is an
+  aggregation and puts no obligation on the other source. The realtime feeds'
+  catalogue records name no licence version, so do not rely on one for a
+  derivative; [SOURCES.md](SOURCES.md) has the detail, and also covers the two
+  share-alike databases under the ODbL (OpenStreetMap and one lorry-park operator).
 
 See also [NOTICE](NOTICE) and [LICENSE](LICENSE).
 
