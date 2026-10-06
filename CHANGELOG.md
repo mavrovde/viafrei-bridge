@@ -21,8 +21,8 @@ instructions already give.
   its own group.
 - **More road sources:** police and city traffic reports from Baden-Württemberg,
   Schleswig-Holstein and Berlin (and from Köln and Hannover whenever those
-  cities publish one), and roadworks on federal and state roads in
-  Niedersachsen, Sachsen and Thüringen.
+  cities publish one), roadworks on state roads in Niedersachsen, and on
+  federal and state roads in Sachsen and Thüringen.
 - **Berlin and Brandenburg punctuality** from VBB's own realtime feed (CC BY
   4.0). DELFI remains the source for the rest of Germany.
 - **Charging:** the Bundesnetzagentur charging register, and live status from
@@ -44,6 +44,14 @@ instructions already give.
   the `viafrei://addresses` resource and the `compare_travel_options` and
   `plan_commute` prompts. `API.md` and the README catalogue are regenerated from
   the running server.
+- **New parameter values.** `find_poi`'s `category` accepts `historic` and
+  `natural`; the `road` argument of `check_road_status` and
+  `find_roadworks_ahead` accepts state roads (`L 3`, `S 84`) as well as
+  motorways and federal roads.
+- **New server instructions.** The `initialize` instructions now name the
+  source families and ask clients to show `_meta.conditionNote` verbatim, as
+  they already show `purposeNote`: some sources attach a condition to how
+  their data may be shown.
 
 ### Fixed
 - **Punctuality for a whole region answers again.** Large regions such as Bayern,

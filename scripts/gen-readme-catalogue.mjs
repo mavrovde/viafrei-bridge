@@ -57,7 +57,7 @@ export function firstSentence(text) {
 }
 
 /** Abbreviations the server's descriptions use mid-sentence (English and German). */
-const ABBREVIATIONS = /(?:^|[\s(])(?:incl|e\.g|i\.e|etc|ca|approx|vs|no|Nr|z|z\.\s?B|bzw|usw|ggf|inkl|St|Dr)\.$/u;
+const ABBREVIATIONS = /(?:^|[\s(])(?:incl|e\.g|i\.e|etc|ca|approx|vs|No|Nr|z|z\.\s?B|bzw|usw|ggf|inkl|St|Dr)\.$/u;
 
 /** GitHub's heading anchor: lower case, punctuation dropped, spaces to hyphens. */
 export function anchor(heading) {
