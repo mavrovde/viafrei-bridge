@@ -56,6 +56,9 @@ const [MAJOR, MINOR] = PUBLISHED.split('.').map(Number);
 const NEXT = `${MAJOR}.${MINOR + 1}.0`;
 const OLDER = `${MAJOR}.${MINOR}.0` === PUBLISHED ? `${Math.max(MAJOR - 1, 0)}.0.1` : `${MAJOR}.${MINOR}.0`;
 const FILES = ['package.json', 'package-lock.json', 'catalogue.json', 'API.md', 'README.md', 'CHANGELOG.md'];
+// Planted under [Unreleased] in the copied CHANGELOG, so the carry check has a line
+// that is KNOWN to be waiting (see the fixture).
+const WAITING = '- **Fixture.** A line planted under [Unreleased] by this self-test, to be carried into the new block.';
 
 const { check, failures, passed } = createChecker();
 const roots = [];
@@ -138,7 +141,13 @@ function buildRoot(mcpUrl, { manifestVersion = PUBLISHED, changelog = null, capt
     copyFileSync(join(ROOT, 'README.md'), join(root, 'README.md'));
     copyFileSync(join(ROOT, 'SOURCES.md'), join(root, 'SOURCES.md'));
     if (changelog === null) {
-        copyFileSync(join(ROOT, 'CHANGELOG.md'), join(root, 'CHANGELOG.md'));
+        // The real CHANGELOG with one line planted under [Unreleased]. Reading "the
+        // first line after [Unreleased]" off the real file finds the PREVIOUS
+        // release's lead whenever nothing is waiting, and that passed only while the
+        // lead happened to reappear inside the generated block.
+        const real = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8');
+        if (!real.includes('## [Unreleased]\n')) throw new Error('fixture: the real CHANGELOG has no [Unreleased] heading');
+        writeFileSync(join(root, 'CHANGELOG.md'), real.replace('## [Unreleased]\n', `## [Unreleased]\n\n${WAITING}\n`));
     } else {
         writeFileSync(join(root, 'CHANGELOG.md'), changelog);
     }
@@ -287,8 +296,7 @@ await scenario({ server: NEXT, root: { capturedAt: '2026-09-29' } }, async ({ ru
         /only the version string and the capture date moved/u.test(flat) && /surface \*\*unchanged\*\* — only the version string and the capture date moved/u.test(result.body ?? ''),
         brief(flat)
     );
-    const waiting = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8').split('\n');
-    const firstWaitingLine = waiting.slice(waiting.indexOf('## [Unreleased]') + 1).find(line => line.trim() !== '' && !line.startsWith('## ['));
+    const firstWaitingLine = WAITING;
     check(
         "what was waiting under [Unreleased] now sits under the new block, not above it",
         firstWaitingLine !== undefined && lines.indexOf(firstWaitingLine) > block && lines.indexOf(firstWaitingLine) < previousBlock,
