@@ -173,9 +173,10 @@ is deliberately not re-measured, and the count says so rather than absorbing it:
 status this page cannot stand behind is worse than an honest gap.
 
 **The server has grown since that measurement, and this page has not re-run it.**
-As of the capture shipped alongside this page (2026-10-04, server 1.7.3)
-it exposes twenty tools, eighteen of them read-only — the same twenty as on
-2026-10-02. Between that measurement and the 2026-10-02 capture it
+As of the capture shipped alongside this page (2026-10-06, server 1.8.18)
+it exposes twenty-one tools, nineteen of them read-only. The twenty-first,
+`find_sharing` (1.8), answers from nextbike's and Donkey Republic's public GBFS
+feeds under CC0 1.0; it is read-only and not a fuel tool. Between that measurement and the 2026-10-02 capture it
 gained two tools, and both matter here. One is a SECOND fuel tool,
 `find_fuel_station`, excluded from any spot check for exactly the same reason
 `find_cheapest_fuel` is, and the reason is a licence condition rather than a
@@ -188,10 +189,10 @@ page had listed as *read* with nothing using it. Something uses it now, and on
 below says exactly that rather than promoting it.
 
 The sentence above therefore describes what was measured on 2026-09-27 and not what
-the server offers today. Re-running it would now mean **sixteen** live calls against
+the server offers today. Re-running it would now mean **seventeen** live calls against
 real providers: the read-only tools minus the two excluded fuel tools. The count moved
-by one because `get_departures` is read-only and not fuel, so a re-run would call
-it. Those calls would mostly re-confirm statuses this page already knows, so it is
+by one for `get_departures` and by one more for `find_sharing`, both read-only and
+not fuel, so a re-run would call them. Those calls would mostly re-confirm statuses this page already knows, so it is
 dated on purpose rather than refreshed on a schedule — and dated is said out loud,
 because a measurement silently carried forward under a present-tense sentence is the
 failure this section exists to avoid.
@@ -756,6 +757,74 @@ either fails our build rather than reaching you.
 It is information, never legal advice.
 
 ---
+
+## Every source, as the server lists it today
+
+This list is copied from the server's own `viafrei://attribution` resource at server
+1.8.18 (2026-10-06): every source an answer can name today, with its attribution
+line and licence (the links are in the resource and in every answer). Sources whose licence has
+been read but whose data is not loaded yet are left out. The resource itself is the
+authority, and it is read through MCP like any other resource. The sections above
+explain the obligations; this list is the inventory. It holds 58 sources.
+
+- Verkehrsdaten: Autobahn GmbH des Bundes — open data (Autobahn GmbH)
+- Echtzeitdaten: DELFI e.V. via Mobilithek, CC BY-SA, bearbeitet
+- Echtzeitdaten: VBB Verkehrsverbund Berlin-Brandenburg GmbH, CC BY 4.0, bearbeitet
+- Störungsmeldungen: DELFI e.V. via Mobilithek, Datensatz „DELFI-Datensatz GTFS-RT Service Alerts“, CC BY-SA 4.0, bearbeitet
+- Störungsmeldungen: DELFI e.V. via Mobilithek, Datensatz „DELFI-Datensatz SIRI SX“, CC BY-SA 4.0, bearbeitet
+- Echtzeitdaten Schiene: DELFI e.V. via Mobilithek, Datensatz „DELFI-Realtime SIRI ET Bahndaten“, CC BY-SA, bearbeitet
+- Fahrplandaten: DELFI e.V., CC BY 4.0, bearbeitet
+- Tankstellenpreise: Tankerkönig.de — MTS-K, CC BY 4.0, bearbeitet
+- Fahrplandaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
+- Bahnhofsdaten: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
+- Aufzüge und Fahrtreppen: Deutsche Bahn AG, DB API Marketplace, CC BY 4.0, bearbeitet
+- Quelle: Deutscher Wetterdienst — CC BY 4.0
+- Ortsdaten: © GeoNames (CC BY 4.0), bearbeitet
+- Verwaltungseinheiten: © BKG (2026) dl-de/by-2-0 (Daten verändert)
+- Haltestellendaten: DELFI e.V. (zentrales Haltestellenverzeichnis), CC BY 4.0, bearbeitet
+- OSM-Standortdaten: © OpenStreetMap-Mitwirkende, ODbL 1.0
+- Verkehrsmeldungen der Polizei: Landesbetrieb Straßenbau NRW (VIZ.NRW) via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
+- Arbeitsstellen: Bundesanstalt für Straßen- und Verkehrswesen (BASt) via Mobilithek, CC BY 4.0, bearbeitet
+- Arbeitsstellen Niedersachsen: Niedersächsische Landesbehörde für Straßenbau und Verkehr via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
+- Verkehrsmeldungen Baden-Württemberg: Landesmeldestelle für den Verkehrswarndienst Baden-Württemberg (Innenministerium Baden-Württemberg) via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Verkehrsmeldungen Berlin: Senatsverwaltung für Mobilität, Verkehr, Klimaschutz und Umwelt Berlin via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Verkehrsereignisse Köln: Stadt Köln via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
+- Verkehrsmeldungen Schleswig-Holstein: Landesmeldestelle Polizei Schleswig-Holstein via Mobilithek, Open Data (freie Nutzung)
+- Verkehrsmeldungen Hannover: Landeshauptstadt Hannover – Fachbereich Tiefbau via Mobilithek, Open Data (freie Nutzung)
+- Arbeitsstellen Sachsen: Landesamt für Straßenbau und Verkehr des Freistaates Sachsen (LASuV) via Mobilithek, CC BY 4.0, bearbeitet
+- Arbeitsstellen Thüringen: © Thüringer Landesamt für Bau und Verkehr (TLBV) 2026 — GeoNutzV, Daten verändert
+- LKW-Parken: © Lkw-Parken BAB Deutschland / Bundesministerium für Verkehr (BMV) 2026 — GeoNutzV, Daten verändert
+- Ladepunkte: Eco-Movement via Mobilithek, CC BY 4.0, bearbeitet
+- Ladepunkte: EnBW AG via Mobilithek, CC BY 4.0, bearbeitet
+- Ladepunkt-Verfügbarkeit: Tesla Germany GmbH via Mobilithek, CC0 1.0
+- Ladepunkt-Verfügbarkeit: Volkswagen Group Charging GmbH via Mobilithek, CC0 1.0
+- Ladepunkte: Tesla Germany GmbH via Mobilithek, CC0 1.0
+- Ladepunkte: Volkswagen Group Charging GmbH via Mobilithek, CC0 1.0
+- Ladepunkt-Verfügbarkeit: EnBW AG via Mobilithek, CC BY 4.0, bearbeitet
+- Ladepunkt-Verfügbarkeit: Eco-Movement via Mobilithek, CC BY 4.0, bearbeitet
+- Ladepunkte: e-clearing.net (smartlab Innovationsgesellschaft mbH) via Mobilithek, CC0 1.0
+- Ladepunkt-Verfügbarkeit: e-clearing.net (smartlab Innovationsgesellschaft mbH) via Mobilithek, CC0 1.0
+- Ladesäulenregister: Bundesnetzagentur.de, CC BY 4.0, bearbeitet
+- Ladepunkte und Verfügbarkeit: chargecloud (CC0 1.0) via MobiData BW (NVBW), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten geändert
+- Ladepunkte und Verfügbarkeit: Taubert Consulting (CC0 1.0) via MobiData BW (NVBW), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten geändert
+- Aufzüge und Fahrtreppen (Bestand): Deutsche Bahn AG / DB InfraGO AG (OpenStation) via Mobilithek, CC0 1.0
+- Aufzüge und Fahrtreppen (Status): Deutsche Bahn AG / DB InfraGO AG (OpenStation) via Mobilithek, CC0 1.0
+- Parkhaus-Belegung: Stadt Köln via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
+- Parkhäuser NRW: NRW.Mobidrom via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Lkw-Parken: Florence Knuellwald GmbH (Christophorus Parking) via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Lkw-Parken (Belegung): Florence Knuellwald GmbH (Christophorus Parking) via Mobilithek, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Lkw-Parken (Belegung): Bosch Service Solutions via Mobilithek, CC BY 4.0, bearbeitet
+- Lkw-Parken: ENMO GmbH & Co.KG (Trucklounge Ecopark) via Mobilithek — enthält Daten aus „Trucklounge Ecopark“, Open Database License 1.0 (opendatacommons.org/licenses/odbl/1-0/), bearbeitet
+- Lkw-Parken (Belegung): ENMO GmbH & Co.KG (Trucklounge Ecopark) via Mobilithek — enthält Daten aus „Trucklounge Ecopark (dynamisch)“, Open Database License 1.0 (opendatacommons.org/licenses/odbl/1-0/), bearbeitet
+- P+R NRW: NRW.Mobidrom via Mobilithek, Datensatz „Gebündelte Daten Park+Ride NRW“, CC BY-SA, bearbeitet
+- Lkw-Parken: Bosch Service Solutions via Mobilithek, CC BY 4.0, bearbeitet
+- Parkhäuser: Stadt Köln via Mobilithek, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
+- P+R-Anlagen: Freie und Hansestadt Hamburg, Behörde für Verkehr und Mobilitätswende, (BVM), Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten geändert (bearbeitet)
+- Parkhäuser: Freie und Hansestadt Hamburg, Behörde für Verkehr und Mobilitätswende, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten geändert (bearbeitet)
+- Parkhausbelegung Münster — Datenquelle: Stadt Münster, Datenlizenz Deutschland – Namensnennung – Version 2.0 (www.govdata.de/dl-de/by-2-0), Daten verändert
+- Bikesharing: nextbike GmbH (GBFS), CC0 1.0
+- Bikesharing: Donkey Republic (GBFS), CC0 1.0
+- Aufzugsdaten: Kölner Verkehrs-Betriebe AG, Datenlizenz Deutschland – Zero – Version 2.0 — dl-de/zero-2-0
 
 ## What we deliberately do not use
 
