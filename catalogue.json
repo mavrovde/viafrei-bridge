@@ -1,11 +1,11 @@
 {
   "$comment": "Captured from the PRODUCTION ViaFrei MCP server with initialize, tools/list, resources/list, resources/templates/list and prompts/list. No tool was invoked, so no data provider was contacted. ONE field is removed rather than stored: every tool's inputSchema carried a $schema URI naming the JSON Schema draft-07 dialect. It is dropped because storing it would put a host on this repository's allow-list that nothing else needs, and the dialect is a property of every draft-07 schema rather than a fact about this catalogue - API.md states it in words instead. Nothing else is altered: every tool, parameter, constraint, resource, template and prompt is as the server returned it. A SECOND substitution, for a different reason: two input schemas carried a 288-character regular expression validating an ISO-8601 date including leap years. Each is stored as patternLength rather than as its text, because such a regex spells its arithmetic as character classes of selected digits, and the leak sweep that guards this repository cannot tell a class of five digits from a five-digit internal value. The two ways to keep the text would both have been falsehoods - narrowing the sweep for every file, or an allow-list entry claiming a character class is a number this project publishes - so the text is not kept. Nothing about the constraint is hidden by this: API.md already summarised a pattern of over 60 characters by its length, which is what a reader gets either way, and the server hands anyone the full expression in tools/list.",
-  "capturedAt": "2026-10-06",
+  "capturedAt": "2026-10-07",
   "source": "https://mcp.viafrei.de/mcp",
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.8.18"
+    "version": "1.8.26"
   },
   "capabilities": {
     "tools": {
@@ -24,7 +24,7 @@
   "tools": [
     {
       "name": "check_autobahn_traffic",
-      "description": "Returns jams, slow traffic, closures and roadworks in force this minute on up to 5 German motorways, with delay and speed. Use when the question is about the road now: Stau, a delay, how it looks, or which closures are reported; name every motorway (Munich→Berlin: A9). Do NOT use for whether a road is open or passable — check_road_status at any clock — nor a closure with no time word or a later one (tonight, the weekend); for Baustellen dated or geplant — find_roadworks_ahead; nor city streets, fuel (find_cheapest_fuel) or trains (get_train_departures). ~5 min old. Show the attribution line.",
+      "description": "Jams, slow traffic, closures and roadworks in force this minute on up to 5 motorways, with delay/speed. Use when asked about a named motorway now: Stau, a delay, how it looks, or reported closures; name every motorway (Munich→Berlin: A9). Do NOT use for whether a road is open or passable — check_road_status at any clock — nor a closure with no time word or a later one (tonight, the weekend); Baustellen dated or geplant — find_roadworks_ahead; Stau in a town, no motorway named — check_road_status; fuel (find_cheapest_fuel), trains (get_train_departures). ~5 min old. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -67,7 +67,7 @@
           },
           "limit": {
             "default": 10,
-            "description": "Maximum events to return across all roads (1–50, default 10). Roads keep the order you listed them; within a road, jams come first, then closures and roadworks.",
+            "description": "Maximum events to return across all roads (1–50, default 10). Jams on every road come first, then closures and roadworks; roads keep the order you listed them within each. Only what is in force now is listed — closures announced for later are counted apart in the headline.",
             "type": "integer",
             "minimum": 1,
             "maximum": 50
@@ -100,7 +100,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -170,7 +170,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -271,12 +271,12 @@
     },
     {
       "name": "find_parking",
-      "description": "Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, free spaces now and the reading's age. Use when someone asks where to park or leave the car for the train (\"Parkhaus in Köln\", \"Rastplatz A3\", \"P+R\"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No \"free now\" means no published count, not full. Every answer carries each source's attribution.",
+      "description": "Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and P+R sites, with total spaces and, where published, free spaces now and the reading's age. Use when asked where to park or leave the car for the train (\"Parkhaus in Köln\", \"Rastplatz A3\", \"P+R\"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No \"free now\" means no published count, not full. No prices: for \"was kostet\" say so. Show each source's attribution.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -353,17 +353,17 @@
     },
     {
       "name": "check_road_status",
-      "description": "Returns whether a motorway, Bundesstraße or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, city/Land messages near it, not one named street. Use when asked if a road is open/passable — \"ist die A8 in diesem Moment gesperrt\", \"komme ich durch\", at any clock, plus closures tonight, this weekend or with no time word. Do NOT use for jams, delays, a multi-motorway route, or what a motorway reports this minute — check_autobahn_traffic; roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.",
+      "description": "Whether a motorway, B road or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, jams and city/Land messages near a town. Use when asked if a road is open/passable — \"ist die A8 in diesem Moment gesperrt\", \"komme ich durch\", at any clock, closures tonight/weekend — or Stau in a city: \"Stau in Köln?\". Do NOT use for jams/delays on a named motorway or a multi-motorway route — check_autobahn_traffic; roadworks in a date window — find_roadworks_ahead; city street: not held, say so. One road or place per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
           "road": {
-            "description": "One German motorway or federal road, e.g. \"A8\" or \"B27\", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. \"L1025\" or \"S296\". \"A8\", \"A 8\" and \"a8\" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.",
+            "description": "One German motorway or federal road, e.g. \"A8\" or \"B27\", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. \"L1025\" or \"S296\". \"A8\", \"A 8\" and \"a8\" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. When the person also says WHERE — a town or a Bundesland (\"die B2 bei Potsdam\", \"L1025 in Niedersachsen\") — pass that as place too: only sources for that Land answer, and a Land no source covers is named. L and S numbers repeat in every Land, so give the Land with them. Otherwise give exactly one of road, place, or lat+lon.",
             "type": "string",
             "pattern": "^(?:[ABab] ?\\d{1,3}|[LlSs] ?\\d{1,4})$"
           },
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -382,7 +382,7 @@
           },
           "horizon_days": {
             "default": 3,
-            "description": "How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for \"this weekend\", 7 for \"next week\", and for a named weekday (\"am Freitag\", \"on Friday\") the number of days from today to that day. A bare \"is the A8 open?\" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is.",
+            "description": "How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for \"this weekend\", 7 for \"next week\", and for a named weekday (\"am Freitag\", \"on Friday\") the number of days from today to that day. A bare \"is the A8 open?\" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is, and so, by place, are the jams reported right now (\"Stau in Köln?\" needs no horizon).",
             "type": "integer",
             "minimum": 0,
             "maximum": 14
@@ -476,7 +476,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -720,7 +720,7 @@
     },
     {
       "name": "find_address",
-      "description": "Looks up a street address and returns its coordinate, plus what OpenStreetMap holds under it. Use when the person gives a STREET AND NUMBER — \"Hauptstraße 12, Fulda\" — for the point, or to see what is mapped there. The coordinate passes to any other tool as lat/lon. Do NOT use for a town/district/station name alone (find_place) or a company/shop/landmark by name (find_poi) — needs a street and a number. At most 5 results; more than one means the door is mapped twice, not that the address is ambiguous. OpenStreetMap ODbL 1.0; show the attribution line.",
+      "description": "Looks up a street address and returns its coordinate, plus what OpenStreetMap holds under it. Use when the person gives a STREET AND NUMBER — \"Bahnhofstraße 12, Fulda\" — for the point, or to see what is mapped there. The coordinate passes to any other tool as lat/lon. Do NOT use for a town/district/station name alone (find_place) or a company/shop/landmark by name (find_poi) — needs a street and a number. At most 5 results; more than one in ONE town means the door is mapped twice, and results in several towns are a question to ask the person. OpenStreetMap ODbL 1.0; show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -737,7 +737,7 @@
             "type": "string",
             "minLength": 3,
             "maxLength": 160,
-            "description": "A street address, as a person writes one: street and house number, plus a town or postcode — \"Hauptstraße 12, 36037 Fulda\" or \"Hauptstraße 12, Fulda\". Both orders work. A street and number with neither a town nor a postcode cannot be placed (the same street name exists in about two thousand German towns) and is refused."
+            "description": "A street address, as a person writes one: street and house number, plus a town or postcode — \"Bahnhofstraße 12, 36037 Fulda\" or \"Bahnhofstraße 12, Fulda\". Both orders work. A street and number with neither a town nor a postcode cannot be placed (the same street name exists in about two thousand German towns) and is refused."
           },
           "limit": {
             "default": 3,
@@ -813,7 +813,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -881,7 +881,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -1048,7 +1048,7 @@
         "type": "object",
         "properties": {
           "place": {
-            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway (\"A7\"), or a street address with a house number (\"Hauptstraße 12, 36037 Fulda\"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
+            "description": "Where to look, as free text: a city (\"München\", \"Munich\"), a district or Kreis (\"Kreis Fulda\"), a Bundesland, a station or stop (\"Hamburg Hbf\"), a motorway junction (\"AK Neufahrn\"), or a street address with a house number (\"Bahnhofstraße 12, 36037 Fulda\"). A motorway number alone (\"A7\") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.",
             "type": "string",
             "minLength": 1,
             "maxLength": 120
@@ -1155,7 +1155,7 @@
     },
     {
       "name": "get_departures",
-      "description": "Scheduled departures from any German public-transport stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination, platform. Use when someone asks when a bus, tram, U-Bahn or ferry goes, or for another DAY or a clock time over 2 h away: \"Wann fährt der nächste Bus ab Fulda Bahnhof?\" Do NOT use for a railway station's trains now or later today — get_train_departures. Planned times only: for \"is my bus late?\" give the plan and say so; regional punctuality check_transit_disruption. No destination filter: read the board. Window 48 h, 15 per call. Results carry their attribution line.",
+      "description": "Scheduled departures from any German stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination, platform. Use when asked when a bus, tram, U-Bahn or ferry goes, or for another DAY or a clock time over 2 h away: \"Wann fährt der nächste Bus ab Fulda Bahnhof?\" Do NOT use for a railway station's trains now or later today — get_train_departures. Planned times only: for \"is my bus late?\" give the plan and say so; regional punctuality check_transit_disruption. No A-to-B journeys: say so, no call. Holds ≥ 48 h ahead, ≤ 3 days; further out, say so. 15 per call. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1179,7 +1179,7 @@
           },
           "duration_min": {
             "default": 60,
-            "description": "How far past that moment to look, in minutes (5–1440, default 60). Small for \"what goes now\", a few hours for an evening. To reach the far end of the 48 h timetable, move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.",
+            "description": "How far past that moment to look, in minutes (5–1440, default 60). Small for \"what goes now\", a few hours for an evening. To look further ahead (the timetable reaches at least 48 h), move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.",
             "type": "integer",
             "minimum": 5,
             "maximum": 1440
@@ -1532,7 +1532,7 @@
       "arguments": [
         {
           "name": "origin",
-          "description": "Where the drive starts, as the traveller wrote it. Example: \"München\" or \"Hauptstraße 12, 36037 Fulda\".",
+          "description": "Where the drive starts, as the traveller wrote it. Example: \"München\" or \"Bahnhofstraße 12, 36037 Fulda\".",
           "required": true
         },
         {
@@ -1709,7 +1709,7 @@
       "arguments": [
         {
           "name": "query",
-          "description": "The name to resolve, exactly as the traveller wrote it. Example: \"Neustadt\", \"adesso\", \"Hauptstraße 12, 36037 Fulda\".",
+          "description": "The name to resolve, exactly as the traveller wrote it. Example: \"Neustadt\", \"adesso\", \"Bahnhofstraße 12, 36037 Fulda\".",
           "required": true
         },
         {
