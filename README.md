@@ -265,6 +265,12 @@ Restart the client and ask one of the questions above.
   Connect through Smithery's hosted connection, with no local install.
 - **Glama — [glama.ai/mcp/servers/mavrovde/viafrei-mcp](https://glama.ai/mcp/servers/mavrovde/viafrei-mcp).**
   The directory listing for this repository, with the tool list.
+- **Official MCP Registry — `de.viafrei/mcp`.** The hosted endpoint, as MCP
+  clients and directories that read the [registry](https://registry.modelcontextprotocol.io)
+  find it; [`server.json`](https://github.com/mavrovde/viafrei-mcp/blob/main/server.json) is the entry.
+- **For AI tools — [viafrei.de/llms.txt](https://viafrei.de/llms.txt)** and
+  [llms-full.txt](https://viafrei.de/llms-full.txt): what ViaFrei is, how to
+  connect, and every tool in one line each.
 
 ## 🧰 Everything it can do
 
@@ -376,6 +382,8 @@ Walkthroughs that chain several tools, each naming what comes back:
 - 🔋 [An EV on a long weekend](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-An-EV-on-a-long-weekend): charging by connector and power, low-emission-zone rules, and what is around a stop.
 - 🚚 [Fleet and logistics briefings](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-Fleet-and-logistics-briefings): a dispatcher's morning brief, and watches that report a change instead of being polled.
 - 🗺️ [Building a local guide agent](https://github.com/mavrovde/viafrei-mcp/wiki/Use-case-Building-a-local-guide-agent): a vague place to coordinates and back, and what OpenStreetMap's licence asks of you.
+
+How well it answers, measured: [test rounds](https://github.com/mavrovde/viafrei-mcp/wiki/Test-rounds), 1000 questions in German and English against production, with every finding published.
 
 ## 🛠️ For developers
 
