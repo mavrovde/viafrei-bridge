@@ -9,7 +9,7 @@ the server's own text, reproduced verbatim, because that text is what an
 assistant reads when it decides which tool to call; paraphrasing it here would
 document a different server.
 
-**It is a dated snapshot, taken on 2026-10-06.** Generating this file makes
+**It is a dated snapshot, taken on 2026-10-07.** Generating this file makes
 it impossible for the document and the snapshot to disagree — CI regenerates and
 compares — but it cannot keep the snapshot from ageing against the live server,
 because a capture is a point in time. **The source of truth is the running
@@ -17,11 +17,11 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.8.18 |
+| Server | `viafrei` 1.8.29 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
-| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-06 |
+| Captured from | `https://mcp.viafrei.de/mcp` on 2026-10-07 |
 | Surface | 21 tools, 10 resources, 2 resource templates, 9 prompts |
 | Parameter schemas | JSON Schema draft-07 |
 | Capabilities | `tools`, `resources`, `prompts`, `logging` |
@@ -66,7 +66,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns jams, slow traffic, closures and roadworks in force this minute on up to 5 German motorways, with delay and speed. Use when the question is about the road now: Stau, a delay, how it looks, or which closures are reported; name every motorway (Munich→Berlin: A9). Do NOT use for whether a road is open or passable — check_road_status at any clock — nor a closure with no time word or a later one (tonight, the weekend); for Baustellen dated or geplant — find_roadworks_ahead; nor city streets, fuel (find_cheapest_fuel) or trains (get_train_departures). ~5 min old. Show the attribution line.
+> Jams, slow traffic, closures and roadworks in force this minute on up to 5 motorways, with delay/speed. Use when asked about a named motorway now: Stau, a delay, how it looks, or a LIST of closures now; name every motorway (Munich→Berlin: A9). Do NOT use for yes/no: is a road open/closed/passable — check_road_status, even now — nor a closure with no time word or a later one (tonight, weekend); Baustellen dated or geplant — find_roadworks_ahead; Stau in a town, no motorway — check_road_status; fuel (find_cheapest_fuel), trains (get_train_departures). ~5 min old. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -78,9 +78,9 @@ The server's own instructions to a connecting client, verbatim:
 
 - **`roads`** — Autobahn numbers, e.g. ["A9"] or ["A8", "A99", "A9"] (1–5 per call). Name every motorway on the route so the whole drive is briefed in one call — "A9", "A 9" and "a9" are the same road. Results are grouped per road, in the order you list them.
 - **`cursor`** — Pagination cursor from a previous result's _meta.nextCursor. Omit for the first page.
-- **`kinds`** — Which event kinds to return: warning = live traffic (jams, slow traffic, hazards), closure = full closures, roadworks = construction sites. Set it when the SUBJECT of the question is one of those categories by name: "Baustellen auf der A8?" is ["roadworks"], "welche Sperrungen sind in diesem Moment gemeldet?" is ["closure"]. Omit it when the question is how the road IS — Stau, frei, a delay, "wie sieht es aus", "everything"; the German "Stau?" is the idiom for the whole picture, and a filter nobody asked for hides the closure on the same stretch. Whether a closure question is this tool's at all is decided by two things, and the noun (Sperrung, Vollsperrung, closure) is neither. FIRST THE CLOCK: only a question about this minute (jetzt, gerade, in diesem Moment, right now, at this very minute) can be this tool's — with no time word at all, or for a later window (tonight, heute Abend, am Wochenende, the coming days), it is check_road_status. SECOND, WHAT IS ASKED, which the clock cannot see: what is REPORTED or in force on a named motorway is this tool ("ist auf der A5 in diesem Moment eine Vollsperrung gemeldet?", "which closures are in force on the A100 at this very minute?"), while whether the road is OPEN or passable is check_road_status AT ANY CLOCK — "ist die A8 offen", "ist die A3 in diesem Moment gesperrt?", "komme ich da durch?" — and so is a closure asked around a town instead of on a motorway number. Baustellen with a date or the word geplant are find_roadworks_ahead. Default: all three.
+- **`kinds`** — Which event kinds to return: warning = live traffic (jams, slow traffic, hazards), closure = full closures, roadworks = construction sites. Set it when the SUBJECT of the question is one of those categories by name: "Baustellen auf der A8?" is ["roadworks"], "welche Sperrungen sind in diesem Moment gemeldet?" is ["closure"]. Omit it when the question is how the road IS — Stau, frei, a delay, "wie sieht es aus", "everything"; the German "Stau?" is the idiom for the whole picture, and a filter nobody asked for hides the closure on the same stretch. Whether a closure question is this tool's at all is decided by two things, and the noun (Sperrung, Vollsperrung, closure) is neither. FIRST THE CLOCK: only a question about this minute (jetzt, gerade, in diesem Moment, right now, at this very minute) can be this tool's — with no time word at all, or for a later window (tonight, heute Abend, am Wochenende, the coming days), it is check_road_status. SECOND, WHAT IS ASKED, which the clock cannot see: what is REPORTED or in force on a named motorway is this tool ("which closures are in force on the A100 at this very minute?"), while whether the road is OPEN or passable is check_road_status AT ANY CLOCK — "ist die A8 offen", "ist die A3 in diesem Moment gesperrt?", "komme ich da durch?" — and so is a closure asked around a town instead of on a motorway number. Baustellen with a date or the word geplant are find_roadworks_ahead. Default: all three.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
-- **`limit`** — Maximum events to return across all roads (1–50, default 10). Roads keep the order you listed them; within a road, jams come first, then closures and roadworks.
+- **`limit`** — Maximum events to return across all roads (1–50, default 10). Jams on every road come first, then closures and roadworks; roads keep the order you listed them within each. Only what is in force now is listed — closures announced for later are counted apart in the headline.
 
 ### `find_cheapest_fuel` — Cheapest fuel nearby
 
@@ -103,7 +103,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`limit`** — How many stations to return, cheapest first (1–10, default 5). The provider's terms cap it at 10.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around the place in kilometres (1–25, default 5). The provider's terms cap it at 25 km — a larger circle is a dataset request, not a consumer question.
 
 ### `find_fuel_station` — Find a filling station
@@ -137,16 +137,16 @@ The server's own instructions to a connecting client, verbatim:
 - **`name`** — Part of the station's own name or brand, case-insensitive: "Autohof", "Raststätte Fulda". Use it when the person named a specific forecourt rather than a chain. Combine with place to keep the search local.
 - **`open_at`** — Only stations open at that time in Germany (Europe/Berlin): "23:30" means the next time the clock shows 23:30, and "2026-09-30 06:15" a specific local date and time. Use it for "is it still open tonight". Do not pass it together with open_now — they ask the same question about two different clocks.
 - **`open_now`** — When true, only stations the published opening hours say are open at this moment. Default false. A station whose hours we have never read is NOT returned by this filter and is counted in the answer instead — the result never guesses that an unknown station is open.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around the place in kilometres (1–25, default 5). 25 km is the provider's own ceiling — a larger circle is a dataset request, not a consumer question.
 - **`sort`** — Order of the answer: "distance" (nearest first, the default — use it for "closest diesel to Hamburg Hbf"), "price" (cheapest first, needs fuel), or "name" (alphabetical, for a person scanning a list of a brand's forecourts).
-- **`whole_day`** — When true, only stations the provider flags as open around the clock (24/7). Default false. Use it for a night drive; it is a stricter filter than open_now, which is satisfied by a station that closes at 22:00.
+- **`whole_day`** — When true, only stations the provider flags as open around the clock (24/7). Default false. Use it when asked whether a station never closes ("durchgehend geöffnet", "around the clock") and for a night drive; it is a stricter filter than open_now, which is satisfied by a station that closes at 22:00.
 
 ### `find_parking` — Parking nearby
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and park-and-ride sites, with total spaces and, where published, free spaces now and the reading's age. Use when someone asks where to park or leave the car for the train ("Parkhaus in Köln", "Rastplatz A3", "P+R"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No "free now" means no published count, not full. Every answer carries each source's attribution.
+> Returns parking near a place, a coordinate or along one motorway: rest areas with lorry spaces, car parks and P+R sites, with total spaces and, where published, free spaces now and the reading's age. Use when asked where to park or leave the car for the train ("Parkhaus in Köln", "Rastplatz A3", "P+R"). Do NOT use for fuel (find_cheapest_fuel) or EV charging (find_charging_station). Radius ≤ 25 km, ≤ 10 sites per list; ODbL and CC BY-SA sources are separate lists (up to three). No "free now" means no published count, not full. No prices: for "was kostet" say so. Show each source's attribution.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -165,8 +165,8 @@ The server's own instructions to a connecting client, verbatim:
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`limit`** — How many facilities to return, nearest first (1–10, default 5).
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
-- **`only_with_free_spaces`** — Set true ONLY when the person insists on somewhere with free spaces right now. It keeps just the facilities whose operator publishes live occupancy AND currently reports a space, and the result says how many were dropped for publishing nothing — most German parking publishes no occupancy at all, so true usually narrows the answer to very little. Default false.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`only_with_free_spaces`** — Set true only when the person asks whether spaces are free right now. It keeps just the facilities whose operator publishes live occupancy AND currently reports a space, and the result says how many were dropped for publishing nothing — most German parking publishes no occupancy at all, so true usually narrows the answer to very little. Default false.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around place or lat+lon in kilometres (1–25, default 10). Ignored when you pass road, which covers the whole motorway. Start small in a city and widen if the answer is empty.
 - **`road`** — A single motorway number to list parking along, e.g. "A3" ("A 3" and "a3" are the same road). Use this when the person named a road and no town — "Rastplatz auf der A7". Give road OR place OR lat+lon, never two of them: a road is a 900 km line and a place is a point, so the two answer different questions. When the question names BOTH — "Parkhaus in Köln an der A3" — use the place: a person parks at a point, and the radius already covers the motorway beside it.
 
@@ -174,7 +174,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns whether a motorway, Bundesstraße or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, city/Land messages near it, not one named street. Use when asked if a road is open/passable — "ist die A8 in diesem Moment gesperrt", "komme ich durch", at any clock, plus closures tonight, this weekend or with no time word. Do NOT use for jams, delays, a multi-motorway route, or what a motorway reports this minute — check_autobahn_traffic; roadworks over a date window — find_roadworks_ahead. One road per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.
+> Whether a motorway, B road or Land road (NI, SN, TH) is open, closed or restricted, now and in coming days; by place, jams and city/Land messages near a town. Use when asked if a road is open/passable — "ist die A8 in diesem Moment gesperrt", "komme ich durch", at any clock, closures tonight/weekend — or Stau in a city: "Stau in Köln?". Do NOT use for jams/delays on a named motorway or a multi-motorway route — check_autobahn_traffic; roadworks in a date window — find_roadworks_ahead; city street: not held, say so. One road or place per call, ≤ 14 days, ≤ 11 entries. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -186,13 +186,13 @@ The server's own instructions to a connecting client, verbatim:
 | `place` | string | no | — | min length 1; max length 120 |
 | `road` | string | no | — | pattern `^(?:[ABab] ?\d{1,3}\|[LlSs] ?\d{1,4})$` |
 
-- **`horizon_days`** — How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for "this weekend", 7 for "next week", and for a named weekday ("am Freitag", "on Friday") the number of days from today to that day. A bare "is the A8 open?" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is.
+- **`horizon_days`** — How many days ahead to look, counting from now (0 = right now only, max 14, default 3). Set it only to what the person actually asked for: 0 when they said right now / gerade / jetzt / in diesem Moment, 1 for tonight or heute Abend, 3 for "this weekend", 7 for "next week", and for a named weekday ("am Freitag", "on Friday") the number of days from today to that day. A bare "is the A8 open?" asks for no window — omit the argument and take the default rather than reading it as 0. Live closures are always included whatever this is, and so, by place, are the jams reported right now ("Stau in Köln?" needs no horizon).
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`limit`** — Maximum entries to return (1–11, default 10). By road, closures come first, then restrictions in force, then planned works; by place, nearest first.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
-- **`road`** — One German motorway or federal road, e.g. "A8" or "B27", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. "L1025" or "S296". "A8", "A 8" and "a8" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. Give exactly one of road, place, or lat+lon.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`road`** — One German motorway or federal road, e.g. "A8" or "B27", or a Landes- or Staatsstraße in Niedersachsen, Sachsen or Thüringen, e.g. "L1025" or "S296". "A8", "A 8" and "a8" are the same road. Use this whenever the person named a road — it is the only input that reaches the planned-works data, which is filed by road and section and carries no coordinates. When the person also says WHERE — a town or a Bundesland ("die B2 bei Potsdam", "L1025 in Niedersachsen") — pass that as place too: only sources for that Land answer, and a Land no source covers is named. L and S numbers repeat in every Land, so give the Land with them. Otherwise give exactly one of road, place, or lat+lon.
 
 ### `find_roadworks_ahead` — Planned roadworks
 
@@ -237,9 +237,9 @@ The server's own instructions to a connecting client, verbatim:
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`limit`** — How many charging sites to return, nearest first (1–10, default 5).
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
-- **`min_power_kw`** — Only charging points of at least this many kW (1–1000). Use when the person asks for fast charging or names a number: 50 = DC fast, 150 = HPC, 300 = the fastest posts in Germany. Omit for "where can I charge" — 11 kW overnight is a valid answer to that question.
+- **`min_power_kw`** — Only charging points of at least this many kW (1–1000). Use when the person names a number or asks for fast charging: 50 = DC fast (a bare "fast"/"schnell"/"Schnelllader"), 150 = HPC ("HPC", "ultra", "ultraschnell"), 300 = the fastest posts in Germany. Omit for "where can I charge" — 11 kW overnight is a valid answer to that question.
 - **`only_available`** — When true, return only sites with at least one point reported FREE right now. Default false. Use it when the person asks what is free at this moment. Note that only some operators publish live status: the result always says how many nearby sites were dropped because their status is unknown, so the filter never silently hides a charger that may well be free.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around the place in kilometres (1–25, default 10). A charging stop is worth a detour, so this is wider than the fuel radius — but 25 km is the cap, and a larger circle is a dataset request rather than a driver's question.
 
 ### `find_place` — Look up a place
@@ -300,7 +300,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Looks up a street address and returns its coordinate, plus what OpenStreetMap holds under it. Use when the person gives a STREET AND NUMBER — "Hauptstraße 12, Fulda" — for the point, or to see what is mapped there. The coordinate passes to any other tool as lat/lon. Do NOT use for a town/district/station name alone (find_place) or a company/shop/landmark by name (find_poi) — needs a street and a number. At most 5 results; more than one means the door is mapped twice, not that the address is ambiguous. OpenStreetMap ODbL 1.0; show the attribution line.
+> Looks up a street address and returns its coordinate, plus what OpenStreetMap holds under it. Use when the person gives a STREET AND NUMBER — "Bahnhofstraße 12, Fulda" — for the point, or to see what is mapped there. The coordinate passes to any other tool as lat/lon. Do NOT use for a town/district/station name alone (find_place) or a company/shop/landmark by name (find_poi) — needs a street and a number. At most 5 results; more than one in ONE town means the door is mapped twice, and results in several towns are a question to ask the person. OpenStreetMap ODbL 1.0; show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -308,7 +308,7 @@ The server's own instructions to a connecting client, verbatim:
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `limit` | integer | no | `3` | min 1; max 5 |
 
-- **`query`** — A street address, as a person writes one: street and house number, plus a town or postcode — "Hauptstraße 12, 36037 Fulda" or "Hauptstraße 12, Fulda". Both orders work. A street and number with neither a town nor a postcode cannot be placed (the same street name exists in about two thousand German towns) and is refused.
+- **`query`** — A street address, as a person writes one: street and house number, plus a town or postcode — "Bahnhofstraße 12, 36037 Fulda" or "Bahnhofstraße 12, Fulda". Both orders work. A street and number with neither a town nor a postcode cannot be placed (the same street name exists in about two thousand German towns) and is refused.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — How many results to return (1–5, default 3) — more than one means the same address carries more than one OpenStreetMap object.
 
@@ -347,7 +347,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around place or lat+lon in kilometres (1–15, default 5). This tool answers "what is around me", not "search a wide area" — for that, use the specific tool with its own wider radius.
 
 ### `find_sharing` — Shared bikes nearby
@@ -371,7 +371,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`limit`** — How many stations to list, nearest first (1–20, default 8). Free-floating bikes are summarised, not listed one by one.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
 - **`only_available`** — true (default): list only stations with at least one bike to rent right now. false: also list empty stations, e.g. to find a free dock to return a bike.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 - **`radius_km`** — Search radius around place or lat+lon in kilometres (0.1–5, default 1). Example: 1
 
 ### `get_driving_rules` — German driving rules
@@ -394,7 +394,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Returns how punctual public transport is right now in one German region: the share of distinct trips at least once more than 5 minutes late, trips with a cancelled stop, the trend, and the published service alerts in force there (diversions, closed stops, by line). Use when the user asks whether buses and trains are running normally, or whether a strike, storm or works disrupt local transport. Do NOT use for one trip or station's departures (use get_train_departures); delay figures are not per line. Window ≤ 120 min. CC BY-SA (DELFI) or CC BY 4.0 (VBB, Berlin/Brandenburg): show attribution.
+> How punctual public transport is now in one German region: the share of trips ever over 5 min late, trips with a cancelled stop, the trend, and the service alerts in force there (diversions, closed stops). Use when asked whether buses and trains run normally, or a strike, storm or works disrupt them. Do NOT use for a station's departures or a line from a named DEPARTURE station ("RE1 ab Köln Hbf verspätet?"; a destination, "nach …"/"zum …", is not one) — get_train_departures. No per-line figures. Window ≤ 120 min. CC BY-SA (DELFI) or CC BY 4.0 (VBB, Berlin/Brandenburg): show attribution.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -428,13 +428,13 @@ The server's own instructions to a connecting client, verbatim:
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
 - **`min_level`** — Lowest official DWD level to report, 0–4 (default 0, i.e. everything). The DWD's own names: 1 = Wetterwarnung, 2 = Markante Wetterwarnung, 3 = Unwetterwarnung, 4 = Warnung vor extremem Unwetter; 0 = Vorabinformation Unwetter, an advance notice that is not yet a Warnstufe. Raise it ONLY when the question names a level or a Warnstufe in so many words ("ab Stufe 3", "level 3 or higher", "nur Stufe 4"). Unwetter, Unwetterwarnung, severe and storm are the ordinary way to ask about bad weather, not a filter: leave it at 0 there — a level the caller filtered away is a warning the person is never told about.
-- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway ("A7"), or a street address with a house number ("Hauptstraße 12, 36037 Fulda"). Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
+- **`place`** — Where to look, as free text: a city ("München", "Munich"), a district or Kreis ("Kreis Fulda"), a Bundesland, a station or stop ("Hamburg Hbf"), a motorway junction ("AK Neufahrn"), or a street address with a house number ("Bahnhofstraße 12, 36037 Fulda"). A motorway number alone ("A7") resolves to the road, which has no single point — name a town or junction on it instead. Use this instead of coordinates whenever the person named a place. An address needs its town or postcode — a street and a number alone exist in many towns. Give either place OR lat+lon, never both.
 
 ### `get_train_departures` — Train departures
 
 **Read-only** — it changes nothing. Reaches a third-party source (open world). Idempotent: true. Destructive: false.
 
-> Next departures from a German railway station, with platform, delay and cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or whether THAT departure is late; vague later-today wording ("heute Abend") stays here. Whether ONE line is punctual ("ist die S1 pünktlich?") is NOT this tool, though it is rail and about delay — call check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. No destination filter: read the board. Max 15 departures, window 120 min. Results carry their attribution line.
+> Next departures from a German railway station, with platform, delay, cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or if a train or line from it is late ("RE1 from Köln Hbf late?"); later today ("heute Abend") stays here. A line with no DEPARTURE station ("ist die S1 pünktlich?"; a destination, "nach …"/"zum …", is not one) — check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. No destination filter: read the board. ≤ 15 departures, window 120 min. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -456,7 +456,7 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Answers from data this service already holds (closed world). Idempotent: true. Destructive: false.
 
-> Scheduled departures from any German public-transport stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination, platform. Use when someone asks when a bus, tram, U-Bahn or ferry goes, or for another DAY or a clock time over 2 h away: "Wann fährt der nächste Bus ab Fulda Bahnhof?" Do NOT use for a railway station's trains now or later today — get_train_departures. Planned times only: for "is my bus late?" give the plan and say so; regional punctuality check_transit_disruption. No destination filter: read the board. Window 48 h, 15 per call. Results carry their attribution line.
+> Scheduled departures from any German stop — bus, tram, U-Bahn, S-Bahn, train, ferry — with line, destination, platform. Use when asked when a bus, tram, U-Bahn or ferry goes, or for another DAY or a clock time over 2 h away: "Wann fährt der nächste Bus ab Fulda Bahnhof?" Do NOT use for a railway station's trains now or later today — get_train_departures. Planned times only: for "is my bus late?" give the plan and say so; regional punctuality check_transit_disruption. No A-to-B journeys: say so, no call. Holds ≥ 48 h ahead, ≤ 3 days; further out, say so. 15 per call. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
@@ -468,7 +468,7 @@ The server's own instructions to a connecting client, verbatim:
 | `stop_id` | string | no | — | min length 3; max length 64 |
 | `when` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
 
-- **`duration_min`** — How far past that moment to look, in minutes (5–1440, default 60). Small for "what goes now", a few hours for an evening. To reach the far end of the 48 h timetable, move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.
+- **`duration_min`** — How far past that moment to look, in minutes (5–1440, default 60). Small for "what goes now", a few hours for an evening. To look further ahead (the timetable reaches at least 48 h), move `when` instead of widening this: a window of a whole day returns at most 15 rows and would answer about the wrong half of it.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`limit`** — How many departures to return, earliest first (1–15, default 10). The result always says how many more were in the window.
 - **`modes`** — Keep only these kinds of service: "bus", "tram", "subway" (U-Bahn), "rail" (every train, including S-Bahn and regional) or "ferry". Omit it unless the person named a kind — "nur Busse", "welche Tram". Several are allowed, which is what "die Busse und Bahnen vor dem Hbf" means. An S-Bahn is "rail": the feed does not always distinguish it, and the line name ("S 6") says which it is.
@@ -529,14 +529,18 @@ The server's own instructions to a connecting client, verbatim:
 
 **Not read-only** — it creates or removes state. Answers from data this service already holds (closed world). Idempotent: false. Destructive: false.
 
-> Ends a watch this conversation opened with watch_situation, so no further change notifications arrive for it. Use when the person no longer needs to be told — "du musst mir nichts mehr zur A8 sagen", "stop watching that charger". When they name the subject and not an id, take the id from viafrei://watches. Do NOT use to look a situation up (call check_road_status), to list what is running (read viafrei://watches), or to cancel anything outside this chat — there is nothing subscribed elsewhere. A watch id from another session is not found, never stopped. Results carry their attribution line.
+> Ends a watch this conversation opened with watch_situation, so no further notifications arrive for it. Use when the person no longer needs to be told — "du musst mir nichts mehr zur A8 sagen", "stop watching that charger". No id at hand: pass kind ("charger") and, for a road or place, key ("A8", "Bamberg"); one match is stopped, several are listed. Do NOT use to look a situation up (call check_road_status), to list what is running (read viafrei://watches), or to cancel anything outside this chat. Another session's watch is never found. Results carry their attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
+| `key` | string | no | — | min length 1; max length 200 |
+| `kind` | string | no | — | one of `"road"`, `"station"`, `"region"`, `"place"`, `"weather"`, `"charger"` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
 | `uri` | string | no | — | max length 64 |
 | `watch_id` | integer | no | — | min 1; max 9007199254740991 |
 
+- **`key`** — Instead of an id: the watched subject in the person's words, as watch_situation took it — works for road and place watches ("A8", "Bamberg"). For station, region, weather and charger watches `kind` alone is enough when one is open, and a key that matches none of them falls back to the kind alone. Matched against this session's open watches, case and spaces ignored. One match is stopped; several are listed and none is stopped.
+- **`kind`** — Instead of an id: the kind of watch the person means, as watch_situation took it ("road", "station", "region", "place", "weather", "charger"). "Turn off the charging alert" is kind "charger" alone.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`uri`** — The watch's resource uri, e.g. "viafrei://watch/12". Give either this or `watch_id`, not both.
 - **`watch_id`** — The numeric id of the watch to stop, as `watch_situation` returned it (the 12 in viafrei://watch/12).
@@ -591,7 +595,7 @@ single call.
 
 | argument | required | description |
 | --- | --- | --- |
-| `origin` | **yes** | Where the drive starts, as the traveller wrote it. Example: "München" or "Hauptstraße 12, 36037 Fulda". |
+| `origin` | **yes** | Where the drive starts, as the traveller wrote it. Example: "München" or "Bahnhofstraße 12, 36037 Fulda". |
 | `destination` | **yes** | Where the drive ends, as the traveller wrote it. Example: "Berlin". |
 | `roads` | no | The motorways the route uses, comma-separated, at most five. Example: "A9, A4". Leave it out and the recipe names the obvious ones and says so. |
 | `departure` | no | When the drive starts, in local words or as an ISO-8601 time with offset. Example: "now", "tomorrow 06:30", "2026-09-21T06:30+02:00". Defaults to now. |
@@ -672,7 +676,7 @@ single call.
 
 | argument | required | description |
 | --- | --- | --- |
-| `query` | **yes** | The name to resolve, exactly as the traveller wrote it. Example: "Neustadt", "adesso", "Hauptstraße 12, 36037 Fulda". |
+| `query` | **yes** | The name to resolve, exactly as the traveller wrote it. Example: "Neustadt", "adesso", "Bahnhofstraße 12, 36037 Fulda". |
 | `near` | no | A second place to measure from, used only if find_place answers with more than one candidate for a common name. Example: "Hamburg". |
 | `language` | no | Set this to the language the traveller is writing in: "en" for English, "de" for German. It decides both the language you answer in and the language argument you pass to every tool call in the recipe. Leave it out only when the language is genuinely unclear — the fallback is German, because the road is German. |
 
@@ -703,5 +707,5 @@ single call.
 ---
 
 Generated from `catalogue.json` by `scripts/gen-api-doc.mjs`. The snapshot was
-read from `https://mcp.viafrei.de/mcp` on 2026-10-06; no tool was invoked to
+read from `https://mcp.viafrei.de/mcp` on 2026-10-07; no tool was invoked to
 produce it, so no data provider was contacted.

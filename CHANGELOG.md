@@ -5,6 +5,55 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.29] - 2026-10-07
+
+**The bridge catches up with eleven server releases of the 1.8 stabilisation.**
+The package now matches the server's 1.8.29. No tool, prompt or resource was
+added or removed. These releases make answers more precise and easier to
+follow up, and they tune the tool descriptions an assistant chooses by.
+
+### Changed
+- **`stop_watch` can stop a watch by what it watches.** When the watch id is
+  not at hand, `kind` with `key` ends a road or place watch ("stop watching
+  the A5"), and `kind` alone ends the one station, region, weather or charger
+  watch.
+- **Places carry coordinates and their Land.** Place, address and POI lines
+  give coordinates and the Bundesland, and categories are named in words
+  ("Krankenhaus", not a tag). A departures answer prints the stop id, so the
+  next question can reuse it.
+- **Parking.** Where no operator or city publishes car parks, `find_parking`
+  and `find_nearby` list car parks from OpenStreetMap. These are kept apart
+  under ODbL and have no capacity or occupancy. On a search by place with no
+  kind given, lorry parks get their own section after the car parks.
+- **Fuel.** A price older than 24 hours is never ranked with current ones.
+  When a city has no price, the fuel tools now say why. Opening hours are
+  filled in steadily from the price provider.
+- **Roads.** `check_road_status {place}` answers for jams inside a city, and
+  takes a road for its Land. A roadworks site is one line however many
+  segments it has. Both road tools count sites rather than segments and say
+  what is in force now. A yes/no question on whether a road is closed goes to
+  `check_road_status`.
+- **Departures.** `get_departures` adds the stops of the same station that
+  the timetable lists separately. Answers cover the place named in the
+  question and reach 48 hours ahead at any hour. A rail line from a named
+  departure station goes to the station's board.
+- **Charging.** "Fast" means at least 50 kW and HPC at least 150 kW
+  (`min_power_kw`). A status nobody has confirmed for 30 minutes is shown as
+  old.
+- **Answers in English** quote and label the provider's own German text
+  rather than translating it, and decimals follow the answer's language.
+  Lists and boards say when they are cut short, and duplicates are folded.
+- **Station facilities** tell "none listed" apart from "no data". The
+  structured result of `check_station_facilities` gains a `coverage` field,
+  and a station the data does not cover now reports `known: false` with
+  `reason: "not_covered"` (it was `known: true`). A client reading `known`
+  should expect the new value.
+- **Sharing.** The Ruhr's public bike share (metropolradruhr) is read
+  directly.
+
+### Dependencies
+- **`@modelcontextprotocol/sdk` 1.30.0 to 1.31.0** in the lockfile.
+
 ## [1.8.18] - 2026-10-06
 
 **The bridge catches up with eighteen server releases, and the service enters a
@@ -2062,6 +2111,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.8.29]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.29
 [1.8.18]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.18
 [1.8.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.0
 [1.7.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.5
