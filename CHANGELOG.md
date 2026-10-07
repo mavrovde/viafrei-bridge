@@ -13,9 +13,10 @@ added or removed. These releases make answers more precise and easier to
 follow up, and they tune the tool descriptions an assistant chooses by.
 
 ### Changed
-- **`stop_watch` can stop a watch by what it watches.** The new `kind` and
-  `key` arguments end a watch on a station, a road or a region when the
-  watch id is not at hand, so "stop watching the A5" works.
+- **`stop_watch` can stop a watch by what it watches.** When the watch id is
+  not at hand, `kind` with `key` ends a road or place watch ("stop watching
+  the A5"), and `kind` alone ends the one station, region, weather or charger
+  watch.
 - **Places carry coordinates and their Land.** Place, address and POI lines
   give coordinates and the Bundesland, and categories are named in words
   ("Krankenhaus", not a tag). A departures answer prints the stop id, so the
@@ -42,9 +43,16 @@ follow up, and they tune the tool descriptions an assistant chooses by.
 - **Answers in English** quote and label the provider's own German text
   rather than translating it, and decimals follow the answer's language.
   Lists and boards say when they are cut short, and duplicates are folded.
-- **Station facilities** tell "none listed" apart from "no data".
+- **Station facilities** tell "none listed" apart from "no data". The
+  structured result of `check_station_facilities` gains a `coverage` field,
+  and a station the data does not cover now reports `known: false` with
+  `reason: "not_covered"` (it was `known: true`). A client reading `known`
+  should expect the new value.
 - **Sharing.** The Ruhr's public bike share (metropolradruhr) is read
   directly.
+
+### Dependencies
+- **`@modelcontextprotocol/sdk` 1.30.0 to 1.31.0** in the lockfile.
 
 ## [1.8.18] - 2026-10-06
 
