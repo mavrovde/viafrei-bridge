@@ -5,6 +5,32 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.8.20] - 2026-10-07
+
+**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
+relays to. The running server reports 1.8.20 while the registry's latest is 1.8.18, so
+this release moves the package to the server's number and carries whatever had been
+waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
+reference was re-captured from the running server, and the probe reported the surface
+**CHANGED** — the automation knows what moved, not what it means:
+
+- tools: check_autobahn_traffic differs between the server and the snapshot
+- tools: find_cheapest_fuel differs between the server and the snapshot
+- tools: find_fuel_station differs between the server and the snapshot
+- tools: find_parking differs between the server and the snapshot
+- tools: check_road_status differs between the server and the snapshot
+- tools: find_charging_station differs between the server and the snapshot
+- tools: find_address differs between the server and the snapshot
+- tools: find_nearby differs between the server and the snapshot
+- tools: find_sharing differs between the server and the snapshot
+- tools: check_weather_warnings differs between the server and the snapshot
+- tools: get_departures differs between the server and the snapshot
+- prompts: plan_departure differs between the server and the snapshot
+- prompts: find_a_place differs between the server and the snapshot
+
+**A person must describe the change above before this merges.** A release note that
+lists a tool name without saying what it does misleads the reader it exists for.
+
 ## [1.8.18] - 2026-10-06
 
 **The bridge catches up with eighteen server releases, and the service enters a
@@ -2062,6 +2088,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.8.20]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.20
 [1.8.18]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.18
 [1.8.0]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.0
 [1.7.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.7.5
