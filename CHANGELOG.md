@@ -7,32 +7,44 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [1.8.29] - 2026-10-07
 
-**Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
-relays to. The running server reports 1.8.29 while the registry's latest is 1.8.18, so
-this release moves the package to the server's number and carries whatever had been
-waiting under `[Unreleased]`. Prepared by the `Version sync` workflow: the shipped
-reference was re-captured from the running server, and the probe reported the surface
-**CHANGED** — the automation knows what moved, not what it means:
+**The bridge catches up with eleven server releases of the 1.8 stabilisation.**
+The package now matches the server's 1.8.29. No tool, prompt or resource was
+added or removed. These releases make answers more precise and easier to
+follow up, and they tune the tool descriptions an assistant chooses by.
 
-- tools: check_autobahn_traffic differs between the server and the snapshot
-- tools: find_cheapest_fuel differs between the server and the snapshot
-- tools: find_fuel_station differs between the server and the snapshot
-- tools: find_parking differs between the server and the snapshot
-- tools: check_road_status differs between the server and the snapshot
-- tools: find_charging_station differs between the server and the snapshot
-- tools: find_address differs between the server and the snapshot
-- tools: find_nearby differs between the server and the snapshot
-- tools: find_sharing differs between the server and the snapshot
-- tools: check_transit_disruption differs between the server and the snapshot
-- tools: check_weather_warnings differs between the server and the snapshot
-- tools: get_train_departures differs between the server and the snapshot
-- tools: get_departures differs between the server and the snapshot
-- tools: stop_watch differs between the server and the snapshot
-- prompts: plan_departure differs between the server and the snapshot
-- prompts: find_a_place differs between the server and the snapshot
-
-**A person must describe the change above before this merges.** A release note that
-lists a tool name without saying what it does misleads the reader it exists for.
+### Changed
+- **`stop_watch` can stop a watch by what it watches.** The new `kind` and
+  `key` arguments end a watch on a station, a road or a region when the
+  watch id is not at hand, so "stop watching the A5" works.
+- **Places carry coordinates and their Land.** Place, address and POI lines
+  give coordinates and the Bundesland, and categories are named in words
+  ("Krankenhaus", not a tag). A departures answer prints the stop id, so the
+  next question can reuse it.
+- **Parking.** Where no operator or city publishes car parks, `find_parking`
+  and `find_nearby` list car parks from OpenStreetMap. These are kept apart
+  under ODbL and have no capacity or occupancy. On a search by place with no
+  kind given, lorry parks get their own section after the car parks.
+- **Fuel.** A price older than 24 hours is never ranked with current ones.
+  When a city has no price, the fuel tools now say why. Opening hours are
+  filled in steadily from the price provider.
+- **Roads.** `check_road_status {place}` answers for jams inside a city, and
+  takes a road for its Land. A roadworks site is one line however many
+  segments it has. Both road tools count sites rather than segments and say
+  what is in force now. A yes/no question on whether a road is closed goes to
+  `check_road_status`.
+- **Departures.** `get_departures` adds the stops of the same station that
+  the timetable lists separately. Answers cover the place named in the
+  question and reach 48 hours ahead at any hour. A rail line from a named
+  departure station goes to the station's board.
+- **Charging.** "Fast" means at least 50 kW and HPC at least 150 kW
+  (`min_power_kw`). A status nobody has confirmed for 30 minutes is shown as
+  old.
+- **Answers in English** quote and label the provider's own German text
+  rather than translating it, and decimals follow the answer's language.
+  Lists and boards say when they are cut short, and duplicates are folded.
+- **Station facilities** tell "none listed" apart from "no data".
+- **Sharing.** The Ruhr's public bike share (metropolradruhr) is read
+  directly.
 
 ## [1.8.18] - 2026-10-06
 
