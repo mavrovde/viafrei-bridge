@@ -267,7 +267,8 @@ Restart the client and ask one of the questions above.
   The directory listing for this repository, with the tool list.
 - **Official MCP Registry — `de.viafrei/mcp`.** The hosted endpoint, as MCP
   clients and directories that read the [registry](https://registry.modelcontextprotocol.io)
-  find it; [`server.json`](https://github.com/mavrovde/viafrei-mcp/blob/main/server.json) is the entry.
+  find it; [`server.json`](server.json) is the entry. It is the registry's own record,
+  republished by hand when the listing changes, so its version may lag this package's.
 - **For AI tools — [viafrei.de/llms.txt](https://viafrei.de/llms.txt)** and
   [llms-full.txt](https://viafrei.de/llms-full.txt): what ViaFrei is, how to
   connect, and every tool in one line each.
