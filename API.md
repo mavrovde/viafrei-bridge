@@ -17,7 +17,7 @@ server:** connect any MCP client and call `tools/list`.
 
 | | |
 | --- | --- |
-| Server | `viafrei` 1.9.3 |
+| Server | `viafrei` 1.9.4 |
 | MCP protocol | `2025-06-18` |
 | Streamable HTTP | https://mcp.viafrei.de/mcp |
 | Legacy HTTP+SSE | https://mcp.viafrei.de/sse |
@@ -80,7 +80,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`cursor`** — Pagination cursor from a previous result's _meta.nextCursor. Omit for the first page.
 - **`kinds`** — Which event kinds to return: warning = live traffic (jams, slow traffic, hazards), closure = full closures, roadworks = construction sites. Set it when the SUBJECT of the question is one of those categories by name: "Baustellen auf der A8?" is ["roadworks"], "welche Sperrungen sind in diesem Moment gemeldet?" is ["closure"]. Omit it when the question is how the road IS — Stau, frei, a delay, "wie sieht es aus", "everything"; the German "Stau?" is the idiom for the whole picture, and a filter nobody asked for hides the closure on the same stretch. Whether a closure question is this tool's at all is decided by two things, and the noun (Sperrung, Vollsperrung, closure) is neither. FIRST THE CLOCK: only a question about this minute (jetzt, gerade, in diesem Moment, right now, at this very minute) can be this tool's — with no time word at all, or for a later window (tonight, heute Abend, am Wochenende, the coming days), it is check_road_status. SECOND, WHAT IS ASKED, which the clock cannot see: what is REPORTED or in force on a named motorway is this tool ("which closures are in force on the A100 at this very minute?"), while whether the road is OPEN or passable is check_road_status AT ANY CLOCK — "ist die A8 offen", "ist die A3 in diesem Moment gesperrt?", "komme ich da durch?" — and so is a closure asked around a town instead of on a motorway number. Baustellen with a date or the word geplant are find_roadworks_ahead. Default: all three.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
-- **`limit`** — Maximum events to return across all roads (1–50, default 10). Jams on every road come first, then closures and roadworks; roads keep the order you listed them within each. Only what is in force now is listed — closures announced for later are counted apart in the headline.
+- **`limit`** — Maximum events to return across all roads (1–50, default 10). Jams come first, then closures, other reports, then roadworks; within each the roads take turns in the order you listed them, so every road gets its share of the page. Only what is in force now is listed — closures announced for later are counted apart in the headline.
 
 ### `find_cheapest_fuel` — Cheapest fuel nearby
 
@@ -235,7 +235,7 @@ The server's own instructions to a connecting client, verbatim:
 - **`connector`** — Plug the car needs: "ccs2" (CCS Combo 2 — the DC fast-charging standard on almost every European EV), "type2" (Typ 2 / Mennekes, the AC socket) or "chademo" (older Japanese DC, e.g. Nissan Leaf). Omit unless the person named their plug or their car model — filtering on a guess hides chargers they could have used.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude in WGS 84, e.g. 48.137. Use with lon when the caller already holds coordinates; otherwise use place.
-- **`limit`** — How many charging sites to return, nearest first (1–10, default 5).
+- **`limit`** — How many lines to return, nearest first (1–10, default 5). Records of one place within 50 m that read alike are folded into one line that says how many units it holds; structuredContent.sites lists every record of the lines shown, so it can be longer than limit.
 - **`lon`** — Longitude in WGS 84, e.g. 11.576. Use with lat; otherwise use place.
 - **`min_power_kw`** — Only charging points of at least this many kW (1–1000). Use when the person names a number or asks for fast charging: 50 = DC fast (a bare "fast"/"schnell"/"Schnelllader"), 150 = HPC ("HPC", "ultra", "ultraschnell"), 300 = the fastest posts in Germany. Omit for "where can I charge" — 11 kW overnight is a valid answer to that question.
 - **`only_available`** — When true, return only sites with at least one point reported FREE right now. Default false. Use it when the person asks what is free at this moment. Note that only some operators publish live status: the result always says how many nearby sites were dropped because their status is unknown, so the filter never silently hides a charger that may well be free.
@@ -286,8 +286,8 @@ The server's own instructions to a connecting client, verbatim:
 | `near` | string | no | — | max length 120 |
 | `radius_km` | number | no | `10` | min 1; max 50 |
 
-- **`name`** — The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: "adesso" finds "adesso SE". A chain name works too, because brands are matched as well as names.
-- **`category`** — Narrow to one OpenStreetMap family: "office" (companies, agencies), "shop", "amenity" (fuel, pharmacy, school, restaurant, town hall), "healthcare", "tourism" (hotels, attractions), "leisure", "industrial", "historic" (castles, monuments, city gates), "natural" (mountain peaks) or "building". Omit unless the person was specific.
+- **`name`** — The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: "adesso" finds "adesso SE". A chain name works too, because brands are matched as well as names. A kind word alone, German or English ("Apotheke", "pharmacy", "trade fair"), lists that kind nearest first. When the person names a company AND a type ("the Bosch office"), put the company here and the type in category. Never for fuel, charging or parking, even near a named company or landmark ("a charger by the Allianz Arena"): those have their own tools, asked with the place.
+- **`category`** — Narrow to one OpenStreetMap family: "office" (companies, agencies), "shop", "amenity" (fuel, pharmacy, school, restaurant, town hall), "healthcare" (hospitals, clinics, doctors, pharmacies), "tourism" (hotels, attractions), "leisure", "industrial" (factories, plants), "historic" (castles, monuments, city gates), "natural" (mountain peaks) or "building". Set it whenever the person names the type ("Bosch office" → office, "Hotel Adler" → tourism); omit it when they name no type.
 - **`in`** — A town to search in — "Dortmund", "Fulda". Strongly preferred: it is both far faster and far less ambiguous than a nationwide search. Use this OR near/lat+lon, not both.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
 - **`lat`** — Latitude of the point to search around, when the caller already holds a coordinate.
@@ -434,10 +434,11 @@ The server's own instructions to a connecting client, verbatim:
 
 **Read-only** — it changes nothing. Reaches a third-party source (open world). Idempotent: true. Destructive: false.
 
-> Next departures from a German railway station, with platform, delay, cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or if a train or line from it is late ("RE1 from Köln Hbf late?"); later today ("heute Abend") stays here. A line with no DEPARTURE station ("ist die S1 pünktlich?"; a destination, "nach …"/"zum …", is not one) — check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. No destination filter: read the board. ≤ 15 departures, window 120 min. Show the attribution line.
+> Next trains from a German railway station: platform, delay, cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or if a train or line from it is late ("RE1 from Köln Hbf late?"); later today ("heute Abend") stays here. A line with no DEPARTURE station ("ist die S1 pünktlich?"; a destination, "nach …"/"zum …", is not one) — check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. Train type: categories (ICE/IC/RE/RB/S); no destination filter. ≤ 15 rows, ≤ 120 min. Show the attribution line.
 
 | parameter | type | required | default | constraints |
 | --- | --- | --- | --- | --- |
+| `categories` | array of string | no | — | min 1 item(s); max 5 item(s); each item: one of `"ICE"`, `"IC"`, `"RE"`, `"RB"`, `"S"` |
 | `duration_min` | integer | no | `60` | min 5; max 120 |
 | `eva_no` | string | no | — | pattern `^\d{6,8}$` |
 | `language` | string | no | `"de"` | one of `"de"`, `"en"` |
@@ -445,6 +446,7 @@ The server's own instructions to a connecting client, verbatim:
 | `station` | string | no | — | min length 1; max length 120 |
 | `when` | string | no | — | format `date-time`; pattern (288 characters — see the description; the `format` above is the short answer) |
 
+- **`categories`** — Keep only these train types, when the person named one: "ICE", "IC" (also EC, ECE, Railjet, Nightjet), "RE" (also IRE), "RB" or "S" (S-Bahn). "next ICE to …" is ["ICE"], "Fernzug" is ["ICE", "IC"], "Regionalzug" is ["RE", "RB"]. The board then lists only those, so pair it with a longer duration_min. Omit it for "which trains leave". A replacement bus is never a train type.
 - **`duration_min`** — How far ahead to look, in minutes (5–120, default 60). Use a small window for "what leaves now" and a larger one for "this evening". Above 120 is refused: a departure board is not a timetable search.
 - **`eva_no`** — The station's EVA number (6–8 digits, e.g. 8002549 for Hamburg Hbf), when a previous result gave you one. It skips the name lookup and is exact — use it to answer a follow-up about a station this tool has already named.
 - **`language`** — Set this on every call to the language the person is writing in: "en" if they wrote English, "de" if they wrote German. Do not leave it out because it has a default — the default is only the fallback when the language is genuinely unclear, and an English question answered in German is a wrong answer. Place names, station names and road numbers are never translated in either language; in English the German term is kept in parentheses so the person recognises it on signs and in local apps.
