@@ -5,6 +5,11 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+- **Listed in the Official MCP Registry as `de.viafrei/mcp`.** The README names
+  the entry and its `server.json`, the `llms.txt` summary for AI tools, and the
+  published test rounds.
+
 ## [1.8.29] - 2026-10-07
 
 **The bridge catches up with eleven server releases of the 1.8 stabilisation.**

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "de.viafrei/mcp",
+  "title": "ViaFrei",
+  "description": "German open mobility data: Autobahn traffic, trains, transit, fuel, charging, parking, weather.",
+  "version": "1.8.30",
+  "websiteUrl": "https://viafrei.de",
+  "repository": {
+    "url": "https://github.com/mavrovde/viafrei-mcp",
+    "source": "github"
+  },
+  "remotes": [
+    { "type": "streamable-http", "url": "https://mcp.viafrei.de/mcp" },
+    { "type": "sse", "url": "https://mcp.viafrei.de/sse" }
+  ]
+}
