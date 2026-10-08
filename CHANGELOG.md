@@ -5,6 +5,74 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.5] - 2026-10-09
+
+**Train types, points of interest found by name, and a server card for directories.**
+The package now matches the server's 1.9.5 and covers the server releases 1.9.0
+to 1.9.5. 1.9.4 was never published as a package; its changes are described here.
+No tool, prompt or resource was added or removed. One tool gained an argument, and
+four tool descriptions changed.
+
+### Added
+- **`get_train_departures` filters by train type.** The new optional `categories`
+  argument takes `ICE`, `IC` (also EC, ECE, Railjet, Nightjet), `RE` (also IRE),
+  `RB` or `S`, so "the next ICE from Frankfurt" lists only ICEs.
+- **Directories can read the tool list without a session.** A single `tools/list`
+  POST to `https://mcp.viafrei.de/mcp` without a session id now gets the same
+  catalogue a session gets. Every other request still needs `initialize` first.
+- **A server card.** The MCP Server Card is served at
+  `https://mcp.viafrei.de/.well-known/mcp.json`, and its version is the server's
+  own. `viafrei.de/.well-known/mcp/server-card.json` serves the same document.
+- **Islands are places.** "Rügen", "Sylt" or "Usedom" resolve to the island. A
+  town on its island still answers as the town.
+
+### Changed
+- **`find_poi` finds the thing named.** "Hotel Adlon", a company's plant, an office
+  or a trade fair now come back as themselves. A feature that only borrows a name
+  (a taxi rank or a car park named after it) no longer ranks as the thing.
+  A kind word alone, in German or English ("Apotheke", "pharmacy"), lists the
+  nearest of that kind. The `name` and `category` descriptions say that a company
+  plus a type puts the type in `category`, and that fuel, charging and parking
+  have their own tools. A nationwide search for a hotel by name now finds the
+  hotel. Kind-word searches in big cities are much faster.
+- **`find_charging_station` folds one place into one line.** `limit` now counts
+  lines. Records of one place within 50 m that read alike become one line that
+  says how many units it holds, and `structuredContent.sites` lists every record
+  of the lines shown. A missing kWh price is named as missing.
+- **`check_autobahn_traffic` shares the page between roads.** Jams come first,
+  then closures, other reports, then roadworks, and within each kind the roads
+  named take turns.
+- **Departures.** A board line's mode word comes from the route type, and its
+  destination is never blank. The bus filter no longer lets S-Bahn or U-Bahn
+  trains through, and night trams are no longer dropped. A service alert that
+  names lines but no stop is placed where those lines stop.
+- **Station facilities.** Where one data set lists only part of a station's
+  lifts and escalators, `check_station_facilities` now merges in DB's full list.
+  A list that is still partial says that a status not fetched does not mean out
+  of service.
+- **Roadworks.** `find_roadworks_ahead` takes lanes, hard shoulder and speed
+  limit from the construction phase in force at the time asked, and names that
+  phase. A site that has already begun is never called planned.
+- **Fuel.** `find_fuel_station`, `find_cheapest_fuel` and `find_nearby` agree on
+  which areas are covered. An empty answer in a covered area says how many
+  stations are known there. A district is searched as a circle, and the answer
+  says so.
+- **Places and nearby.** A town named without a comma is searched first. A
+  trailing "Germany" or "Deutschland" is dropped only when what is left is a
+  place. The nearest motorway junction comes from OpenStreetMap's junction nodes.
+  A place shows one line, not one per source.
+- **Smaller answers.** `get_driving_rules` answers for 31 October
+  (Reformationstag). `find_place` tells "more exist" apart from "there may be
+  more". `find_sharing` says why a station has no dock count. Train departure
+  boards and address lookups are faster.
+
+### Privacy
+- **The server counts its own use, and nothing about the people using it.**
+  Requests are counted per hour by tool, method and client program (from a
+  fixed list of known MCP clients). No IP address, session id, argument,
+  question text or place is stored. viafrei.de's Datenschutzerklärung describes
+  this count.
+
 ## [1.9.3] - 2026-10-08
 
 **Mirrors the server.** The bridge is versioned to match the ViaFrei MCP server it
@@ -2134,6 +2202,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.9.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.5
 [1.9.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.3
 [1.8.30]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.30
 [1.8.29]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.29

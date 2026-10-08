@@ -5,7 +5,7 @@
   "protocolVersion": "2025-06-18",
   "serverInfo": {
     "name": "viafrei",
-    "version": "1.9.3"
+    "version": "1.9.5"
   },
   "capabilities": {
     "tools": {
@@ -67,7 +67,7 @@
           },
           "limit": {
             "default": 10,
-            "description": "Maximum events to return across all roads (1–50, default 10). Jams on every road come first, then closures and roadworks; roads keep the order you listed them within each. Only what is in force now is listed — closures announced for later are counted apart in the headline.",
+            "description": "Maximum events to return across all roads (1–50, default 10). Jams come first, then closures, other reports, then roadworks; within each the roads take turns in the order you listed them, so every road gets its share of the page. Only what is in force now is listed — closures announced for later are counted apart in the headline.",
             "type": "integer",
             "minimum": 1,
             "maximum": 50
@@ -531,7 +531,7 @@
           },
           "limit": {
             "default": 5,
-            "description": "How many charging sites to return, nearest first (1–10, default 5).",
+            "description": "How many lines to return, nearest first (1–10, default 5). Records of one place within 50 m that read alike are folded into one line that says how many units it holds; structuredContent.sites lists every record of the lines shown, so it can be longer than limit.",
             "type": "integer",
             "minimum": 1,
             "maximum": 10
@@ -648,7 +648,7 @@
             "type": "string",
             "minLength": 2,
             "maxLength": 120,
-            "description": "The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: \"adesso\" finds \"adesso SE\". A chain name works too, because brands are matched as well as names."
+            "description": "The name of the thing to find — a company, shop, clinic, hotel, office or landmark. Part of the name is enough: \"adesso\" finds \"adesso SE\". A chain name works too, because brands are matched as well as names. A kind word alone, German or English (\"Apotheke\", \"pharmacy\", \"trade fair\"), lists that kind nearest first. When the person names a company AND a type (\"the Bosch office\"), put the company here and the type in category. Never for fuel, charging or parking, even near a named company or landmark (\"a charger by the Allianz Arena\"): those have their own tools, asked with the place."
           },
           "in": {
             "description": "A town to search in — \"Dortmund\", \"Fulda\". Strongly preferred: it is both far faster and far less ambiguous than a nationwide search. Use this OR near/lat+lon, not both.",
@@ -673,7 +673,7 @@
             "maximum": 180
           },
           "category": {
-            "description": "Narrow to one OpenStreetMap family: \"office\" (companies, agencies), \"shop\", \"amenity\" (fuel, pharmacy, school, restaurant, town hall), \"healthcare\", \"tourism\" (hotels, attractions), \"leisure\", \"industrial\", \"historic\" (castles, monuments, city gates), \"natural\" (mountain peaks) or \"building\". Omit unless the person was specific.",
+            "description": "Narrow to one OpenStreetMap family: \"office\" (companies, agencies), \"shop\", \"amenity\" (fuel, pharmacy, school, restaurant, town hall), \"healthcare\" (hospitals, clinics, doctors, pharmacies), \"tourism\" (hotels, attractions), \"leisure\", \"industrial\" (factories, plants), \"historic\" (castles, monuments, city gates), \"natural\" (mountain peaks) or \"building\". Set it whenever the person names the type (\"Bosch office\" → office, \"Hotel Adler\" → tourism); omit it when they name no type.",
             "type": "string",
             "enum": [
               "office",
@@ -1096,7 +1096,7 @@
     },
     {
       "name": "get_train_departures",
-      "description": "Next departures from a German railway station, with platform, delay, cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or if a train or line from it is late (\"RE1 from Köln Hbf late?\"); later today (\"heute Abend\") stays here. A line with no DEPARTURE station (\"ist die S1 pünktlich?\"; a destination, \"nach …\"/\"zum …\", is not one) — check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. No destination filter: read the board. ≤ 15 departures, window 120 min. Show the attribution line.",
+      "description": "Next trains from a German railway station: platform, delay, cancellations. Use when asked when a train, S-Bahn or ICE leaves a named station, or if a train or line from it is late (\"RE1 from Köln Hbf late?\"); later today (\"heute Abend\") stays here. A line with no DEPARTURE station (\"ist die S1 pünktlich?\"; a destination, \"nach …\"/\"zum …\", is not one) — check_transit_disruption. Do NOT use for buses, trams, a non-railway stop, another day or a time over 2 h away — get_departures. Train type: categories (ICE/IC/RE/RB/S); no destination filter. ≤ 15 rows, ≤ 120 min. Show the attribution line.",
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -1130,6 +1130,22 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 15
+          },
+          "categories": {
+            "description": "Keep only these train types, when the person named one: \"ICE\", \"IC\" (also EC, ECE, Railjet, Nightjet), \"RE\" (also IRE), \"RB\" or \"S\" (S-Bahn). \"next ICE to …\" is [\"ICE\"], \"Fernzug\" is [\"ICE\", \"IC\"], \"Regionalzug\" is [\"RE\", \"RB\"]. The board then lists only those, so pair it with a longer duration_min. Omit it for \"which trains leave\". A replacement bus is never a train type.",
+            "minItems": 1,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "ICE",
+                "IC",
+                "RE",
+                "RB",
+                "S"
+              ]
+            }
           },
           "language": {
             "default": "de",

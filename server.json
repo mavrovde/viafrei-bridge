@@ -3,7 +3,7 @@
   "name": "de.viafrei/mcp",
   "title": "ViaFrei",
   "description": "German open mobility data: Autobahn traffic, trains, transit, fuel, charging, parking, weather.",
-  "version": "1.8.30",
+  "version": "1.9.5",
   "websiteUrl": "https://viafrei.de",
   "repository": {
     "url": "https://github.com/mavrovde/viafrei-mcp",
