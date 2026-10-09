@@ -5,6 +5,26 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.6] - 2026-10-09
+
+**Directories can read the tool list whatever they send as `Accept`.** The package
+now matches the server's 1.9.6. No tool, prompt or resource was added or removed,
+and no tool description or argument changed; the bridge itself is unchanged apart
+from its version and the re-captured reference.
+
+### Fixed
+- **A session-less `tools/list` answers any client that accepts JSON.** In 1.9.5
+  most directory crawlers were refused with `406 Not Acceptable`, because they do
+  not send `Accept: application/json, text/event-stream`. That request only ever
+  answers one JSON document, so it now accepts no `Accept` header at all, `*/*`,
+  `application/*` or `application/json` (with any parameters and a weight above
+  0); the most specific range decides, as RFC 9110 describes. A header that names
+  only other types, or refuses JSON with `q=0`, still gets 406.
+- **Sessions are unchanged.** `initialize` and every request inside a session still
+  need both `application/json` and `text/event-stream` in `Accept`, as the MCP
+  Streamable HTTP transport specifies. The stdio bridge sends both, so `npx viafrei`
+  behaves exactly as before.
+
 ## [1.9.5] - 2026-10-09
 
 **Train types, points of interest found by name, and a server card for directories.**
@@ -2202,6 +2222,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.9.6]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.6
 [1.9.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.5
 [1.9.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.3
 [1.8.30]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.8.30
