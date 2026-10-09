@@ -5,6 +5,20 @@ a Changelog and the versions follow Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.9.7] - 2026-10-09
+
+**Search engines are told when viafrei.de changes.** The package now matches the
+server's 1.9.7. No tool, prompt or resource was added or removed, and no tool
+description or argument changed; the bridge itself is unchanged apart from its
+version and the re-captured reference.
+
+### Added
+- **IndexNow for viafrei.de.** The site publishes its IndexNow key file, and each
+  deploy submits the pages of its sitemap that changed (and those that were
+  removed) to IndexNow, so Bing and the other participating search engines see new
+  and updated pages without waiting for a crawl. It changes nothing about the MCP
+  endpoint or the tools.
+
 ## [1.9.6] - 2026-10-09
 
 **Directories can read the tool list whatever they send as `Accept`.** The package
@@ -2222,6 +2236,7 @@ for it, so the number is free; the bridge will use it when the platform does.
   commits, and a squash makes them unreachable from `main` - which would turn
   the check red on `main` for everybody, for something no contributor did.
 
+[1.9.7]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.7
 [1.9.6]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.6
 [1.9.5]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.5
 [1.9.3]: https://github.com/mavrovde/viafrei-mcp/releases/tag/v1.9.3
